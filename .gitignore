@@ -9,7 +9,10 @@ output/
 # Arduino CLI output
 build/
 temp/
+arduino_secrets.h
+
+# Release helper cache
+tools/cache/
 
 # Editor-local files
 .vscode/
-

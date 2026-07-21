@@ -23,6 +23,13 @@ ESP32のBluedroidスタックを利用するArduinoライブラリです。NimBL
 
 公開APIとBluetooth Classicを共存させる設計方針は
 [docs/API_DESIGN_POLICY.ja.md](docs/API_DESIGN_POLICY.ja.md)にまとめています。
+実装は[開発方針](docs/DEVELOPMENT.ja.md)に従い、公開動作ごとにテストを先に追加します。
+
+最小exampleのbuild:
+
+```sh
+arduino-cli compile --profile esp32 examples/CompileSmoke
+```
 
 ## 対象
 

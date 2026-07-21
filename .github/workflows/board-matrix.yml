@@ -1,0 +1,61 @@
+name: Board Build Coverage
+
+# Build every example for representative original-ESP32 board definitions
+# against one arduino-esp32 core version, then commit BOARDS.<libver>.md.
+# Manual only: the tool temporarily rewrites each sketch.yaml and restores it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      core_version:
+        description: "arduino-esp32 core version to build against"
+        default: "3.3.10"
+        required: true
+      targets:
+        description: "Comma-separated original ESP32 board targets"
+        default: "esp32,pico32,esp32wrover,d1_mini32,esp32cam"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: board-matrix-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Resolve library version
+        id: libver
+        run: echo "version=$(grep -oP '^version=\K.+' library.properties)" >> "$GITHUB_OUTPUT"
+      - name: Build all examples across original ESP32 boards
+        # Red cells are report data and do not fail this manual matrix job.
+        run: |
+          python tools/version_matrix.py \
+            --core-versions "${{ inputs.core_version }}" \
+            --targets "${{ inputs.targets }}" \
+            --examples all \
+            --title "board build coverage (core ${{ inputs.core_version }})" \
+            --output "docs/BOARDS.${{ steps.libver.outputs.version }}.md"
+      - name: Commit board matrix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/BOARDS.*.md
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "docs: update board build coverage (core ${{ inputs.core_version }})"
+            git pull --rebase origin "$GITHUB_REF_NAME"
+            git push origin "HEAD:$GITHUB_REF_NAME"
+          fi
+
