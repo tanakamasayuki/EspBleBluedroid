@@ -11,3 +11,6 @@ library API has not been implemented yet.
 
 See [tests/README.md](tests/README.md) for setup and usage.
 
+The current API and Bluetooth Classic coexistence policy is documented in
+[Japanese](docs/API_DESIGN_POLICY.ja.md).
+

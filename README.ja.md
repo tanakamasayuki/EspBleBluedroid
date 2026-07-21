@@ -21,9 +21,11 @@ ESP32のBluedroidスタックを利用するArduinoライブラリです。NimBL
 
 セットアップと実行方法は[tests/README.ja.md](tests/README.ja.md)を参照してください。
 
+公開APIとBluetooth Classicを共存させる設計方針は
+[docs/API_DESIGN_POLICY.ja.md](docs/API_DESIGN_POLICY.ja.md)にまとめています。
+
 ## 対象
 
 - SoC: Classic Bluetoothを搭載する無印ESP32
 - Arduino-ESP32: 3.3.10
 - BLE backend: Bluedroid（NimBLE buildはテスト内で拒否します）
-
