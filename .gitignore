@@ -1,0 +1,15 @@
+# Python and pytest output
+__pycache__/
+.pytest_cache/
+.pytest-results/
+.venv/
+output/
+.env
+
+# Arduino CLI output
+build/
+temp/
+
+# Editor-local files
+.vscode/
+
