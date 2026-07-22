@@ -8,5 +8,6 @@ library API. `advertise_scan` verifies the public lifecycle, advertising and its
 payload limit, scanning, and deferred result delivery through `update()`.
 `advertise_payload` parses the raw PDU to verify grouped service UUIDs, the
 31-byte boundary, and timed stop behavior.
-`connect_disconnect` verifies the public Central connection lifecycle, stable
-connection IDs, deferred callbacks, disconnection, and stack reinitialization.
+`connect_disconnect` verifies the public Central connection lifecycle, reconnect
+IDs, unreachable-peer failures, deferred callbacks, disconnection, and stack
+reinitialization.

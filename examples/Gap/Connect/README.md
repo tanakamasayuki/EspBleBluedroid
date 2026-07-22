@@ -9,3 +9,6 @@ stable `EspBleConnection::id`, not a backend handle, for subsequent operations.
 
 The initial implementation supports one Central connection. GATT operations
 will be added later.
+Reconnecting after a disconnection issues a new connection ID. Unreachable-peer
+and backend failures after request acceptance arrive asynchronously through
+`onConnectionFailed()`.

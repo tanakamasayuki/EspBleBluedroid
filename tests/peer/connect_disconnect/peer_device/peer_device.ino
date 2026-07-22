@@ -3,6 +3,7 @@
 
 static constexpr const char *SERVICE_UUID =
   "8d47a640-8d3a-4d65-a76f-6f626c756564";
+static volatile bool readvertise = false;
 
 class Callbacks : public BLEServerCallbacks
 {
@@ -14,6 +15,7 @@ class Callbacks : public BLEServerCallbacks
   void onDisconnect(BLEServer *) override
   {
     Serial.println("PEER_DISCONNECTED");
+    readvertise = true;
   }
 };
 
@@ -36,5 +38,11 @@ void setup()
 
 void loop()
 {
+  if (readvertise)
+  {
+    readvertise = false;
+    BLEDevice::startAdvertising();
+    Serial.println("PEER_READVERTISING");
+  }
   delay(1);
 }

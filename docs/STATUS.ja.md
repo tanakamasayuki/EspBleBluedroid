@@ -13,11 +13,12 @@
 | Advertising | name、service UUID、manufacturer data、appearance、scan response、connectable、interval、開始・停止 | raw PDU、複数UUIDの集約、31 byte境界、時間停止を実機確認 |
 | Scan | active/passive、interval/window、duration、duplicate指定、開始・停止 | name、address、RSSI、manufacturer data、service UUID、接続可能性を値型へcopy |
 | Event配送 | `EspBleScanner::onResult()` | stack callbackからqueueへcopyし、利用者callbackを`update()`から配送 |
-| Central接続 | `connect()` / `disconnect()` / connection snapshot / lifecycle callback | worker taskによるnon-blocking要求、安定ID、二重要求拒否、切断、再初期化 |
+| Central接続 | `connect()` / `disconnect()` / connection snapshot / lifecycle callback | non-blocking要求、再接続ごとの新ID、二重要求・不正address拒否、非同期失敗、切断、再初期化 |
 
 AdvertisingとScanの基本経路は`tests/peer/advertise_scan`、Advertising wire形式と
 payload境界は`tests/peer/advertise_payload`で実機確認している。
-Central接続は`tests/peer/connect_disconnect`でlink確立とcallback配送を分離して確認している。
+Central接続は`tests/peer/connect_disconnect`でlink確立とcallback配送を分離し、切断後の
+再Advertising・再Scan・再接続、新しいID、到達不能peerの非同期失敗まで確認している。
 `tests/peer/stack_smoke`は、公開API実装前のbackend成立性として接続、GATT read/write、
 CCCD購読、notificationまで確認している。
 
@@ -38,7 +39,7 @@ CCCD購読、notificationまで確認している。
 ## 次のテストスライス
 
 1. Scanの停止、duration、queue overflow、`end()`後の再初期化。
-2. 接続失敗・timeout、再接続、新しいconnection ID、接続中の`end()`。
+2. 接続timeoutの厳密な分類、接続試行中の`end()`とcancel。
 3. GATT discovery、read/write、subscribeをEspBleに近い非同期APIで公開。
 4. BLE Securityを実機で確定。
 5. Classic Inquiry、SPP、BLE/SPP dual-modeの順に追加。
