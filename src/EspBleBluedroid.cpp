@@ -400,6 +400,7 @@ struct EspBleConnectionImpl
       result.connectionId = impl->gattConnectionId;
       result.serviceUuid = impl->gattServiceUuid;
       result.characteristicUuid = impl->gattCharacteristicUuid;
+      result.descriptorUuid = impl->gattDescriptorUuid;
       result.response = impl->gattWriteResponse;
       writeValue = impl->gattWriteValue;
       if (impl->active && impl->connection.id == result.connectionId)
@@ -544,7 +545,42 @@ struct EspBleConnectionImpl
           result.writableWithoutResponse = characteristic->canWriteNoResponse();
           result.notifiable = characteristic->canNotify();
           result.indicatable = characteristic->canIndicate();
-          if (result.operation == EspBleGattOperation::Read && !result.readable)
+          const bool descriptorOperation =
+            result.operation == EspBleGattOperation::ReadDescriptor ||
+            result.operation == EspBleGattOperation::WriteDescriptor;
+          if (descriptorOperation)
+          {
+            BLERemoteDescriptor *descriptor = characteristic->getDescriptor(
+              BLEUUID(result.descriptorUuid.c_str()));
+            if (descriptor == nullptr)
+            {
+              result.error = EspBleError::NotFound;
+              result.detail = "GATT descriptor was not found";
+            }
+            else
+            {
+              result.handle = descriptor->getHandle();
+              if (result.operation == EspBleGattOperation::ReadDescriptor)
+              {
+                result.value = descriptor->readValue();
+                result.success = true;
+              }
+              else
+              {
+                result.value = writeValue;
+                result.success = descriptor->writeValue(
+                  reinterpret_cast<uint8_t *>(
+                    const_cast<char *>(writeValue.c_str())),
+                  writeValue.length(), result.response);
+                if (!result.success)
+                {
+                  result.error = EspBleError::BackendFailure;
+                  result.detail = "GATT descriptor write failed";
+                }
+              }
+            }
+          }
+          else if (result.operation == EspBleGattOperation::Read && !result.readable)
           {
             result.error = EspBleError::InvalidState;
             result.detail = "GATT characteristic is not readable";
@@ -690,6 +726,7 @@ struct EspBleConnectionImpl
   EspBleGattOperation gattOperation = EspBleGattOperation::Read;
   String gattServiceUuid;
   String gattCharacteristicUuid;
+  String gattDescriptorUuid;
   String gattWriteValue;
   bool gattWriteResponse = true;
   uint32_t gattStartedAt = 0;
@@ -1381,7 +1418,7 @@ bool EspBleBluedroid::discoverServices(
 {
   return startGattOperation(
     EspBleGattOperation::DiscoverServices, connectionId, nullptr, nullptr,
-    nullptr, 0, true, timeoutMilliseconds);
+    nullptr, 0, true, nullptr, timeoutMilliseconds);
 }
 
 size_t EspBleBluedroid::discoveredServiceCount(
@@ -1526,7 +1563,7 @@ bool EspBleBluedroid::readCharacteristic(
 {
   return startGattOperation(
     EspBleGattOperation::Read, connectionId, serviceUuid, characteristicUuid,
-    nullptr, 0, true, timeoutMilliseconds);
+    nullptr, 0, true, nullptr, timeoutMilliseconds);
 }
 
 bool EspBleBluedroid::writeCharacteristic(
@@ -1540,7 +1577,36 @@ bool EspBleBluedroid::writeCharacteristic(
 {
   return startGattOperation(
     EspBleGattOperation::Write, connectionId, serviceUuid, characteristicUuid,
-    data, length, response, timeoutMilliseconds);
+    data, length, response, nullptr, timeoutMilliseconds);
+}
+
+bool EspBleBluedroid::readDescriptor(
+  EspBleConnectionId connectionId,
+  const char *serviceUuid,
+  const char *characteristicUuid,
+  const char *descriptorUuid,
+  uint32_t timeoutMilliseconds)
+{
+  return startGattOperation(
+    EspBleGattOperation::ReadDescriptor, connectionId, serviceUuid,
+    characteristicUuid, nullptr, 0, true, descriptorUuid,
+    timeoutMilliseconds);
+}
+
+bool EspBleBluedroid::writeDescriptor(
+  EspBleConnectionId connectionId,
+  const char *serviceUuid,
+  const char *characteristicUuid,
+  const char *descriptorUuid,
+  const uint8_t *data,
+  size_t length,
+  bool response,
+  uint32_t timeoutMilliseconds)
+{
+  return startGattOperation(
+    EspBleGattOperation::WriteDescriptor, connectionId, serviceUuid,
+    characteristicUuid, data, length, response, descriptorUuid,
+    timeoutMilliseconds);
 }
 
 bool EspBleBluedroid::writeCharacteristic(
@@ -1557,6 +1623,21 @@ bool EspBleBluedroid::writeCharacteristic(
     response, timeoutMilliseconds);
 }
 
+bool EspBleBluedroid::writeDescriptor(
+  EspBleConnectionId connectionId,
+  const char *serviceUuid,
+  const char *characteristicUuid,
+  const char *descriptorUuid,
+  const String &value,
+  bool response,
+  uint32_t timeoutMilliseconds)
+{
+  return writeDescriptor(
+    connectionId, serviceUuid, characteristicUuid, descriptorUuid,
+    reinterpret_cast<const uint8_t *>(value.c_str()), value.length(),
+    response, timeoutMilliseconds);
+}
+
 bool EspBleBluedroid::subscribe(
   EspBleConnectionId connectionId,
   const char *serviceUuid,
@@ -1566,7 +1647,8 @@ bool EspBleBluedroid::subscribe(
 {
   return startGattOperation(
     EspBleGattOperation::Subscribe, connectionId, serviceUuid,
-    characteristicUuid, nullptr, 0, notifications, timeoutMilliseconds);
+    characteristicUuid, nullptr, 0, notifications, nullptr,
+    timeoutMilliseconds);
 }
 
 bool EspBleBluedroid::unsubscribe(
@@ -1577,7 +1659,7 @@ bool EspBleBluedroid::unsubscribe(
 {
   return startGattOperation(
     EspBleGattOperation::Unsubscribe, connectionId, serviceUuid,
-    characteristicUuid, nullptr, 0, true, timeoutMilliseconds);
+    characteristicUuid, nullptr, 0, true, nullptr, timeoutMilliseconds);
 }
 
 bool EspBleBluedroid::startGattOperation(
@@ -1588,6 +1670,7 @@ bool EspBleBluedroid::startGattOperation(
   const uint8_t *data,
   size_t length,
   bool response,
+  const char *descriptorUuid,
   uint32_t timeoutMilliseconds)
 {
   if (!initialized_ || connectionImpl_ == nullptr)
@@ -1597,15 +1680,22 @@ bool EspBleBluedroid::startGattOperation(
   }
   const bool databaseDiscovery =
     operation == EspBleGattOperation::DiscoverServices;
+  const bool descriptorOperation =
+    operation == EspBleGattOperation::ReadDescriptor ||
+    operation == EspBleGattOperation::WriteDescriptor;
   if ((!databaseDiscovery &&
        (serviceUuid == nullptr || serviceUuid[0] == '\0' ||
         characteristicUuid == nullptr || characteristicUuid[0] == '\0')) ||
+      (descriptorOperation &&
+       (descriptorUuid == nullptr || descriptorUuid[0] == '\0')) ||
       (data == nullptr && length != 0) || timeoutMilliseconds == 0 ||
       (operation != EspBleGattOperation::Read &&
        operation != EspBleGattOperation::Write &&
        operation != EspBleGattOperation::Subscribe &&
        operation != EspBleGattOperation::Unsubscribe &&
-       operation != EspBleGattOperation::DiscoverServices))
+       operation != EspBleGattOperation::DiscoverServices &&
+       operation != EspBleGattOperation::ReadDescriptor &&
+       operation != EspBleGattOperation::WriteDescriptor))
   {
     setError(EspBleError::InvalidArgument, "invalid GATT operation arguments");
     return false;
@@ -1628,6 +1718,8 @@ bool EspBleBluedroid::startGattOperation(
     connectionImpl_->gattServiceUuid = serviceUuid == nullptr ? "" : serviceUuid;
     connectionImpl_->gattCharacteristicUuid =
       characteristicUuid == nullptr ? "" : characteristicUuid;
+    connectionImpl_->gattDescriptorUuid =
+      descriptorUuid == nullptr ? "" : descriptorUuid;
     if (databaseDiscovery)
     {
       delete connectionImpl_->gattDatabase;
@@ -1717,6 +1809,16 @@ void EspBleBluedroid::onCharacteristicWritten(GattResultCallback callback)
   characteristicWrittenCallback_ = std::move(callback);
 }
 
+void EspBleBluedroid::onDescriptorRead(GattResultCallback callback)
+{
+  descriptorReadCallback_ = std::move(callback);
+}
+
+void EspBleBluedroid::onDescriptorWritten(GattResultCallback callback)
+{
+  descriptorWrittenCallback_ = std::move(callback);
+}
+
 void EspBleBluedroid::onSubscribed(GattResultCallback callback)
 {
   subscribedCallback_ = std::move(callback);
@@ -1756,6 +1858,7 @@ void EspBleBluedroid::expireGattOperation()
   event.gattResult.connectionId = connectionImpl_->gattConnectionId;
   event.gattResult.serviceUuid = connectionImpl_->gattServiceUuid;
   event.gattResult.characteristicUuid = connectionImpl_->gattCharacteristicUuid;
+  event.gattResult.descriptorUuid = connectionImpl_->gattDescriptorUuid;
   event.gattResult.response = connectionImpl_->gattWriteResponse;
   event.gattResult.error = EspBleError::Timeout;
   event.gattResult.detail = "GATT operation timed out";
@@ -1810,6 +1913,20 @@ void EspBleBluedroid::dispatchConnectionEvents()
       characteristicWrittenCallback_)
     {
       characteristicWrittenCallback_(event.gattResult);
+    }
+    else if (
+      event.type == EspBleConnectionImpl::EventType::GattResult &&
+      event.gattResult.operation == EspBleGattOperation::ReadDescriptor &&
+      descriptorReadCallback_)
+    {
+      descriptorReadCallback_(event.gattResult);
+    }
+    else if (
+      event.type == EspBleConnectionImpl::EventType::GattResult &&
+      event.gattResult.operation == EspBleGattOperation::WriteDescriptor &&
+      descriptorWrittenCallback_)
+    {
+      descriptorWrittenCallback_(event.gattResult);
     }
     else if (
       event.type == EspBleConnectionImpl::EventType::GattResult &&

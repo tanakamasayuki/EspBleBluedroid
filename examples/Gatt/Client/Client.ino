@@ -4,6 +4,8 @@ static constexpr const char *SERVICE_UUID =
   "8d47a650-8d3a-4d65-a76f-6f626c756564";
 static constexpr const char *CHARACTERISTIC_UUID =
   "8d47a651-8d3a-4d65-a76f-6f626c756564";
+static constexpr const char *DESCRIPTOR_UUID =
+  "8d47a652-8d3a-4d65-a76f-6f626c756564";
 
 EspBleBluedroid bluetooth;
 bool connectionRequested = false;
@@ -21,6 +23,17 @@ void setup()
     Serial.printf("Discovered services: %u\n",
       static_cast<unsigned>(
         bluetooth.discoveredServiceCount(result.connectionId)));
+    bluetooth.readDescriptor(
+      result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID, DESCRIPTOR_UUID);
+  });
+  bluetooth.onDescriptorRead([](const EspBleGattResult &result) {
+    if (!result.success) return;
+    bluetooth.writeDescriptor(
+      result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID, DESCRIPTOR_UUID,
+      String("Central descriptor"), true);
+  });
+  bluetooth.onDescriptorWritten([](const EspBleGattResult &result) {
+    if (!result.success) return;
     bluetooth.readCharacteristic(
       result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID);
   });

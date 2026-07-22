@@ -36,7 +36,7 @@ uv run --env-file .env pytest
 ```
 
 テストは両方のESP32へsketchを書き込みます。既存のfirmwareは上書きされます。
-成功時はAdvertising/Scan、接続、GATT read/write、notificationと、双方のSerial
+成功時はAdvertising/Scan、接続、GATT characteristic/descriptor read/write、notificationと、双方のSerial
 監視が動作したことを意味します。
 
 | suite | 確認範囲 |
@@ -45,7 +45,7 @@ uv run --env-file .env pytest
 | `peer/advertise_scan` | 公開APIのlifecycle、Advertising、payload超過拒否、Scan、値型result、`update()`配送 |
 | `peer/advertise_payload` | raw AD構造、複数UUIDの集約、31 byte境界、時間指定停止 |
 | `peer/connect_disconnect` | non-blocking接続、再接続ID、非同期失敗、`update()`配送、切断、再初期化 |
-| `peer/gatt_client` | Database snapshot、非同期Read/Write、Notification購読/解除、切断時無効化、`update()`配送 |
+| `peer/gatt_client` | Database snapshot、Characteristic/Descriptorの非同期Read/Write、Notification購読/解除、切断時無効化、`update()`配送 |
 
 特定のテストだけを実行する場合はパスを追加できます。
 

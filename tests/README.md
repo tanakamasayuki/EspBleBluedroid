@@ -25,7 +25,7 @@ boundary, and timed advertising stop behavior.
 `peer/connect_disconnect` verifies non-blocking connection requests, reconnect
 IDs, asynchronous failures, deferred callbacks, disconnection, bounded
 in-flight cancellation through `end()`, and reinitialization without stale events.
-`peer/gatt_client` verifies public asynchronous Characteristic Read, both Write
+`peer/gatt_client` verifies public asynchronous Characteristic and Descriptor Read, both Write
 modes, Notification subscription/unsubscription, binary-safe values,
 connection-scoped database snapshots, peer reception, disconnect invalidation,
 and callback dispatch from `update()`.

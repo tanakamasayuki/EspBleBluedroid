@@ -2,6 +2,9 @@ def test_characteristic_read_write_is_binary_safe_and_deferred(dut, peers):
     peripheral = peers["device"]
     dut.expect_exact("INVALID_READ_REJECTED 1 error=InvalidArgument", timeout=20)
     dut.expect_exact("INVALID_WRITE_REJECTED 1 error=InvalidArgument", timeout=20)
+    dut.expect_exact(
+        "INVALID_DESCRIPTOR_READ_REJECTED 1 error=InvalidArgument", timeout=20
+    )
     dut.expect_exact("GATT_CENTRAL_READY", timeout=20)
     peripheral.expect_exact("GATT_PEER_READY", timeout=20)
 
@@ -16,11 +19,24 @@ def test_characteristic_read_write_is_binary_safe_and_deferred(dut, peers):
     dut.write("u")
     dut.expect_exact("GATT_UPDATE_START", timeout=20)
     discovery = dut.expect(
-        rb"DISCOVERY success=1 services=(\d+) found=1 cccd=1 "
+        rb"DISCOVERY success=1 services=(\d+) found=1 cccd=1 custom_descriptor=1 "
         rb"properties=1 context=loop",
         timeout=30,
     )
     assert int(discovery.group(1)) >= 1
+    dut.expect_exact("DESCRIPTOR_READ_REQUESTED 1", timeout=20)
+    dut.expect_exact(
+        "DESCRIPTOR_READ_RESULT success=1 length=4 hex=4400ff53 context=loop",
+        timeout=20,
+    )
+    dut.expect_exact("DESCRIPTOR_WRITE_REQUESTED 1", timeout=20)
+    peripheral.expect_exact(
+        "GATT_PEER_DESCRIPTOR_WRITE length=3 hex=0044fe", timeout=20
+    )
+    dut.expect_exact(
+        "DESCRIPTOR_WRITE_RESULT success=1 response=1 length=3 context=loop",
+        timeout=20,
+    )
     dut.expect_exact("READ_REQUESTED 1", timeout=20)
     dut.expect_exact(
         "READ_RESULT success=1 length=4 hex=0041ff42 context=loop", timeout=20

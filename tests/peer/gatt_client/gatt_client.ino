@@ -6,6 +6,10 @@ static constexpr const char *SERVICE_UUID =
   "8d47a650-8d3a-4d65-a76f-6f626c756564";
 static constexpr const char *CHARACTERISTIC_UUID =
   "8d47a651-8d3a-4d65-a76f-6f626c756564";
+static constexpr const char *DESCRIPTOR_UUID =
+  "8d47a652-8d3a-4d65-a76f-6f626c756564";
+static constexpr const char *CCCD_UUID =
+  "00002902-0000-1000-8000-00805f9b34fb";
 
 EspBleBluedroid bluetooth;
 TaskHandle_t loopTask = nullptr;
@@ -37,6 +41,10 @@ void setup()
     999, SERVICE_UUID, CHARACTERISTIC_UUID, nullptr, 1, true, 1000);
   Serial.printf("INVALID_WRITE_REJECTED %u error=%s\n",
     invalidWriteAccepted ? 0 : 1, bluetooth.lastErrorName());
+  const bool invalidDescriptorReadAccepted = bluetooth.readDescriptor(
+    999, SERVICE_UUID, CHARACTERISTIC_UUID, DESCRIPTOR_UUID, 1000);
+  Serial.printf("INVALID_DESCRIPTOR_READ_REJECTED %u error=%s\n",
+    invalidDescriptorReadAccepted ? 0 : 1, bluetooth.lastErrorName());
 
   bluetooth.onConnected([](const EspBleConnection &connection) {
     const bool accepted = bluetooth.discoverServices(connection.id, 5000);
@@ -53,6 +61,7 @@ void setup()
   bluetooth.onServicesDiscovered([](const EspBleGattResult &result) {
     bool found = false;
     bool cccdFound = false;
+    bool customDescriptorFound = false;
     bool propertiesValid = false;
     for (size_t index = 0;
          index < bluetooth.discoveredCharacteristicCount(result.connectionId);
@@ -78,15 +87,57 @@ void setup()
             result.connectionId, index, info,
             SERVICE_UUID, CHARACTERISTIC_UUID))
       {
-        cccdFound = info.handle != 0;
+        if (info.descriptorUuid.equalsIgnoreCase(CCCD_UUID))
+        {
+          cccdFound = info.handle != 0;
+        }
+        if (info.descriptorUuid.equalsIgnoreCase(DESCRIPTOR_UUID))
+        {
+          customDescriptorFound = info.handle != 0;
+        }
       }
     }
     Serial.printf(
-      "DISCOVERY success=%u services=%u found=%u cccd=%u properties=%u context=%s\n",
+      "DISCOVERY success=%u services=%u found=%u cccd=%u custom_descriptor=%u properties=%u context=%s\n",
       result.success ? 1 : 0,
       static_cast<unsigned>(bluetooth.discoveredServiceCount(result.connectionId)),
-      found ? 1 : 0, cccdFound ? 1 : 0, propertiesValid ? 1 : 0,
+      found ? 1 : 0, cccdFound ? 1 : 0, customDescriptorFound ? 1 : 0,
+      propertiesValid ? 1 : 0,
       contextName());
+    const bool accepted = bluetooth.readDescriptor(
+      result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID,
+      DESCRIPTOR_UUID, 5000);
+    Serial.printf("DESCRIPTOR_READ_REQUESTED %u\n", accepted ? 1 : 0);
+  });
+  bluetooth.onDescriptorRead([](const EspBleGattResult &result) {
+    const bool valid = result.success && result.handle != 0 &&
+      result.descriptorUuid.equalsIgnoreCase(DESCRIPTOR_UUID) &&
+      result.value.length() == 4 &&
+      static_cast<uint8_t>(result.value[0]) == 0x44 &&
+      static_cast<uint8_t>(result.value[1]) == 0x00 &&
+      static_cast<uint8_t>(result.value[2]) == 0xff &&
+      static_cast<uint8_t>(result.value[3]) == 0x53;
+    Serial.printf(
+      "DESCRIPTOR_READ_RESULT success=%u length=%u hex=%02x%02x%02x%02x context=%s\n",
+      valid ? 1 : 0, static_cast<unsigned>(result.value.length()),
+      result.value.length() > 0 ? static_cast<uint8_t>(result.value[0]) : 0,
+      result.value.length() > 1 ? static_cast<uint8_t>(result.value[1]) : 0,
+      result.value.length() > 2 ? static_cast<uint8_t>(result.value[2]) : 0,
+      result.value.length() > 3 ? static_cast<uint8_t>(result.value[3]) : 0,
+      contextName());
+    const uint8_t payload[] = {0x00, 0x44, 0xfe};
+    const bool accepted = bluetooth.writeDescriptor(
+      result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID,
+      DESCRIPTOR_UUID, payload, sizeof(payload), true, 5000);
+    Serial.printf("DESCRIPTOR_WRITE_REQUESTED %u\n", accepted ? 1 : 0);
+  });
+  bluetooth.onDescriptorWritten([](const EspBleGattResult &result) {
+    const bool valid = result.success && result.handle != 0 &&
+      result.descriptorUuid.equalsIgnoreCase(DESCRIPTOR_UUID);
+    Serial.printf(
+      "DESCRIPTOR_WRITE_RESULT success=%u response=%u length=%u context=%s\n",
+      valid ? 1 : 0, result.response ? 1 : 0,
+      static_cast<unsigned>(result.value.length()), contextName());
     const bool accepted = bluetooth.readCharacteristic(
       result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID, 5000);
     Serial.printf("READ_REQUESTED %u\n", accepted ? 1 : 0);

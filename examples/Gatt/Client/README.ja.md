@@ -2,7 +2,7 @@
 
 > English: [README.md](README.md)
 
-Database Discovery → Characteristic Read → Write With Response → Notification購読を
+Database Discovery → Descriptor Read/Write → Characteristic Read → Write With Response → Notification購読を
 非同期に実行します。Discovery結果はconnection単位の値snapshotへcopyされ、各完了と
 binary値は後から`update()`のcallbackへ配送されます。
 

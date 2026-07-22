@@ -6,6 +6,8 @@ static constexpr const char *SERVICE_UUID =
   "8d47a650-8d3a-4d65-a76f-6f626c756564";
 static constexpr const char *CHARACTERISTIC_UUID =
   "8d47a651-8d3a-4d65-a76f-6f626c756564";
+static constexpr const char *DESCRIPTOR_UUID =
+  "8d47a652-8d3a-4d65-a76f-6f626c756564";
 
 class CharacteristicCallbacks : public BLECharacteristicCallbacks
 {
@@ -30,8 +32,24 @@ class ServerCallbacks : public BLEServerCallbacks
   }
 };
 
+class DescriptorCallbacks : public BLEDescriptorCallbacks
+{
+  void onWrite(BLEDescriptor *descriptor) override
+  {
+    const uint8_t *value = descriptor->getValue();
+    Serial.printf("GATT_PEER_DESCRIPTOR_WRITE length=%u hex=",
+      static_cast<unsigned>(descriptor->getLength()));
+    for (size_t index = 0; index < descriptor->getLength(); ++index)
+    {
+      Serial.printf("%02x", value[index]);
+    }
+    Serial.println();
+  }
+};
+
 ServerCallbacks callbacks;
 CharacteristicCallbacks characteristicCallbacks;
+DescriptorCallbacks descriptorCallbacks;
 
 void setup()
 {
@@ -49,6 +67,11 @@ void setup()
       BLECharacteristic::PROPERTY_NOTIFY);
   characteristic->setCallbacks(&characteristicCallbacks);
   characteristic->addDescriptor(new BLE2902());
+  BLEDescriptor *descriptor = new BLEDescriptor(DESCRIPTOR_UUID);
+  const uint8_t descriptorValue[] = {0x44, 0x00, 0xff, 0x53};
+  descriptor->setValue(descriptorValue, sizeof(descriptorValue));
+  descriptor->setCallbacks(&descriptorCallbacks);
+  characteristic->addDescriptor(descriptor);
   const uint8_t value[] = {0x00, 0x41, 0xff, 0x42};
   characteristic->setValue(value, sizeof(value));
   service->start();

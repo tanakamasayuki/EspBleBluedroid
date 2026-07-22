@@ -327,6 +327,21 @@ public:
     size_t length,
     bool response = true,
     uint32_t timeoutMilliseconds = 10000);
+  bool readDescriptor(
+    EspBleConnectionId connectionId,
+    const char *serviceUuid,
+    const char *characteristicUuid,
+    const char *descriptorUuid,
+    uint32_t timeoutMilliseconds = 10000);
+  bool writeDescriptor(
+    EspBleConnectionId connectionId,
+    const char *serviceUuid,
+    const char *characteristicUuid,
+    const char *descriptorUuid,
+    const uint8_t *data,
+    size_t length,
+    bool response = true,
+    uint32_t timeoutMilliseconds = 10000);
   bool subscribe(
     EspBleConnectionId connectionId,
     const char *serviceUuid,
@@ -345,6 +360,14 @@ public:
     const String &value,
     bool response = true,
     uint32_t timeoutMilliseconds = 10000);
+  bool writeDescriptor(
+    EspBleConnectionId connectionId,
+    const char *serviceUuid,
+    const char *characteristicUuid,
+    const char *descriptorUuid,
+    const String &value,
+    bool response = true,
+    uint32_t timeoutMilliseconds = 10000);
   size_t connectionCount() const;
   bool connection(
     EspBleConnectionId connectionId, EspBleConnection &connection) const;
@@ -355,6 +378,8 @@ public:
   void onConnectionFailed(ConnectionFailureCallback callback);
   void onCharacteristicRead(GattResultCallback callback);
   void onCharacteristicWritten(GattResultCallback callback);
+  void onDescriptorRead(GattResultCallback callback);
+  void onDescriptorWritten(GattResultCallback callback);
   void onSubscribed(GattResultCallback callback);
   void onUnsubscribed(GattResultCallback callback);
   void onNotification(
@@ -379,6 +404,7 @@ private:
     const uint8_t *data,
     size_t length,
     bool response,
+    const char *descriptorUuid,
     uint32_t timeoutMilliseconds);
   void expireGattOperation();
   void dispatchConnectionEvents();
@@ -391,6 +417,8 @@ private:
   ConnectionFailureCallback connectionFailedCallback_;
   GattResultCallback characteristicReadCallback_;
   GattResultCallback characteristicWrittenCallback_;
+  GattResultCallback descriptorReadCallback_;
+  GattResultCallback descriptorWrittenCallback_;
   GattResultCallback subscribedCallback_;
   GattResultCallback unsubscribedCallback_;
   GattResultCallback servicesDiscoveredCallback_;

@@ -18,5 +18,7 @@ All notable changes to this project are documented in this file.
   asynchronous unsubscribe completion using explicit Bluedroid CCCD handling.
 - Add connection-scoped GATT database discovery snapshots with fixed,
   PSRAM-independent service, characteristic, and descriptor limits.
+- Add asynchronous, binary-safe Descriptor Read and Write using the same
+  completion-result model as Characteristic operations.
 - Add Arduino library metadata, CompileSmoke, release automation, and a core
   compatibility matrix for the generic original ESP32 target.

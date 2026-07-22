@@ -7,9 +7,9 @@ connection is established.
 
 The project is in its initial bring-up stage. Its public API currently covers
 the root lifecycle, legacy advertising, scanning, one Central connection, and
-asynchronous GATT discovery, Characteristic Read/Write, and Notification subscription,
+asynchronous GATT discovery, Characteristic and Descriptor Read/Write, and Notification subscription,
 verified by automated two-board peer tests on original ESP32 boards. Public
-GATT operations and Bluetooth Classic APIs will continue to be added test-first.
+Remaining GATT operations and Bluetooth Classic APIs will continue to be added test-first.
 
 See [tests/README.md](tests/README.md) for setup and usage.
 
