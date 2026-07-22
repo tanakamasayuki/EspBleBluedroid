@@ -6,9 +6,10 @@ library, [EspBle](../EspBle/), especially for GATT operations after a
 connection is established.
 
 The project is in its initial bring-up stage. Its public API currently covers
-the root lifecycle, legacy advertising, scanning, and one Central connection,
+the root lifecycle, legacy advertising, scanning, one Central connection, and
+asynchronous Characteristic Read,
 verified by automated two-board peer tests on original ESP32 boards. Public
-GATT and Bluetooth Classic APIs will be added test-first.
+GATT operations and Bluetooth Classic APIs will continue to be added test-first.
 
 See [tests/README.md](tests/README.md) for setup and usage.
 

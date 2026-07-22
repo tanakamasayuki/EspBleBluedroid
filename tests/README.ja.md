@@ -45,6 +45,7 @@ uv run --env-file .env pytest
 | `peer/advertise_scan` | 公開APIのlifecycle、Advertising、payload超過拒否、Scan、値型result、`update()`配送 |
 | `peer/advertise_payload` | raw AD構造、複数UUIDの集約、31 byte境界、時間指定停止 |
 | `peer/connect_disconnect` | non-blocking接続、再接続ID、非同期失敗、`update()`配送、切断、再初期化 |
+| `peer/gatt_client` | 公開APIの非同期Characteristic Read、binary-safe値、connection ID検証、`update()`配送 |
 
 特定のテストだけを実行する場合はパスを追加できます。
 

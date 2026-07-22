@@ -3,6 +3,8 @@
 #include <BLEAdvertising.h>
 #include <BLEClient.h>
 #include <BLEDevice.h>
+#include <BLERemoteCharacteristic.h>
+#include <BLERemoteService.h>
 #include <BLEScan.h>
 #include <BLEUtils.h>
 #include <cctype>
@@ -143,12 +145,19 @@ struct EspBleConnectionImpl
   static constexpr size_t EventCapacity = 8;
   static constexpr uint32_t ConnectWaitSliceMilliseconds = 1000;
 
-  enum class EventType : uint8_t { Connected, Disconnected, Failed };
+  enum class EventType : uint8_t
+  {
+    Connected,
+    Disconnected,
+    Failed,
+    CharacteristicRead,
+  };
   struct Event
   {
     EventType type = EventType::Connected;
     EspBleConnection connection;
     EspBleConnectionFailure failure;
+    EspBleGattResult gattResult;
   };
 
   class ClientCallbacks : public BLEClientCallbacks
@@ -323,6 +332,83 @@ struct EspBleConnectionImpl
     vTaskDelete(nullptr);
   }
 
+  static void readTaskEntry(void *argument)
+  {
+    EspBleConnectionImpl *impl =
+      static_cast<EspBleConnectionImpl *>(argument);
+    EspBleGattResult result;
+    BLEClient *client = nullptr;
+    {
+      std::lock_guard<std::mutex> lock(impl->mutex);
+      result.operation = EspBleGattOperation::Read;
+      result.connectionId = impl->gattConnectionId;
+      result.serviceUuid = impl->gattServiceUuid;
+      result.characteristicUuid = impl->gattCharacteristicUuid;
+      if (impl->active && impl->connection.id == result.connectionId)
+      {
+        client = impl->client;
+      }
+    }
+
+    if (client == nullptr || !client->isConnected())
+    {
+      result.error = EspBleError::InvalidState;
+      result.detail = "connection is not an active Central connection";
+    }
+    else
+    {
+      BLERemoteService *service = client->getService(result.serviceUuid.c_str());
+      if (service == nullptr)
+      {
+        result.error = EspBleError::NotFound;
+        result.detail = "GATT service was not found";
+      }
+      else
+      {
+        BLERemoteCharacteristic *characteristic =
+          service->getCharacteristic(result.characteristicUuid.c_str());
+        if (characteristic == nullptr)
+        {
+          result.error = EspBleError::NotFound;
+          result.detail = "GATT characteristic was not found";
+        }
+        else
+        {
+          result.handle = characteristic->getHandle();
+          result.readable = characteristic->canRead();
+          result.writable = characteristic->canWrite();
+          result.writableWithoutResponse = characteristic->canWriteNoResponse();
+          result.notifiable = characteristic->canNotify();
+          result.indicatable = characteristic->canIndicate();
+          if (!result.readable)
+          {
+            result.error = EspBleError::InvalidState;
+            result.detail = "GATT characteristic is not readable";
+          }
+          else
+          {
+            result.value = characteristic->readValue();
+            result.success = true;
+          }
+        }
+      }
+    }
+
+    {
+      std::lock_guard<std::mutex> lock(impl->mutex);
+      if (!impl->ending && !impl->gattTimedOut)
+      {
+        Event event;
+        event.type = EventType::CharacteristicRead;
+        event.gattResult = result;
+        impl->pushEventLocked(event);
+      }
+      impl->gattOperating = false;
+      impl->gattTask = nullptr;
+    }
+    vTaskDelete(nullptr);
+  }
+
   mutable std::mutex mutex;
   BLEClient *client = nullptr;
   ClientCallbacks callbacks;
@@ -330,6 +416,14 @@ struct EspBleConnectionImpl
   bool ending = false;
   bool active = false;
   TaskHandle_t connectTask = nullptr;
+  bool gattOperating = false;
+  TaskHandle_t gattTask = nullptr;
+  EspBleConnectionId gattConnectionId = 0;
+  String gattServiceUuid;
+  String gattCharacteristicUuid;
+  uint32_t gattStartedAt = 0;
+  uint32_t gattTimeoutMilliseconds = 10000;
+  bool gattTimedOut = false;
   EspBleScanResult target;
   uint32_t timeoutMilliseconds = 10000;
   EspBleConnection connection;
@@ -874,7 +968,10 @@ void EspBleBluedroid::end()
     {
       {
         std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
-        if (!connectionImpl_->connecting) break;
+        if (!connectionImpl_->connecting && !connectionImpl_->gattOperating)
+        {
+          break;
+        }
       }
       delay(1);
     }
@@ -892,6 +989,7 @@ void EspBleBluedroid::end()
 void EspBleBluedroid::update()
 {
   advertising_.update();
+  expireGattOperation();
   // Dispatch connection completions before Scan Results. A connect() accepted
   // from a Scan callback can therefore never complete in that same update().
   dispatchConnectionEvents();
@@ -1005,6 +1103,68 @@ bool EspBleBluedroid::disconnect(EspBleConnectionId connectionId)
   return true;
 }
 
+bool EspBleBluedroid::readCharacteristic(
+  EspBleConnectionId connectionId,
+  const char *serviceUuid,
+  const char *characteristicUuid,
+  uint32_t timeoutMilliseconds)
+{
+  if (!initialized_ || connectionImpl_ == nullptr)
+  {
+    setError(EspBleError::InvalidState, "BLE stack is not initialized");
+    return false;
+  }
+  if (serviceUuid == nullptr || serviceUuid[0] == '\0' ||
+      characteristicUuid == nullptr || characteristicUuid[0] == '\0' ||
+      timeoutMilliseconds == 0)
+  {
+    setError(EspBleError::InvalidArgument, "invalid GATT read arguments");
+    return false;
+  }
+  {
+    std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+    if (!connectionImpl_->active ||
+        connectionImpl_->connection.id != connectionId)
+    {
+      setError(EspBleError::InvalidArgument, "Central connection ID was not found");
+      return false;
+    }
+    if (connectionImpl_->gattOperating)
+    {
+      setError(EspBleError::InvalidState, "a GATT operation is already in progress");
+      return false;
+    }
+    connectionImpl_->gattConnectionId = connectionId;
+    connectionImpl_->gattServiceUuid = serviceUuid;
+    connectionImpl_->gattCharacteristicUuid = characteristicUuid;
+    connectionImpl_->gattStartedAt = millis();
+    connectionImpl_->gattTimeoutMilliseconds = timeoutMilliseconds;
+    connectionImpl_->gattTimedOut = false;
+    connectionImpl_->gattOperating = true;
+  }
+
+  TaskHandle_t task = nullptr;
+  const BaseType_t taskResult = xTaskCreate(
+    EspBleConnectionImpl::readTaskEntry,
+    "espblebd-gatt", 6144, connectionImpl_, 1, &task);
+  if (taskResult != pdPASS)
+  {
+    std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+    connectionImpl_->gattOperating = false;
+    setError(EspBleError::ResourceExhausted, "failed to create GATT operation task");
+    return false;
+  }
+  {
+    std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+    if (connectionImpl_->gattOperating)
+    {
+      connectionImpl_->gattTask = task;
+    }
+  }
+  clearError();
+  return true;
+}
+
 size_t EspBleBluedroid::connectionCount() const
 {
   if (connectionImpl_ == nullptr) return 0;
@@ -1048,10 +1208,43 @@ void EspBleBluedroid::onConnectionFailed(ConnectionFailureCallback callback)
   connectionFailedCallback_ = std::move(callback);
 }
 
+void EspBleBluedroid::onCharacteristicRead(GattResultCallback callback)
+{
+  characteristicReadCallback_ = std::move(callback);
+}
+
+void EspBleBluedroid::expireGattOperation()
+{
+  if (connectionImpl_ == nullptr) return;
+  std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+  if (!connectionImpl_->gattOperating || connectionImpl_->gattTimedOut ||
+      static_cast<uint32_t>(millis() - connectionImpl_->gattStartedAt) <
+        connectionImpl_->gattTimeoutMilliseconds)
+  {
+    return;
+  }
+
+  connectionImpl_->gattTimedOut = true;
+  EspBleConnectionImpl::Event event;
+  event.type = EspBleConnectionImpl::EventType::CharacteristicRead;
+  event.gattResult.operation = EspBleGattOperation::Read;
+  event.gattResult.connectionId = connectionImpl_->gattConnectionId;
+  event.gattResult.serviceUuid = connectionImpl_->gattServiceUuid;
+  event.gattResult.characteristicUuid = connectionImpl_->gattCharacteristicUuid;
+  event.gattResult.error = EspBleError::Timeout;
+  event.gattResult.detail = "GATT operation timed out";
+  connectionImpl_->pushEventLocked(event);
+}
+
 void EspBleBluedroid::dispatchConnectionEvents()
 {
   if (connectionImpl_ == nullptr) return;
-  while (true)
+  size_t eventsToDispatch;
+  {
+    std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+    eventsToDispatch = connectionImpl_->eventCount;
+  }
+  while (eventsToDispatch-- > 0)
   {
     EspBleConnectionImpl::Event event;
     {
@@ -1077,6 +1270,12 @@ void EspBleBluedroid::dispatchConnectionEvents()
              connectionFailedCallback_)
     {
       connectionFailedCallback_(event.failure);
+    }
+    else if (
+      event.type == EspBleConnectionImpl::EventType::CharacteristicRead &&
+      characteristicReadCallback_)
+    {
+      characteristicReadCallback_(event.gattResult);
     }
   }
 }

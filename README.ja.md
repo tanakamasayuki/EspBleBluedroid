@@ -5,8 +5,8 @@ ESP32のBluedroidスタックを利用するArduinoライブラリです。NimBL
 提供することを目標にしています。
 
 現在は実装の最初の段階です。root lifecycle、Legacy Advertising、Scan、Central
-1接続の公開APIを実装し、無印ESP32を2台使ったpeerテストで検証しています。
-接続後のGATT公開APIとBluetooth Classicは今後、テストファーストで追加します。
+1接続、非同期Characteristic Readの公開APIを実装し、無印ESP32を2台使ったpeerテストで
+検証しています。残るGATT操作とBluetooth Classicは今後、テストファーストで追加します。
 
 ## 現在のテスト範囲
 

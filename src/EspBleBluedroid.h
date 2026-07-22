@@ -117,6 +117,40 @@ struct EspBleConnectionFailure
   String detail;
 };
 
+enum class EspBleGattOperation : uint8_t
+{
+  Discover = 0,
+  Read,
+  Write,
+  Subscribe,
+  Unsubscribe,
+  DiscoverServices,
+  ReadDescriptor,
+  WriteDescriptor,
+};
+
+struct EspBleGattResult
+{
+  EspBleGattOperation operation = EspBleGattOperation::Discover;
+  EspBleConnectionId connectionId = 0;
+  String serviceUuid;
+  String characteristicUuid;
+  String descriptorUuid;
+  uint16_t handle = 0;
+  bool success = false;
+  EspBleError error = EspBleError::None;
+  String detail;
+  String value;
+  bool readable = false;
+  bool writable = false;
+  bool writableWithoutResponse = false;
+  bool notifiable = false;
+  bool indicatable = false;
+  bool subscribedToNotifications = false;
+  bool subscribedToIndications = false;
+  bool response = true;
+};
+
 class EspBleBluedroid;
 struct EspBleScannerImpl;
 struct EspBleConnectionImpl;
@@ -191,6 +225,7 @@ public:
     std::function<void(const EspBleConnection &connection)>;
   using ConnectionFailureCallback =
     std::function<void(const EspBleConnectionFailure &failure)>;
+  using GattResultCallback = std::function<void(const EspBleGattResult &result)>;
 
   EspBleBluedroid();
   ~EspBleBluedroid();
@@ -214,6 +249,11 @@ public:
     EspBleAddressType addressType,
     uint32_t timeoutMilliseconds = 10000);
   bool disconnect(EspBleConnectionId connectionId);
+  bool readCharacteristic(
+    EspBleConnectionId connectionId,
+    const char *serviceUuid,
+    const char *characteristicUuid,
+    uint32_t timeoutMilliseconds = 10000);
   size_t connectionCount() const;
   bool connection(
     EspBleConnectionId connectionId, EspBleConnection &connection) const;
@@ -222,6 +262,7 @@ public:
   void onConnected(ConnectionCallback callback);
   void onDisconnected(ConnectionCallback callback);
   void onConnectionFailed(ConnectionFailureCallback callback);
+  void onCharacteristicRead(GattResultCallback callback);
 
   EspBleError lastError() const;
   const char *lastErrorName() const;
@@ -233,6 +274,7 @@ private:
   friend class EspBleScanner;
 
   void setError(EspBleError error, const char *detail = nullptr);
+  void expireGattOperation();
   void dispatchConnectionEvents();
 
   EspBleAdvertising advertising_;
@@ -241,6 +283,7 @@ private:
   ConnectionCallback connectedCallback_;
   ConnectionCallback disconnectedCallback_;
   ConnectionFailureCallback connectionFailedCallback_;
+  GattResultCallback characteristicReadCallback_;
   bool initialized_ = false;
   String activeDeviceName_;
   uint16_t activePreferredMtu_ = 23;

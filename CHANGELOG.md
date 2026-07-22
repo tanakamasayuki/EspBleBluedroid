@@ -11,5 +11,7 @@ All notable changes to this project are documented in this file.
 - Add asynchronous single-Central connect/disconnect, stable library connection
   IDs, value snapshots, reconnect/failure handling, bounded in-flight shutdown,
   and deferred lifecycle callbacks.
+- Add the first public GATT Client slice: asynchronous, binary-safe
+  Characteristic Read with connection validation and deferred result callbacks.
 - Add Arduino library metadata, CompileSmoke, release automation, and a core
   compatibility matrix for the generic original ESP32 target.
