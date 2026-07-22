@@ -1,32 +1,5 @@
-# Changelog
-
-All notable changes to this project are documented in this file.
+# Changelog / 変更履歴
 
 ## Unreleased
-
-- Establish the Bluedroid peer-test environment and API design policy.
-- Add stack lifecycle, Legacy Advertising, active/passive Scan, value-type Scan
-  Result, grouped Service UUID fields, explicit 31-byte payload-limit errors,
-  timed Advertising, and deferred `update()` callback delivery.
-- Add asynchronous single-Central connect/disconnect, stable library connection
-  IDs, value snapshots, reconnect/failure handling, bounded in-flight shutdown,
-  and deferred lifecycle callbacks.
-- Add the first public GATT Client operations: asynchronous, binary-safe
-  Characteristic Read and Write with connection validation, response-mode
-  selection, and deferred result callbacks.
-- Add Notification/Indication subscription, copied notification events, and
-  asynchronous unsubscribe completion using explicit Bluedroid CCCD handling.
-- Add connection-scoped GATT database discovery snapshots with fixed,
-  PSRAM-independent service, characteristic, and descriptor limits.
-- Add asynchronous, binary-safe Descriptor Read and Write using the same
-  completion-result model as Characteristic operations.
-- Add handle-based Characteristic Read/Write and subscription overloads for
-  selecting an exact discovered characteristic when UUIDs are shared.
-- Add LE Secure Connections Just Works pairing, deferred security-state
-  callbacks, explicit security requests, BLE bond enumeration/deletion, and a
-  two-board bonding/reconnection test.
-- Add static-passkey MITM pairing for DisplayOnly/KeyboardOnly devices,
-  deferred passkey-display events, authenticated connection snapshots, and an
-  authenticated GATT peer test.
-- Add Arduino library metadata, CompileSmoke, release automation, and a core
-  compatibility matrix for the generic original ESP32 target.
+- (EN) Initial release
+- (JA) 初期リリース
