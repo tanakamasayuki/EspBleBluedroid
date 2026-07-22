@@ -11,6 +11,7 @@ EspBleBluedroid bluetooth;
 TaskHandle_t loopTask = nullptr;
 bool connectionRequested = false;
 bool updatesEnabled = true;
+uint8_t writePhase = 0;
 
 const char *contextName()
 {
@@ -32,11 +33,21 @@ void setup()
     999, SERVICE_UUID, CHARACTERISTIC_UUID, 1000);
   Serial.printf("INVALID_READ_REJECTED %u error=%s\n",
     invalidAccepted ? 0 : 1, bluetooth.lastErrorName());
+  const bool invalidWriteAccepted = bluetooth.writeCharacteristic(
+    999, SERVICE_UUID, CHARACTERISTIC_UUID, nullptr, 1, true, 1000);
+  Serial.printf("INVALID_WRITE_REJECTED %u error=%s\n",
+    invalidWriteAccepted ? 0 : 1, bluetooth.lastErrorName());
 
   bluetooth.onConnected([](const EspBleConnection &connection) {
     const bool accepted = bluetooth.readCharacteristic(
       connection.id, SERVICE_UUID, CHARACTERISTIC_UUID, 5000);
     Serial.printf("READ_REQUESTED %u\n", accepted ? 1 : 0);
+    const uint8_t concurrentPayload = 0x01;
+    const bool concurrentAccepted = bluetooth.writeCharacteristic(
+      connection.id, SERVICE_UUID, CHARACTERISTIC_UUID,
+      &concurrentPayload, 1, true, 5000);
+    Serial.printf("CONCURRENT_GATT_REJECTED %u error=%s\n",
+      concurrentAccepted ? 0 : 1, bluetooth.lastErrorName());
     updatesEnabled = false;
     Serial.println("GATT_UPDATE_PAUSED");
   });
@@ -54,7 +65,30 @@ void setup()
       result.value.length() > 2 ? static_cast<uint8_t>(result.value[2]) : 0,
       result.value.length() > 3 ? static_cast<uint8_t>(result.value[3]) : 0,
       contextName());
-    bluetooth.disconnect(result.connectionId);
+    const uint8_t payload[] = {0x00, 0x57, 0xff};
+    const bool accepted = bluetooth.writeCharacteristic(
+      result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID,
+      payload, sizeof(payload), true, 5000);
+    Serial.printf("WRITE_RESPONSE_REQUESTED %u\n", accepted ? 1 : 0);
+  });
+  bluetooth.onCharacteristicWritten([](const EspBleGattResult &result) {
+    Serial.printf(
+      "WRITE_RESULT phase=%u success=%u response=%u length=%u context=%s\n",
+      static_cast<unsigned>(writePhase), result.success ? 1 : 0,
+      result.response ? 1 : 0, static_cast<unsigned>(result.value.length()),
+      contextName());
+    if (writePhase++ == 0)
+    {
+      const uint8_t payload[] = {0x4e, 0x00, 0x52};
+      const bool accepted = bluetooth.writeCharacteristic(
+        result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID,
+        payload, sizeof(payload), false, 5000);
+      Serial.printf("WRITE_NO_RESPONSE_REQUESTED %u\n", accepted ? 1 : 0);
+    }
+    else
+    {
+      bluetooth.disconnect(result.connectionId);
+    }
   });
   bluetooth.scanner().onResult([](const EspBleScanResult &result) {
     if (connectionRequested || !result.advertisesService(SERVICE_UUID)) return;

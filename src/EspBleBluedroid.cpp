@@ -150,7 +150,7 @@ struct EspBleConnectionImpl
     Connected,
     Disconnected,
     Failed,
-    CharacteristicRead,
+    GattResult,
   };
   struct Event
   {
@@ -332,18 +332,21 @@ struct EspBleConnectionImpl
     vTaskDelete(nullptr);
   }
 
-  static void readTaskEntry(void *argument)
+  static void gattTaskEntry(void *argument)
   {
     EspBleConnectionImpl *impl =
       static_cast<EspBleConnectionImpl *>(argument);
     EspBleGattResult result;
     BLEClient *client = nullptr;
+    String writeValue;
     {
       std::lock_guard<std::mutex> lock(impl->mutex);
-      result.operation = EspBleGattOperation::Read;
+      result.operation = impl->gattOperation;
       result.connectionId = impl->gattConnectionId;
       result.serviceUuid = impl->gattServiceUuid;
       result.characteristicUuid = impl->gattCharacteristicUuid;
+      result.response = impl->gattWriteResponse;
+      writeValue = impl->gattWriteValue;
       if (impl->active && impl->connection.id == result.connectionId)
       {
         client = impl->client;
@@ -380,15 +383,40 @@ struct EspBleConnectionImpl
           result.writableWithoutResponse = characteristic->canWriteNoResponse();
           result.notifiable = characteristic->canNotify();
           result.indicatable = characteristic->canIndicate();
-          if (!result.readable)
+          if (result.operation == EspBleGattOperation::Read && !result.readable)
           {
             result.error = EspBleError::InvalidState;
             result.detail = "GATT characteristic is not readable";
           }
-          else
+          else if (result.operation == EspBleGattOperation::Read)
           {
             result.value = characteristic->readValue();
             result.success = true;
+          }
+          else
+          {
+            const bool supported = result.response
+              ? result.writable : result.writableWithoutResponse;
+            result.value = writeValue;
+            if (!supported)
+            {
+              result.error = EspBleError::InvalidState;
+              result.detail = result.response
+                ? "GATT characteristic does not support write with response"
+                : "GATT characteristic does not support write without response";
+            }
+            else
+            {
+              result.success = characteristic->writeValue(
+                reinterpret_cast<uint8_t *>(
+                  const_cast<char *>(writeValue.c_str())),
+                writeValue.length(), result.response);
+              if (!result.success)
+              {
+                result.error = EspBleError::BackendFailure;
+                result.detail = "GATT write failed";
+              }
+            }
           }
         }
       }
@@ -399,7 +427,7 @@ struct EspBleConnectionImpl
       if (!impl->ending && !impl->gattTimedOut)
       {
         Event event;
-        event.type = EventType::CharacteristicRead;
+        event.type = EventType::GattResult;
         event.gattResult = result;
         impl->pushEventLocked(event);
       }
@@ -419,8 +447,11 @@ struct EspBleConnectionImpl
   bool gattOperating = false;
   TaskHandle_t gattTask = nullptr;
   EspBleConnectionId gattConnectionId = 0;
+  EspBleGattOperation gattOperation = EspBleGattOperation::Read;
   String gattServiceUuid;
   String gattCharacteristicUuid;
+  String gattWriteValue;
+  bool gattWriteResponse = true;
   uint32_t gattStartedAt = 0;
   uint32_t gattTimeoutMilliseconds = 10000;
   bool gattTimedOut = false;
@@ -1109,6 +1140,49 @@ bool EspBleBluedroid::readCharacteristic(
   const char *characteristicUuid,
   uint32_t timeoutMilliseconds)
 {
+  return startGattOperation(
+    EspBleGattOperation::Read, connectionId, serviceUuid, characteristicUuid,
+    nullptr, 0, true, timeoutMilliseconds);
+}
+
+bool EspBleBluedroid::writeCharacteristic(
+  EspBleConnectionId connectionId,
+  const char *serviceUuid,
+  const char *characteristicUuid,
+  const uint8_t *data,
+  size_t length,
+  bool response,
+  uint32_t timeoutMilliseconds)
+{
+  return startGattOperation(
+    EspBleGattOperation::Write, connectionId, serviceUuid, characteristicUuid,
+    data, length, response, timeoutMilliseconds);
+}
+
+bool EspBleBluedroid::writeCharacteristic(
+  EspBleConnectionId connectionId,
+  const char *serviceUuid,
+  const char *characteristicUuid,
+  const String &value,
+  bool response,
+  uint32_t timeoutMilliseconds)
+{
+  return writeCharacteristic(
+    connectionId, serviceUuid, characteristicUuid,
+    reinterpret_cast<const uint8_t *>(value.c_str()), value.length(),
+    response, timeoutMilliseconds);
+}
+
+bool EspBleBluedroid::startGattOperation(
+  EspBleGattOperation operation,
+  EspBleConnectionId connectionId,
+  const char *serviceUuid,
+  const char *characteristicUuid,
+  const uint8_t *data,
+  size_t length,
+  bool response,
+  uint32_t timeoutMilliseconds)
+{
   if (!initialized_ || connectionImpl_ == nullptr)
   {
     setError(EspBleError::InvalidState, "BLE stack is not initialized");
@@ -1116,9 +1190,11 @@ bool EspBleBluedroid::readCharacteristic(
   }
   if (serviceUuid == nullptr || serviceUuid[0] == '\0' ||
       characteristicUuid == nullptr || characteristicUuid[0] == '\0' ||
-      timeoutMilliseconds == 0)
+      (data == nullptr && length != 0) || timeoutMilliseconds == 0 ||
+      (operation != EspBleGattOperation::Read &&
+       operation != EspBleGattOperation::Write))
   {
-    setError(EspBleError::InvalidArgument, "invalid GATT read arguments");
+    setError(EspBleError::InvalidArgument, "invalid GATT operation arguments");
     return false;
   }
   {
@@ -1134,9 +1210,13 @@ bool EspBleBluedroid::readCharacteristic(
       setError(EspBleError::InvalidState, "a GATT operation is already in progress");
       return false;
     }
+    connectionImpl_->gattOperation = operation;
     connectionImpl_->gattConnectionId = connectionId;
     connectionImpl_->gattServiceUuid = serviceUuid;
     connectionImpl_->gattCharacteristicUuid = characteristicUuid;
+    connectionImpl_->gattWriteValue = length == 0
+      ? String() : String(reinterpret_cast<const char *>(data), length);
+    connectionImpl_->gattWriteResponse = response;
     connectionImpl_->gattStartedAt = millis();
     connectionImpl_->gattTimeoutMilliseconds = timeoutMilliseconds;
     connectionImpl_->gattTimedOut = false;
@@ -1145,7 +1225,7 @@ bool EspBleBluedroid::readCharacteristic(
 
   TaskHandle_t task = nullptr;
   const BaseType_t taskResult = xTaskCreate(
-    EspBleConnectionImpl::readTaskEntry,
+    EspBleConnectionImpl::gattTaskEntry,
     "espblebd-gatt", 6144, connectionImpl_, 1, &task);
   if (taskResult != pdPASS)
   {
@@ -1213,6 +1293,11 @@ void EspBleBluedroid::onCharacteristicRead(GattResultCallback callback)
   characteristicReadCallback_ = std::move(callback);
 }
 
+void EspBleBluedroid::onCharacteristicWritten(GattResultCallback callback)
+{
+  characteristicWrittenCallback_ = std::move(callback);
+}
+
 void EspBleBluedroid::expireGattOperation()
 {
   if (connectionImpl_ == nullptr) return;
@@ -1226,11 +1311,12 @@ void EspBleBluedroid::expireGattOperation()
 
   connectionImpl_->gattTimedOut = true;
   EspBleConnectionImpl::Event event;
-  event.type = EspBleConnectionImpl::EventType::CharacteristicRead;
-  event.gattResult.operation = EspBleGattOperation::Read;
+  event.type = EspBleConnectionImpl::EventType::GattResult;
+  event.gattResult.operation = connectionImpl_->gattOperation;
   event.gattResult.connectionId = connectionImpl_->gattConnectionId;
   event.gattResult.serviceUuid = connectionImpl_->gattServiceUuid;
   event.gattResult.characteristicUuid = connectionImpl_->gattCharacteristicUuid;
+  event.gattResult.response = connectionImpl_->gattWriteResponse;
   event.gattResult.error = EspBleError::Timeout;
   event.gattResult.detail = "GATT operation timed out";
   connectionImpl_->pushEventLocked(event);
@@ -1272,10 +1358,18 @@ void EspBleBluedroid::dispatchConnectionEvents()
       connectionFailedCallback_(event.failure);
     }
     else if (
-      event.type == EspBleConnectionImpl::EventType::CharacteristicRead &&
+      event.type == EspBleConnectionImpl::EventType::GattResult &&
+      event.gattResult.operation == EspBleGattOperation::Read &&
       characteristicReadCallback_)
     {
       characteristicReadCallback_(event.gattResult);
+    }
+    else if (
+      event.type == EspBleConnectionImpl::EventType::GattResult &&
+      event.gattResult.operation == EspBleGattOperation::Write &&
+      characteristicWrittenCallback_)
+    {
+      characteristicWrittenCallback_(event.gattResult);
     }
   }
 }

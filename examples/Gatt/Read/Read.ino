@@ -24,11 +24,18 @@ void setup()
     {
       Serial.printf("Battery value length: %u\n",
         static_cast<unsigned>(result.value.length()));
+      const uint8_t value[] = {0x00, 0x64};
+      bluetooth.writeCharacteristic(
+        result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID,
+        value, sizeof(value), true);
     }
     else
     {
       Serial.printf("Read failed: %s\n", result.detail.c_str());
     }
+  });
+  bluetooth.onCharacteristicWritten([](const EspBleGattResult &result) {
+    Serial.println(result.success ? "Write complete" : "Write failed");
   });
   bluetooth.scanner().onResult([](const EspBleScanResult &result) {
     if (connectionRequested || !result.advertisesService(SERVICE_UUID)) return;

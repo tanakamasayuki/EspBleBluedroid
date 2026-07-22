@@ -254,6 +254,21 @@ public:
     const char *serviceUuid,
     const char *characteristicUuid,
     uint32_t timeoutMilliseconds = 10000);
+  bool writeCharacteristic(
+    EspBleConnectionId connectionId,
+    const char *serviceUuid,
+    const char *characteristicUuid,
+    const uint8_t *data,
+    size_t length,
+    bool response = true,
+    uint32_t timeoutMilliseconds = 10000);
+  bool writeCharacteristic(
+    EspBleConnectionId connectionId,
+    const char *serviceUuid,
+    const char *characteristicUuid,
+    const String &value,
+    bool response = true,
+    uint32_t timeoutMilliseconds = 10000);
   size_t connectionCount() const;
   bool connection(
     EspBleConnectionId connectionId, EspBleConnection &connection) const;
@@ -263,6 +278,7 @@ public:
   void onDisconnected(ConnectionCallback callback);
   void onConnectionFailed(ConnectionFailureCallback callback);
   void onCharacteristicRead(GattResultCallback callback);
+  void onCharacteristicWritten(GattResultCallback callback);
 
   EspBleError lastError() const;
   const char *lastErrorName() const;
@@ -274,6 +290,15 @@ private:
   friend class EspBleScanner;
 
   void setError(EspBleError error, const char *detail = nullptr);
+  bool startGattOperation(
+    EspBleGattOperation operation,
+    EspBleConnectionId connectionId,
+    const char *serviceUuid,
+    const char *characteristicUuid,
+    const uint8_t *data,
+    size_t length,
+    bool response,
+    uint32_t timeoutMilliseconds);
   void expireGattOperation();
   void dispatchConnectionEvents();
 
@@ -284,6 +309,7 @@ private:
   ConnectionCallback disconnectedCallback_;
   ConnectionFailureCallback connectionFailedCallback_;
   GattResultCallback characteristicReadCallback_;
+  GattResultCallback characteristicWrittenCallback_;
   bool initialized_ = false;
   String activeDeviceName_;
   uint16_t activePreferredMtu_ = 23;

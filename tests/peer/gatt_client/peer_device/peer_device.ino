@@ -6,6 +6,21 @@ static constexpr const char *SERVICE_UUID =
 static constexpr const char *CHARACTERISTIC_UUID =
   "8d47a651-8d3a-4d65-a76f-6f626c756564";
 
+class CharacteristicCallbacks : public BLECharacteristicCallbacks
+{
+  void onWrite(BLECharacteristic *characteristic) override
+  {
+    const String value = characteristic->getValue();
+    Serial.printf("GATT_PEER_WRITE length=%u hex=",
+      static_cast<unsigned>(value.length()));
+    for (size_t index = 0; index < value.length(); ++index)
+    {
+      Serial.printf("%02x", static_cast<uint8_t>(value[index]));
+    }
+    Serial.println();
+  }
+};
+
 class ServerCallbacks : public BLEServerCallbacks
 {
   void onConnect(BLEServer *) override
@@ -15,6 +30,7 @@ class ServerCallbacks : public BLEServerCallbacks
 };
 
 ServerCallbacks callbacks;
+CharacteristicCallbacks characteristicCallbacks;
 
 void setup()
 {
@@ -25,7 +41,11 @@ void setup()
   server->setCallbacks(&callbacks);
   BLEService *service = server->createService(SERVICE_UUID);
   BLECharacteristic *characteristic = service->createCharacteristic(
-    CHARACTERISTIC_UUID, BLECharacteristic::PROPERTY_READ);
+    CHARACTERISTIC_UUID,
+    BLECharacteristic::PROPERTY_READ |
+      BLECharacteristic::PROPERTY_WRITE |
+      BLECharacteristic::PROPERTY_WRITE_NR);
+  characteristic->setCallbacks(&characteristicCallbacks);
   const uint8_t value[] = {0x00, 0x41, 0xff, 0x42};
   characteristic->setValue(value, sizeof(value));
   service->start();
