@@ -11,6 +11,7 @@ bool lifecycleComplete = false;
 bool reinitialized = false;
 uint8_t connectedSequence = 0;
 EspBleConnectionId firstConnectionId = 0;
+uint8_t failureCallbackCount = 0;
 
 EspBleConfig makeConfig()
 {
@@ -72,6 +73,7 @@ void setup()
     }
   });
   bluetooth.onConnectionFailed([](const EspBleConnectionFailure &failure) {
+    ++failureCallbackCount;
     Serial.printf("CONNECTION_FAILED address=%s error=%u detail=%s\n",
       failure.peerAddress.c_str(), static_cast<unsigned>(failure.error),
       failure.detail.c_str());
@@ -127,6 +129,27 @@ void loop()
       config.windowMilliseconds = 50;
       Serial.printf("RECONNECT_SCAN_STARTED %u\n",
         bluetooth.scanner().start(config) ? 1 : 0);
+    }
+    else if (command == 'e')
+    {
+      if (!bluetooth.initialized())
+      {
+        bluetooth.begin(makeConfig());
+      }
+      const uint8_t failuresBeforeEnd = failureCallbackCount;
+      const bool accepted = bluetooth.connect(
+        "02:00:00:00:00:02", EspBleAddressType::Public, 10000);
+      const uint32_t startedAt = millis();
+      bluetooth.end();
+      const uint32_t elapsed = millis() - startedAt;
+      Serial.printf("END_DURING_CONNECT accepted=%u elapsed=%lu initialized=%u\n",
+        accepted ? 1 : 0, static_cast<unsigned long>(elapsed),
+        bluetooth.initialized() ? 1 : 0);
+      const bool beganAgain = bluetooth.begin(makeConfig());
+      bluetooth.update();
+      Serial.printf("END_REINITIALIZED %u stale_failures=%u\n",
+        beganAgain ? 1 : 0,
+        static_cast<unsigned>(failureCallbackCount - failuresBeforeEnd));
     }
   }
 

@@ -141,6 +141,7 @@ struct EspBleScannerImpl
 struct EspBleConnectionImpl
 {
   static constexpr size_t EventCapacity = 8;
+  static constexpr uint32_t ConnectWaitSliceMilliseconds = 1000;
 
   enum class EventType : uint8_t { Connected, Disconnected, Failed };
   struct Event
@@ -183,7 +184,7 @@ struct EspBleConnectionImpl
   void backendConnected(BLEClient *connectedClient)
   {
     std::lock_guard<std::mutex> lock(mutex);
-    if (active)
+    if (ending || active)
     {
       return;
     }
@@ -214,7 +215,10 @@ struct EspBleConnectionImpl
     event.connection = connection;
     active = false;
     connection = EspBleConnection();
-    pushEventLocked(event);
+    if (!ending)
+    {
+      pushEventLocked(event);
+    }
   }
 
   static void connectTaskEntry(void *argument)
@@ -243,14 +247,60 @@ struct EspBleConnectionImpl
     }
 
     const uint32_t startedAt = millis();
-    const bool connected = client != nullptr && client->connect(
-      BLEAddress(target.address, static_cast<uint8_t>(target.addressType)),
-      static_cast<uint8_t>(target.addressType), timeoutMilliseconds);
+    bool connected = false;
+    bool cancelled = false;
+    while (client != nullptr)
+    {
+      uint32_t elapsed;
+      {
+        std::lock_guard<std::mutex> lock(impl->mutex);
+        cancelled = impl->ending;
+        elapsed = static_cast<uint32_t>(millis() - startedAt);
+      }
+      if (cancelled || elapsed >= timeoutMilliseconds)
+      {
+        break;
+      }
+
+      const uint32_t remaining = timeoutMilliseconds - elapsed;
+      const uint32_t waitSlice = remaining < ConnectWaitSliceMilliseconds
+        ? remaining : ConnectWaitSliceMilliseconds;
+      const uint32_t attemptStartedAt = millis();
+      connected = client->connect(
+        BLEAddress(target.address, static_cast<uint8_t>(target.addressType)),
+        static_cast<uint8_t>(target.addressType), waitSlice);
+      if (connected)
+      {
+        break;
+      }
+
+      // A prompt failure is a backend rejection, not a timeout worth retrying.
+      // A full slice means BLEClient timed out and safely cleaned up its GATT app;
+      // retry it so end() only ever waits for one bounded slice.
+      const uint32_t attemptElapsed =
+        static_cast<uint32_t>(millis() - attemptStartedAt);
+      if (attemptElapsed + 20 < waitSlice)
+      {
+        break;
+      }
+      delay(10);
+    }
+    {
+      std::lock_guard<std::mutex> lock(impl->mutex);
+      cancelled = impl->ending;
+    }
     if (connected)
     {
-      impl->backendConnected(client);
+      if (cancelled)
+      {
+        client->disconnect();
+      }
+      else
+      {
+        impl->backendConnected(client);
+      }
     }
-    else
+    else if (!cancelled)
     {
       std::lock_guard<std::mutex> lock(impl->mutex);
       Event event;
@@ -277,6 +327,7 @@ struct EspBleConnectionImpl
   BLEClient *client = nullptr;
   ClientCallbacks callbacks;
   bool connecting = false;
+  bool ending = false;
   bool active = false;
   TaskHandle_t connectTask = nullptr;
   EspBleScanResult target;
@@ -815,6 +866,10 @@ void EspBleBluedroid::end()
   scanner_.flushPendingResults();
   if (connectionImpl_ != nullptr)
   {
+    {
+      std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+      connectionImpl_->ending = true;
+    }
     while (true)
     {
       {

@@ -8,17 +8,19 @@
 
 | 領域 | 公開面 | 確認内容 |
 |---|---|---|
-| Lifecycle | `begin()` / `end()` / `update()` / `initialized()` | 初期化前の操作拒否、同一設定での`begin()`再実行 |
+| Lifecycle | `begin()` / `end()` / `update()` / `initialized()` | 初期化前の操作拒否、同一設定での`begin()`再実行、接続試行の終了 |
 | Error | `lastError()` / `lastErrorName()` / `lastErrorDetail()` | state・argument・backend・resource・unsupportedの分類 |
 | Advertising | name、service UUID、manufacturer data、appearance、scan response、connectable、interval、開始・停止 | raw PDU、複数UUIDの集約、31 byte境界、時間停止を実機確認 |
-| Scan | active/passive、interval/window、duration、duplicate指定、開始・停止 | name、address、RSSI、manufacturer data、service UUID、接続可能性を値型へcopy |
+| Scan | active/passive、interval/window、duration、duplicate指定、開始・停止 | 値型へのcopy、duration・明示停止、`end()`時の未配送queue破棄を実機確認 |
 | Event配送 | `EspBleScanner::onResult()` | stack callbackからqueueへcopyし、利用者callbackを`update()`から配送 |
 | Central接続 | `connect()` / `disconnect()` / connection snapshot / lifecycle callback | non-blocking要求、再接続ごとの新ID、二重要求・不正address拒否、非同期失敗、切断、再初期化 |
 
 AdvertisingとScanの基本経路は`tests/peer/advertise_scan`、Advertising wire形式と
-payload境界は`tests/peer/advertise_payload`で実機確認している。
+payload境界は`tests/peer/advertise_payload`で実機確認している。Scanはduration停止、
+明示停止、未配送結果を残した`end()`と再初期化も確認している。
 Central接続は`tests/peer/connect_disconnect`でlink確立とcallback配送を分離し、切断後の
-再Advertising・再Scan・再接続、新しいID、到達不能peerの非同期失敗まで確認している。
+再Advertising・再Scan・再接続、新しいID、到達不能peerの非同期失敗、接続試行中の
+`end()`と再初期化まで確認している。
 `tests/peer/stack_smoke`は、公開API実装前のbackend成立性として接続、GATT read/write、
 CCCD購読、notificationまで確認している。
 
@@ -33,13 +35,15 @@ CCCD購読、notificationまで確認している。
 - Scan result queueは16件。overflowは`droppedResultCount()`で確認できる。
 - Securityを有効にした`begin()`は`EspBleError::Unsupported`で失敗する。
 - Central接続は同時1接続。Peripheral connectionの公開snapshotはGATT Server追加時に実装する。
+- Bluedroidの接続待機を1秒以下の区間に分けるため、接続試行中の`end()`は同期的に
+  終了するが、復帰まで最大約1秒待つことがある。終了した試行のcallbackは配送しない。
 - GATT Client/Server、Security、Bond、HID、Bluetooth Classicは公開API未実装。
 - Advertisingの時間指定停止は`update()`で処理するため、継続的な`update()`呼出しが必要。
 
 ## 次のテストスライス
 
-1. Scanの停止、duration、queue overflow、`end()`後の再初期化。
-2. 接続timeoutの厳密な分類、接続試行中の`end()`とcancel。
+1. Scan queue overflowとdrop countを電波頻度に依存せず決定的に確認するtest seam。
+2. 接続timeoutの厳密な分類、接続成立後の`end()`。
 3. GATT discovery、read/write、subscribeをEspBleに近い非同期APIで公開。
 4. BLE Securityを実機で確定。
 5. Classic Inquiry、SPP、BLE/SPP dual-modeの順に追加。

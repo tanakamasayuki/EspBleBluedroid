@@ -66,3 +66,15 @@ def test_connection_id_disconnect_and_deferred_callbacks(dut, peers):
     # BackendFailure or Timeout; both are explicit asynchronous failures.
     assert int(failure.group(1)) in {3, 6}
     dut.expect_exact("REINITIALIZED 1", timeout=20)
+
+
+def test_end_cancels_inflight_connection_without_stale_callback(dut, peers):
+    dut.write("e")
+    result = dut.expect(
+        re.compile(
+            rb"END_DURING_CONNECT accepted=1 elapsed=(\d+) initialized=0"
+        ),
+        timeout=20,
+    )
+    assert int(result.group(1)) < 3000
+    dut.expect_exact("END_REINITIALIZED 1 stale_failures=0", timeout=20)

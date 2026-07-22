@@ -10,6 +10,14 @@ static bool prebeginRejected = false;
 static bool scanStarted = false;
 static bool updatesEnabled = false;
 static uint32_t enableUpdatesAt = 0;
+static uint16_t callbackCount = 0;
+
+EspBleConfig makeConfig()
+{
+  EspBleConfig config;
+  config.deviceName = "EspBleBluedroid Central";
+  return config;
+}
 
 void setup()
 {
@@ -22,8 +30,7 @@ void setup()
     prebeginRejected = true;
   }
 
-  EspBleConfig config;
-  config.deviceName = "EspBleBluedroid Central";
+  const EspBleConfig config = makeConfig();
   if (!bluetooth.begin(config) || !bluetooth.initialized())
   {
     Serial.printf("BEGIN_FAILED %s\n", bluetooth.lastErrorName());
@@ -57,6 +64,7 @@ void setup()
   advertising.clear();
 
   bluetooth.scanner().onResult([](const EspBleScanResult &result) {
+    ++callbackCount;
     if (found || !result.advertisesService(SERVICE_UUID))
     {
       return;
@@ -80,20 +88,58 @@ void setup()
 
 void loop()
 {
-  if (!scanStarted && Serial.available() && Serial.read() == 's')
+  if (Serial.available())
   {
-    EspBleScanConfig scanConfig;
-    scanConfig.active = true;
-    scanConfig.intervalMilliseconds = 100;
-    scanConfig.windowMilliseconds = 50;
-    if (!bluetooth.scanner().start(scanConfig))
+    const char command = Serial.read();
+    if (!scanStarted && command == 's')
     {
-      Serial.printf("SCAN_START_FAILED %s\n", bluetooth.lastErrorName());
-      return;
+      EspBleScanConfig scanConfig;
+      scanConfig.active = true;
+      scanConfig.intervalMilliseconds = 100;
+      scanConfig.windowMilliseconds = 50;
+      if (!bluetooth.scanner().start(scanConfig))
+      {
+        Serial.printf("SCAN_START_FAILED %s\n", bluetooth.lastErrorName());
+        return;
+      }
+      scanStarted = true;
+      enableUpdatesAt = millis() + 2000;
+      Serial.println("SCAN_STARTED_NO_UPDATE");
     }
-    scanStarted = true;
-    enableUpdatesAt = millis() + 2000;
-    Serial.println("SCAN_STARTED_NO_UPDATE");
+    else if (command == 't')
+    {
+      EspBleScanConfig scanConfig;
+      scanConfig.active = true;
+      scanConfig.durationSeconds = 1;
+      scanConfig.intervalMilliseconds = 100;
+      scanConfig.windowMilliseconds = 50;
+      const bool durationStarted = bluetooth.scanner().start(scanConfig);
+      delay(1500);
+      const bool durationStopped = !bluetooth.scanner().isScanning();
+      bluetooth.update();
+      Serial.printf("DURATION_SCAN started=%u stopped=%u\n",
+        durationStarted ? 1 : 0, durationStopped ? 1 : 0);
+
+      scanConfig.durationSeconds = 0;
+      const bool explicitStarted = bluetooth.scanner().start(scanConfig);
+      const bool explicitStopped = bluetooth.scanner().stop() &&
+        !bluetooth.scanner().isScanning();
+      Serial.printf("EXPLICIT_STOP started=%u stopped=%u\n",
+        explicitStarted ? 1 : 0, explicitStopped ? 1 : 0);
+
+      scanConfig.wantDuplicates = true;
+      const uint16_t callbacksBeforeEnd = callbackCount;
+      const bool endScanStarted = bluetooth.scanner().start(scanConfig);
+      delay(700);
+      bluetooth.end();
+      const bool ended = !bluetooth.initialized() &&
+        !bluetooth.scanner().isScanning();
+      const bool beganAgain = bluetooth.begin(makeConfig());
+      bluetooth.update();
+      Serial.printf("END_SCAN started=%u ended=%u reinitialized=%u stale=%u\n",
+        endScanStarted ? 1 : 0, ended ? 1 : 0, beganAgain ? 1 : 0,
+        static_cast<unsigned>(callbackCount - callbacksBeforeEnd));
+    }
   }
   if (scanStarted && !updatesEnabled &&
       static_cast<int32_t>(millis() - enableUpdatesAt) >= 0)

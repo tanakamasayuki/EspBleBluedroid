@@ -22,3 +22,12 @@ def test_public_gap_api_and_deferred_scan_callback(dut, peers):
         timeout=30,
     )
     assert match is not None
+
+
+def test_scan_duration_explicit_stop_and_end_flush(dut, peers):
+    dut.write("t")
+    dut.expect_exact("DURATION_SCAN started=1 stopped=1", timeout=20)
+    dut.expect_exact("EXPLICIT_STOP started=1 stopped=1", timeout=20)
+    dut.expect_exact(
+        "END_SCAN started=1 ended=1 reinitialized=1 stale=0", timeout=20
+    )
