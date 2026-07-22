@@ -87,8 +87,32 @@ void setup()
     }
     else
     {
-      bluetooth.disconnect(result.connectionId);
+      const bool accepted = bluetooth.subscribe(
+        result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID, true, 5000);
+      Serial.printf("SUBSCRIBE_REQUESTED %u\n", accepted ? 1 : 0);
     }
+  });
+  bluetooth.onSubscribed([](const EspBleGattResult &result) {
+    Serial.printf("SUBSCRIBED success=%u notifications=%u context=%s\n",
+      result.success ? 1 : 0,
+      result.subscribedToNotifications ? 1 : 0, contextName());
+  });
+  bluetooth.onNotification([](const EspBleGattNotification &notification) {
+    const bool valid = notification.value.length() == 4 &&
+      static_cast<uint8_t>(notification.value[0]) == 0x4e &&
+      static_cast<uint8_t>(notification.value[1]) == 0x00 &&
+      static_cast<uint8_t>(notification.value[2]) == 0xff &&
+      static_cast<uint8_t>(notification.value[3]) == 0x59;
+    Serial.printf("NOTIFICATION valid=%u indication=%u context=%s\n",
+      valid ? 1 : 0, notification.indication ? 1 : 0, contextName());
+    const bool accepted = bluetooth.unsubscribe(
+      notification.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID, 5000);
+    Serial.printf("UNSUBSCRIBE_REQUESTED %u\n", accepted ? 1 : 0);
+  });
+  bluetooth.onUnsubscribed([](const EspBleGattResult &result) {
+    Serial.printf("UNSUBSCRIBED success=%u context=%s\n",
+      result.success ? 1 : 0, contextName());
+    bluetooth.disconnect(result.connectionId);
   });
   bluetooth.scanner().onResult([](const EspBleScanResult &result) {
     if (connectionRequested || !result.advertisesService(SERVICE_UUID)) return;

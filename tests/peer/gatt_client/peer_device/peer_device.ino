@@ -1,4 +1,5 @@
 #include <BLEDevice.h>
+#include <BLE2902.h>
 #include <BLEServer.h>
 
 static constexpr const char *SERVICE_UUID =
@@ -42,10 +43,12 @@ void setup()
   BLEService *service = server->createService(SERVICE_UUID);
   BLECharacteristic *characteristic = service->createCharacteristic(
     CHARACTERISTIC_UUID,
-    BLECharacteristic::PROPERTY_READ |
+      BLECharacteristic::PROPERTY_READ |
       BLECharacteristic::PROPERTY_WRITE |
-      BLECharacteristic::PROPERTY_WRITE_NR);
+      BLECharacteristic::PROPERTY_WRITE_NR |
+      BLECharacteristic::PROPERTY_NOTIFY);
   characteristic->setCallbacks(&characteristicCallbacks);
+  characteristic->addDescriptor(new BLE2902());
   const uint8_t value[] = {0x00, 0x41, 0xff, 0x42};
   characteristic->setValue(value, sizeof(value));
   service->start();
@@ -58,5 +61,16 @@ void setup()
 
 void loop()
 {
+  if (Serial.available() && Serial.read() == 'n')
+  {
+    BLEServer *server = BLEDevice::getServer();
+    BLEService *service = server->getServiceByUUID(SERVICE_UUID);
+    BLECharacteristic *characteristic =
+      service->getCharacteristic(CHARACTERISTIC_UUID);
+    const uint8_t value[] = {0x4e, 0x00, 0xff, 0x59};
+    characteristic->setValue(value, sizeof(value));
+    characteristic->notify();
+    Serial.println("GATT_PEER_NOTIFIED");
+  }
   delay(1);
 }

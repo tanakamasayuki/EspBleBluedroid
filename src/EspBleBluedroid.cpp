@@ -4,6 +4,7 @@
 #include <BLEClient.h>
 #include <BLEDevice.h>
 #include <BLERemoteCharacteristic.h>
+#include <BLERemoteDescriptor.h>
 #include <BLERemoteService.h>
 #include <BLEScan.h>
 #include <BLEUtils.h>
@@ -151,6 +152,7 @@ struct EspBleConnectionImpl
     Disconnected,
     Failed,
     GattResult,
+    Notification,
   };
   struct Event
   {
@@ -158,6 +160,7 @@ struct EspBleConnectionImpl
     EspBleConnection connection;
     EspBleConnectionFailure failure;
     EspBleGattResult gattResult;
+    EspBleGattNotification notification;
   };
 
   class ClientCallbacks : public BLEClientCallbacks
@@ -228,6 +231,33 @@ struct EspBleConnectionImpl
     {
       pushEventLocked(event);
     }
+  }
+
+  void queueNotification(
+    EspBleConnectionId connectionId,
+    const String &serviceUuid,
+    const String &characteristicUuid,
+    uint16_t handle,
+    const uint8_t *data,
+    size_t length,
+    bool indication)
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (ending || !active || connection.id != connectionId)
+    {
+      ++droppedEvents;
+      return;
+    }
+    Event event;
+    event.type = EventType::Notification;
+    event.notification.connectionId = connectionId;
+    event.notification.serviceUuid = serviceUuid;
+    event.notification.characteristicUuid = characteristicUuid;
+    event.notification.handle = handle;
+    event.notification.value = length == 0
+      ? String() : String(reinterpret_cast<const char *>(data), length);
+    event.notification.indication = indication;
+    pushEventLocked(event);
   }
 
   static void connectTaskEntry(void *argument)
@@ -393,7 +423,7 @@ struct EspBleConnectionImpl
             result.value = characteristic->readValue();
             result.success = true;
           }
-          else
+          else if (result.operation == EspBleGattOperation::Write)
           {
             const bool supported = result.response
               ? result.writable : result.writableWithoutResponse;
@@ -415,6 +445,77 @@ struct EspBleConnectionImpl
               {
                 result.error = EspBleError::BackendFailure;
                 result.detail = "GATT write failed";
+              }
+            }
+          }
+          else
+          {
+            const bool subscribing =
+              result.operation == EspBleGattOperation::Subscribe;
+            const bool notifications = result.response;
+            const bool supported = subscribing &&
+              (notifications ? result.notifiable : result.indicatable);
+            if (subscribing && !supported)
+            {
+              result.error = EspBleError::InvalidState;
+              result.detail = notifications
+                ? "GATT characteristic does not support notifications"
+                : "GATT characteristic does not support indications";
+            }
+            else
+            {
+              BLERemoteDescriptor *descriptor =
+                characteristic->getDescriptor(BLEUUID((uint16_t)0x2902));
+              if (descriptor == nullptr)
+              {
+                result.error = EspBleError::NotFound;
+                result.detail = "GATT CCCD was not found";
+              }
+              else if (subscribing)
+              {
+                const EspBleConnectionId connectionId = result.connectionId;
+                const String serviceUuid = result.serviceUuid;
+                const String characteristicUuid = result.characteristicUuid;
+                const uint16_t handle = result.handle;
+                characteristic->registerForNotify(
+                  [impl, connectionId, serviceUuid, characteristicUuid, handle](
+                    BLERemoteCharacteristic *,
+                    uint8_t *data,
+                    size_t length,
+                    bool isNotification) {
+                    impl->queueNotification(
+                      connectionId, serviceUuid, characteristicUuid, handle,
+                      data, length, !isNotification);
+                  },
+                  notifications,
+                  false);
+                const uint8_t cccd[] = {
+                  static_cast<uint8_t>(notifications ? 0x01 : 0x02), 0x00};
+                result.success = descriptor->writeValue(
+                  const_cast<uint8_t *>(cccd), sizeof(cccd), true);
+                if (result.success)
+                {
+                  result.subscribedToNotifications = notifications;
+                  result.subscribedToIndications = !notifications;
+                }
+                else
+                {
+                  characteristic->registerForNotify(nullptr, true, false);
+                  result.error = EspBleError::BackendFailure;
+                  result.detail = "GATT subscription failed";
+                }
+              }
+              else
+              {
+                const uint8_t cccd[] = {0x00, 0x00};
+                result.success = descriptor->writeValue(
+                  const_cast<uint8_t *>(cccd), sizeof(cccd), true);
+                characteristic->registerForNotify(nullptr, true, false);
+                if (!result.success)
+                {
+                  result.error = EspBleError::BackendFailure;
+                  result.detail = "GATT unsubscribe failed";
+                }
               }
             }
           }
@@ -1173,6 +1274,29 @@ bool EspBleBluedroid::writeCharacteristic(
     response, timeoutMilliseconds);
 }
 
+bool EspBleBluedroid::subscribe(
+  EspBleConnectionId connectionId,
+  const char *serviceUuid,
+  const char *characteristicUuid,
+  bool notifications,
+  uint32_t timeoutMilliseconds)
+{
+  return startGattOperation(
+    EspBleGattOperation::Subscribe, connectionId, serviceUuid,
+    characteristicUuid, nullptr, 0, notifications, timeoutMilliseconds);
+}
+
+bool EspBleBluedroid::unsubscribe(
+  EspBleConnectionId connectionId,
+  const char *serviceUuid,
+  const char *characteristicUuid,
+  uint32_t timeoutMilliseconds)
+{
+  return startGattOperation(
+    EspBleGattOperation::Unsubscribe, connectionId, serviceUuid,
+    characteristicUuid, nullptr, 0, true, timeoutMilliseconds);
+}
+
 bool EspBleBluedroid::startGattOperation(
   EspBleGattOperation operation,
   EspBleConnectionId connectionId,
@@ -1192,7 +1316,9 @@ bool EspBleBluedroid::startGattOperation(
       characteristicUuid == nullptr || characteristicUuid[0] == '\0' ||
       (data == nullptr && length != 0) || timeoutMilliseconds == 0 ||
       (operation != EspBleGattOperation::Read &&
-       operation != EspBleGattOperation::Write))
+       operation != EspBleGattOperation::Write &&
+       operation != EspBleGattOperation::Subscribe &&
+       operation != EspBleGattOperation::Unsubscribe))
   {
     setError(EspBleError::InvalidArgument, "invalid GATT operation arguments");
     return false;
@@ -1298,6 +1424,22 @@ void EspBleBluedroid::onCharacteristicWritten(GattResultCallback callback)
   characteristicWrittenCallback_ = std::move(callback);
 }
 
+void EspBleBluedroid::onSubscribed(GattResultCallback callback)
+{
+  subscribedCallback_ = std::move(callback);
+}
+
+void EspBleBluedroid::onUnsubscribed(GattResultCallback callback)
+{
+  unsubscribedCallback_ = std::move(callback);
+}
+
+void EspBleBluedroid::onNotification(
+  std::function<void(const EspBleGattNotification &notification)> callback)
+{
+  notificationCallback_ = std::move(callback);
+}
+
 void EspBleBluedroid::expireGattOperation()
 {
   if (connectionImpl_ == nullptr) return;
@@ -1370,6 +1512,26 @@ void EspBleBluedroid::dispatchConnectionEvents()
       characteristicWrittenCallback_)
     {
       characteristicWrittenCallback_(event.gattResult);
+    }
+    else if (
+      event.type == EspBleConnectionImpl::EventType::GattResult &&
+      event.gattResult.operation == EspBleGattOperation::Subscribe &&
+      subscribedCallback_)
+    {
+      subscribedCallback_(event.gattResult);
+    }
+    else if (
+      event.type == EspBleConnectionImpl::EventType::GattResult &&
+      event.gattResult.operation == EspBleGattOperation::Unsubscribe &&
+      unsubscribedCallback_)
+    {
+      unsubscribedCallback_(event.gattResult);
+    }
+    else if (
+      event.type == EspBleConnectionImpl::EventType::Notification &&
+      notificationCallback_)
+    {
+      notificationCallback_(event.notification);
     }
   }
 }

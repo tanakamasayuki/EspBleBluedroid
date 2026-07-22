@@ -14,5 +14,7 @@ All notable changes to this project are documented in this file.
 - Add the first public GATT Client operations: asynchronous, binary-safe
   Characteristic Read and Write with connection validation, response-mode
   selection, and deferred result callbacks.
+- Add Notification/Indication subscription, copied notification events, and
+  asynchronous unsubscribe completion using explicit Bluedroid CCCD handling.
 - Add Arduino library metadata, CompileSmoke, release automation, and a core
   compatibility matrix for the generic original ESP32 target.

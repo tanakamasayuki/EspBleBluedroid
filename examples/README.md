@@ -8,6 +8,7 @@
 | GAP | [Advertise](Gap/Advertise/README.md) | Legacy advertising with a local name, service UUID, and manufacturer data |
 | GAP | [Scan](Gap/Scan/README.md) | Active scan and value-type results delivered from `update()` |
 | GAP | [Connect](Gap/Connect/README.md) | Asynchronous connection from a Scan Result with a stable connection ID |
-| GATT | [Read](Gatt/Read/README.md) | Asynchronous, binary-safe Characteristic Read and Write after connection |
+| GATT | [Read](Gatt/Read/README.md) | Asynchronous Battery Characteristic Read after connection |
+| GATT | [Client](Gatt/Client/README.md) | Read, Write, and Notification subscription callback chain |
 
 Public features are implemented test-first, then documented with an example.

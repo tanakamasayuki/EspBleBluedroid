@@ -151,6 +151,16 @@ struct EspBleGattResult
   bool response = true;
 };
 
+struct EspBleGattNotification
+{
+  EspBleConnectionId connectionId = 0;
+  String serviceUuid;
+  String characteristicUuid;
+  uint16_t handle = 0;
+  String value;
+  bool indication = false;
+};
+
 class EspBleBluedroid;
 struct EspBleScannerImpl;
 struct EspBleConnectionImpl;
@@ -262,6 +272,17 @@ public:
     size_t length,
     bool response = true,
     uint32_t timeoutMilliseconds = 10000);
+  bool subscribe(
+    EspBleConnectionId connectionId,
+    const char *serviceUuid,
+    const char *characteristicUuid,
+    bool notifications = true,
+    uint32_t timeoutMilliseconds = 10000);
+  bool unsubscribe(
+    EspBleConnectionId connectionId,
+    const char *serviceUuid,
+    const char *characteristicUuid,
+    uint32_t timeoutMilliseconds = 10000);
   bool writeCharacteristic(
     EspBleConnectionId connectionId,
     const char *serviceUuid,
@@ -279,6 +300,10 @@ public:
   void onConnectionFailed(ConnectionFailureCallback callback);
   void onCharacteristicRead(GattResultCallback callback);
   void onCharacteristicWritten(GattResultCallback callback);
+  void onSubscribed(GattResultCallback callback);
+  void onUnsubscribed(GattResultCallback callback);
+  void onNotification(
+    std::function<void(const EspBleGattNotification &notification)> callback);
 
   EspBleError lastError() const;
   const char *lastErrorName() const;
@@ -310,6 +335,10 @@ private:
   ConnectionFailureCallback connectionFailedCallback_;
   GattResultCallback characteristicReadCallback_;
   GattResultCallback characteristicWrittenCallback_;
+  GattResultCallback subscribedCallback_;
+  GattResultCallback unsubscribedCallback_;
+  std::function<void(const EspBleGattNotification &notification)>
+    notificationCallback_;
   bool initialized_ = false;
   String activeDeviceName_;
   uint16_t activePreferredMtu_ = 23;

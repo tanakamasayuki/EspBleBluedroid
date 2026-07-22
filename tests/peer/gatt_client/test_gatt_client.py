@@ -30,3 +30,12 @@ def test_characteristic_read_write_is_binary_safe_and_deferred(dut, peers):
         "WRITE_RESULT phase=1 success=1 response=0 length=3 context=loop",
         timeout=20,
     )
+    dut.expect_exact("SUBSCRIBE_REQUESTED 1", timeout=20)
+    dut.expect_exact(
+        "SUBSCRIBED success=1 notifications=1 context=loop", timeout=20
+    )
+    peripheral.write("n")
+    peripheral.expect_exact("GATT_PEER_NOTIFIED", timeout=20)
+    dut.expect_exact("NOTIFICATION valid=1 indication=0 context=loop", timeout=20)
+    dut.expect_exact("UNSUBSCRIBE_REQUESTED 1", timeout=20)
+    dut.expect_exact("UNSUBSCRIBED success=1 context=loop", timeout=20)
