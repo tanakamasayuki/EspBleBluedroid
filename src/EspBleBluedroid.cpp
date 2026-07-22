@@ -163,6 +163,19 @@ struct EspBleConnectionImpl
     EspBleGattNotification notification;
   };
 
+  struct GattDatabaseSnapshot
+  {
+    EspBleConnectionId connectionId = 0;
+    EspBleGattServiceInfo services[EspBleBluedroid::MaxDiscoveredGattServices];
+    EspBleGattCharacteristicInfo
+      characteristics[EspBleBluedroid::MaxDiscoveredGattCharacteristics];
+    EspBleGattDescriptorInfo
+      descriptors[EspBleBluedroid::MaxDiscoveredGattDescriptors];
+    size_t serviceCount = 0;
+    size_t characteristicCount = 0;
+    size_t descriptorCount = 0;
+  };
+
   class ClientCallbacks : public BLEClientCallbacks
   {
   public:
@@ -180,6 +193,10 @@ struct EspBleConnectionImpl
   };
 
   EspBleConnectionImpl() : callbacks(this) {}
+  ~EspBleConnectionImpl()
+  {
+    delete gattDatabase;
+  }
 
   bool pushEventLocked(const Event &event)
   {
@@ -227,6 +244,13 @@ struct EspBleConnectionImpl
     event.connection = connection;
     active = false;
     connection = EspBleConnection();
+    if (gattDatabase != nullptr)
+    {
+      gattDatabase->connectionId = 0;
+      gattDatabase->serviceCount = 0;
+      gattDatabase->characteristicCount = 0;
+      gattDatabase->descriptorCount = 0;
+    }
     if (!ending)
     {
       pushEventLocked(event);
@@ -369,6 +393,7 @@ struct EspBleConnectionImpl
     EspBleGattResult result;
     BLEClient *client = nullptr;
     String writeValue;
+    GattDatabaseSnapshot *discoveredDatabase = nullptr;
     {
       std::lock_guard<std::mutex> lock(impl->mutex);
       result.operation = impl->gattOperation;
@@ -387,6 +412,112 @@ struct EspBleConnectionImpl
     {
       result.error = EspBleError::InvalidState;
       result.detail = "connection is not an active Central connection";
+    }
+    else if (result.operation == EspBleGattOperation::DiscoverServices)
+    {
+      discoveredDatabase = new (std::nothrow) GattDatabaseSnapshot();
+      if (discoveredDatabase == nullptr)
+      {
+        result.error = EspBleError::ResourceExhausted;
+        result.detail = "failed to allocate GATT database snapshot";
+      }
+      else
+      {
+        discoveredDatabase->connectionId = result.connectionId;
+        std::map<std::string, BLERemoteService *> *services =
+          client->getServices();
+        if (services == nullptr)
+        {
+          result.error = EspBleError::BackendFailure;
+          result.detail = "failed to enumerate GATT services";
+        }
+        else
+        {
+          result.success = true;
+          for (const auto &serviceItem : *services)
+          {
+            BLERemoteService *service = serviceItem.second;
+            if (service == nullptr) continue;
+            if (discoveredDatabase->serviceCount ==
+                EspBleBluedroid::MaxDiscoveredGattServices)
+            {
+              result.success = false;
+              result.error = EspBleError::ResourceExhausted;
+              result.detail = "too many discovered GATT services";
+              break;
+            }
+            const String serviceUuid = service->getUUID().toString();
+            EspBleGattServiceInfo &serviceInfo =
+              discoveredDatabase->services[discoveredDatabase->serviceCount++];
+            serviceInfo.serviceUuid = serviceUuid;
+            serviceInfo.handle = service->getHandle();
+
+            std::map<uint16_t, BLERemoteCharacteristic *> *characteristics =
+              service->getCharacteristicsByHandle();
+            if (characteristics == nullptr)
+            {
+              result.success = false;
+              result.error = EspBleError::BackendFailure;
+              result.detail = "failed to enumerate GATT characteristics";
+              break;
+            }
+            for (const auto &characteristicItem : *characteristics)
+            {
+              BLERemoteCharacteristic *characteristic =
+                characteristicItem.second;
+              if (characteristic == nullptr) continue;
+              if (discoveredDatabase->characteristicCount ==
+                  EspBleBluedroid::MaxDiscoveredGattCharacteristics)
+              {
+                result.success = false;
+                result.error = EspBleError::ResourceExhausted;
+                result.detail = "too many discovered GATT characteristics";
+                break;
+              }
+              const String characteristicUuid =
+                characteristic->getUUID().toString();
+              EspBleGattCharacteristicInfo &characteristicInfo =
+                discoveredDatabase->characteristics[
+                  discoveredDatabase->characteristicCount++];
+              characteristicInfo.serviceUuid = serviceUuid;
+              characteristicInfo.characteristicUuid = characteristicUuid;
+              characteristicInfo.handle = characteristic->getHandle();
+              characteristicInfo.readable = characteristic->canRead();
+              characteristicInfo.writable = characteristic->canWrite();
+              characteristicInfo.writableWithoutResponse =
+                characteristic->canWriteNoResponse();
+              characteristicInfo.notifiable = characteristic->canNotify();
+              characteristicInfo.indicatable = characteristic->canIndicate();
+
+              std::map<std::string, BLERemoteDescriptor *> *descriptors =
+                characteristic->getDescriptors();
+              if (descriptors == nullptr) continue;
+              for (const auto &descriptorItem : *descriptors)
+              {
+                BLERemoteDescriptor *descriptor = descriptorItem.second;
+                if (descriptor == nullptr) continue;
+                if (discoveredDatabase->descriptorCount ==
+                    EspBleBluedroid::MaxDiscoveredGattDescriptors)
+                {
+                  result.success = false;
+                  result.error = EspBleError::ResourceExhausted;
+                  result.detail = "too many discovered GATT descriptors";
+                  break;
+                }
+                EspBleGattDescriptorInfo &descriptorInfo =
+                  discoveredDatabase->descriptors[
+                    discoveredDatabase->descriptorCount++];
+                descriptorInfo.serviceUuid = serviceUuid;
+                descriptorInfo.characteristicUuid = characteristicUuid;
+                descriptorInfo.descriptorUuid = descriptor->getUUID().toString();
+                descriptorInfo.handle = descriptor->getHandle();
+              }
+              if (!result.success) break;
+            }
+            if (!result.success) break;
+          }
+        }
+      }
     }
     else
     {
@@ -527,6 +658,13 @@ struct EspBleConnectionImpl
       std::lock_guard<std::mutex> lock(impl->mutex);
       if (!impl->ending && !impl->gattTimedOut)
       {
+        if (result.operation == EspBleGattOperation::DiscoverServices &&
+            result.success)
+        {
+          delete impl->gattDatabase;
+          impl->gattDatabase = discoveredDatabase;
+          discoveredDatabase = nullptr;
+        }
         Event event;
         event.type = EventType::GattResult;
         event.gattResult = result;
@@ -535,6 +673,7 @@ struct EspBleConnectionImpl
       impl->gattOperating = false;
       impl->gattTask = nullptr;
     }
+    delete discoveredDatabase;
     vTaskDelete(nullptr);
   }
 
@@ -556,6 +695,7 @@ struct EspBleConnectionImpl
   uint32_t gattStartedAt = 0;
   uint32_t gattTimeoutMilliseconds = 10000;
   bool gattTimedOut = false;
+  GattDatabaseSnapshot *gattDatabase = nullptr;
   EspBleScanResult target;
   uint32_t timeoutMilliseconds = 10000;
   EspBleConnection connection;
@@ -1235,6 +1375,149 @@ bool EspBleBluedroid::disconnect(EspBleConnectionId connectionId)
   return true;
 }
 
+bool EspBleBluedroid::discoverServices(
+  EspBleConnectionId connectionId,
+  uint32_t timeoutMilliseconds)
+{
+  return startGattOperation(
+    EspBleGattOperation::DiscoverServices, connectionId, nullptr, nullptr,
+    nullptr, 0, true, timeoutMilliseconds);
+}
+
+size_t EspBleBluedroid::discoveredServiceCount(
+  EspBleConnectionId connectionId) const
+{
+  if (connectionImpl_ == nullptr) return 0;
+  std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+  const EspBleConnectionImpl::GattDatabaseSnapshot *database =
+    connectionImpl_->gattDatabase;
+  return database != nullptr && database->connectionId == connectionId
+    ? database->serviceCount : 0;
+}
+
+bool EspBleBluedroid::discoveredService(
+  EspBleConnectionId connectionId,
+  size_t index,
+  EspBleGattServiceInfo &service) const
+{
+  if (connectionImpl_ == nullptr) return false;
+  std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+  const EspBleConnectionImpl::GattDatabaseSnapshot *database =
+    connectionImpl_->gattDatabase;
+  if (database == nullptr || database->connectionId != connectionId ||
+      index >= database->serviceCount)
+  {
+    return false;
+  }
+  service = database->services[index];
+  return true;
+}
+
+size_t EspBleBluedroid::discoveredCharacteristicCount(
+  EspBleConnectionId connectionId,
+  const char *serviceUuid) const
+{
+  if (connectionImpl_ == nullptr) return 0;
+  std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+  const EspBleConnectionImpl::GattDatabaseSnapshot *database =
+    connectionImpl_->gattDatabase;
+  if (database == nullptr || database->connectionId != connectionId) return 0;
+  size_t count = 0;
+  for (size_t index = 0; index < database->characteristicCount; ++index)
+  {
+    if (serviceUuid == nullptr ||
+        uuidEquals(database->characteristics[index].serviceUuid, serviceUuid))
+    {
+      ++count;
+    }
+  }
+  return count;
+}
+
+bool EspBleBluedroid::discoveredCharacteristic(
+  EspBleConnectionId connectionId,
+  size_t index,
+  EspBleGattCharacteristicInfo &characteristic,
+  const char *serviceUuid) const
+{
+  if (connectionImpl_ == nullptr) return false;
+  std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+  const EspBleConnectionImpl::GattDatabaseSnapshot *database =
+    connectionImpl_->gattDatabase;
+  if (database == nullptr || database->connectionId != connectionId) return false;
+  size_t match = 0;
+  for (size_t item = 0; item < database->characteristicCount; ++item)
+  {
+    if (serviceUuid != nullptr &&
+        !uuidEquals(database->characteristics[item].serviceUuid, serviceUuid))
+    {
+      continue;
+    }
+    if (match++ == index)
+    {
+      characteristic = database->characteristics[item];
+      return true;
+    }
+  }
+  return false;
+}
+
+size_t EspBleBluedroid::discoveredDescriptorCount(
+  EspBleConnectionId connectionId,
+  const char *serviceUuid,
+  const char *characteristicUuid) const
+{
+  if (connectionImpl_ == nullptr) return 0;
+  std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+  const EspBleConnectionImpl::GattDatabaseSnapshot *database =
+    connectionImpl_->gattDatabase;
+  if (database == nullptr || database->connectionId != connectionId) return 0;
+  size_t count = 0;
+  for (size_t index = 0; index < database->descriptorCount; ++index)
+  {
+    const EspBleGattDescriptorInfo &descriptor = database->descriptors[index];
+    if ((serviceUuid == nullptr || uuidEquals(descriptor.serviceUuid, serviceUuid)) &&
+        (characteristicUuid == nullptr ||
+         uuidEquals(descriptor.characteristicUuid, characteristicUuid)))
+    {
+      ++count;
+    }
+  }
+  return count;
+}
+
+bool EspBleBluedroid::discoveredDescriptor(
+  EspBleConnectionId connectionId,
+  size_t index,
+  EspBleGattDescriptorInfo &descriptor,
+  const char *serviceUuid,
+  const char *characteristicUuid) const
+{
+  if (connectionImpl_ == nullptr) return false;
+  std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+  const EspBleConnectionImpl::GattDatabaseSnapshot *database =
+    connectionImpl_->gattDatabase;
+  if (database == nullptr || database->connectionId != connectionId) return false;
+  size_t match = 0;
+  for (size_t item = 0; item < database->descriptorCount; ++item)
+  {
+    const EspBleGattDescriptorInfo &candidate = database->descriptors[item];
+    if ((serviceUuid != nullptr &&
+         !uuidEquals(candidate.serviceUuid, serviceUuid)) ||
+        (characteristicUuid != nullptr &&
+         !uuidEquals(candidate.characteristicUuid, characteristicUuid)))
+    {
+      continue;
+    }
+    if (match++ == index)
+    {
+      descriptor = candidate;
+      return true;
+    }
+  }
+  return false;
+}
+
 bool EspBleBluedroid::readCharacteristic(
   EspBleConnectionId connectionId,
   const char *serviceUuid,
@@ -1312,13 +1595,17 @@ bool EspBleBluedroid::startGattOperation(
     setError(EspBleError::InvalidState, "BLE stack is not initialized");
     return false;
   }
-  if (serviceUuid == nullptr || serviceUuid[0] == '\0' ||
-      characteristicUuid == nullptr || characteristicUuid[0] == '\0' ||
+  const bool databaseDiscovery =
+    operation == EspBleGattOperation::DiscoverServices;
+  if ((!databaseDiscovery &&
+       (serviceUuid == nullptr || serviceUuid[0] == '\0' ||
+        characteristicUuid == nullptr || characteristicUuid[0] == '\0')) ||
       (data == nullptr && length != 0) || timeoutMilliseconds == 0 ||
       (operation != EspBleGattOperation::Read &&
        operation != EspBleGattOperation::Write &&
        operation != EspBleGattOperation::Subscribe &&
-       operation != EspBleGattOperation::Unsubscribe))
+       operation != EspBleGattOperation::Unsubscribe &&
+       operation != EspBleGattOperation::DiscoverServices))
   {
     setError(EspBleError::InvalidArgument, "invalid GATT operation arguments");
     return false;
@@ -1338,8 +1625,14 @@ bool EspBleBluedroid::startGattOperation(
     }
     connectionImpl_->gattOperation = operation;
     connectionImpl_->gattConnectionId = connectionId;
-    connectionImpl_->gattServiceUuid = serviceUuid;
-    connectionImpl_->gattCharacteristicUuid = characteristicUuid;
+    connectionImpl_->gattServiceUuid = serviceUuid == nullptr ? "" : serviceUuid;
+    connectionImpl_->gattCharacteristicUuid =
+      characteristicUuid == nullptr ? "" : characteristicUuid;
+    if (databaseDiscovery)
+    {
+      delete connectionImpl_->gattDatabase;
+      connectionImpl_->gattDatabase = nullptr;
+    }
     connectionImpl_->gattWriteValue = length == 0
       ? String() : String(reinterpret_cast<const char *>(data), length);
     connectionImpl_->gattWriteResponse = response;
@@ -1440,6 +1733,11 @@ void EspBleBluedroid::onNotification(
   notificationCallback_ = std::move(callback);
 }
 
+void EspBleBluedroid::onServicesDiscovered(GattResultCallback callback)
+{
+  servicesDiscoveredCallback_ = std::move(callback);
+}
+
 void EspBleBluedroid::expireGattOperation()
 {
   if (connectionImpl_ == nullptr) return;
@@ -1526,6 +1824,13 @@ void EspBleBluedroid::dispatchConnectionEvents()
       unsubscribedCallback_)
     {
       unsubscribedCallback_(event.gattResult);
+    }
+    else if (
+      event.type == EspBleConnectionImpl::EventType::GattResult &&
+      event.gattResult.operation == EspBleGattOperation::DiscoverServices &&
+      servicesDiscoveredCallback_)
+    {
+      servicesDiscoveredCallback_(event.gattResult);
     }
     else if (
       event.type == EspBleConnectionImpl::EventType::Notification &&

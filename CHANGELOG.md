@@ -16,5 +16,7 @@ All notable changes to this project are documented in this file.
   selection, and deferred result callbacks.
 - Add Notification/Indication subscription, copied notification events, and
   asynchronous unsubscribe completion using explicit Bluedroid CCCD handling.
+- Add connection-scoped GATT database discovery snapshots with fixed,
+  PSRAM-independent service, characteristic, and descriptor limits.
 - Add Arduino library metadata, CompileSmoke, release automation, and a core
   compatibility matrix for the generic original ESP32 target.

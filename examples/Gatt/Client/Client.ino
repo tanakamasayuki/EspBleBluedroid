@@ -14,8 +14,15 @@ void setup()
   if (!bluetooth.begin()) return;
 
   bluetooth.onConnected([](const EspBleConnection &connection) {
+    bluetooth.discoverServices(connection.id);
+  });
+  bluetooth.onServicesDiscovered([](const EspBleGattResult &result) {
+    if (!result.success) return;
+    Serial.printf("Discovered services: %u\n",
+      static_cast<unsigned>(
+        bluetooth.discoveredServiceCount(result.connectionId)));
     bluetooth.readCharacteristic(
-      connection.id, SERVICE_UUID, CHARACTERISTIC_UUID);
+      result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID);
   });
   bluetooth.onCharacteristicRead([](const EspBleGattResult &result) {
     if (!result.success) return;

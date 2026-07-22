@@ -161,6 +161,32 @@ struct EspBleGattNotification
   bool indication = false;
 };
 
+struct EspBleGattServiceInfo
+{
+  String serviceUuid;
+  uint16_t handle = 0;
+};
+
+struct EspBleGattCharacteristicInfo
+{
+  String serviceUuid;
+  String characteristicUuid;
+  uint16_t handle = 0;
+  bool readable = false;
+  bool writable = false;
+  bool writableWithoutResponse = false;
+  bool notifiable = false;
+  bool indicatable = false;
+};
+
+struct EspBleGattDescriptorInfo
+{
+  String serviceUuid;
+  String characteristicUuid;
+  String descriptorUuid;
+  uint16_t handle = 0;
+};
+
 class EspBleBluedroid;
 struct EspBleScannerImpl;
 struct EspBleConnectionImpl;
@@ -231,6 +257,9 @@ private:
 class EspBleBluedroid
 {
 public:
+  static constexpr size_t MaxDiscoveredGattServices = 16;
+  static constexpr size_t MaxDiscoveredGattCharacteristics = 48;
+  static constexpr size_t MaxDiscoveredGattDescriptors = 48;
   using ConnectionCallback =
     std::function<void(const EspBleConnection &connection)>;
   using ConnectionFailureCallback =
@@ -259,6 +288,32 @@ public:
     EspBleAddressType addressType,
     uint32_t timeoutMilliseconds = 10000);
   bool disconnect(EspBleConnectionId connectionId);
+  bool discoverServices(
+    EspBleConnectionId connectionId,
+    uint32_t timeoutMilliseconds = 10000);
+  size_t discoveredServiceCount(EspBleConnectionId connectionId) const;
+  bool discoveredService(
+    EspBleConnectionId connectionId,
+    size_t index,
+    EspBleGattServiceInfo &service) const;
+  size_t discoveredCharacteristicCount(
+    EspBleConnectionId connectionId,
+    const char *serviceUuid = nullptr) const;
+  bool discoveredCharacteristic(
+    EspBleConnectionId connectionId,
+    size_t index,
+    EspBleGattCharacteristicInfo &characteristic,
+    const char *serviceUuid = nullptr) const;
+  size_t discoveredDescriptorCount(
+    EspBleConnectionId connectionId,
+    const char *serviceUuid = nullptr,
+    const char *characteristicUuid = nullptr) const;
+  bool discoveredDescriptor(
+    EspBleConnectionId connectionId,
+    size_t index,
+    EspBleGattDescriptorInfo &descriptor,
+    const char *serviceUuid = nullptr,
+    const char *characteristicUuid = nullptr) const;
   bool readCharacteristic(
     EspBleConnectionId connectionId,
     const char *serviceUuid,
@@ -304,6 +359,7 @@ public:
   void onUnsubscribed(GattResultCallback callback);
   void onNotification(
     std::function<void(const EspBleGattNotification &notification)> callback);
+  void onServicesDiscovered(GattResultCallback callback);
 
   EspBleError lastError() const;
   const char *lastErrorName() const;
@@ -337,6 +393,7 @@ private:
   GattResultCallback characteristicWrittenCallback_;
   GattResultCallback subscribedCallback_;
   GattResultCallback unsubscribedCallback_;
+  GattResultCallback servicesDiscoveredCallback_;
   std::function<void(const EspBleGattNotification &notification)>
     notificationCallback_;
   bool initialized_ = false;

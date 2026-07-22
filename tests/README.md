@@ -27,4 +27,5 @@ IDs, asynchronous failures, deferred callbacks, disconnection, bounded
 in-flight cancellation through `end()`, and reinitialization without stale events.
 `peer/gatt_client` verifies public asynchronous Characteristic Read, both Write
 modes, Notification subscription/unsubscription, binary-safe values,
-connection-ID validation, peer reception, and callback dispatch from `update()`.
+connection-scoped database snapshots, peer reception, disconnect invalidation,
+and callback dispatch from `update()`.

@@ -39,9 +39,8 @@ void setup()
     invalidWriteAccepted ? 0 : 1, bluetooth.lastErrorName());
 
   bluetooth.onConnected([](const EspBleConnection &connection) {
-    const bool accepted = bluetooth.readCharacteristic(
-      connection.id, SERVICE_UUID, CHARACTERISTIC_UUID, 5000);
-    Serial.printf("READ_REQUESTED %u\n", accepted ? 1 : 0);
+    const bool accepted = bluetooth.discoverServices(connection.id, 5000);
+    Serial.printf("DISCOVERY_REQUESTED %u\n", accepted ? 1 : 0);
     const uint8_t concurrentPayload = 0x01;
     const bool concurrentAccepted = bluetooth.writeCharacteristic(
       connection.id, SERVICE_UUID, CHARACTERISTIC_UUID,
@@ -50,6 +49,47 @@ void setup()
       concurrentAccepted ? 0 : 1, bluetooth.lastErrorName());
     updatesEnabled = false;
     Serial.println("GATT_UPDATE_PAUSED");
+  });
+  bluetooth.onServicesDiscovered([](const EspBleGattResult &result) {
+    bool found = false;
+    bool cccdFound = false;
+    bool propertiesValid = false;
+    for (size_t index = 0;
+         index < bluetooth.discoveredCharacteristicCount(result.connectionId);
+         ++index)
+    {
+      EspBleGattCharacteristicInfo info;
+      if (bluetooth.discoveredCharacteristic(
+            result.connectionId, index, info) &&
+          info.serviceUuid.equalsIgnoreCase(SERVICE_UUID) &&
+          info.characteristicUuid.equalsIgnoreCase(CHARACTERISTIC_UUID))
+      {
+        found = info.handle != 0;
+        propertiesValid = info.readable && info.writable &&
+          info.writableWithoutResponse && info.notifiable;
+      }
+    }
+    const size_t descriptorCount = bluetooth.discoveredDescriptorCount(
+      result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID);
+    for (size_t index = 0; index < descriptorCount; ++index)
+    {
+      EspBleGattDescriptorInfo info;
+      if (bluetooth.discoveredDescriptor(
+            result.connectionId, index, info,
+            SERVICE_UUID, CHARACTERISTIC_UUID))
+      {
+        cccdFound = info.handle != 0;
+      }
+    }
+    Serial.printf(
+      "DISCOVERY success=%u services=%u found=%u cccd=%u properties=%u context=%s\n",
+      result.success ? 1 : 0,
+      static_cast<unsigned>(bluetooth.discoveredServiceCount(result.connectionId)),
+      found ? 1 : 0, cccdFound ? 1 : 0, propertiesValid ? 1 : 0,
+      contextName());
+    const bool accepted = bluetooth.readCharacteristic(
+      result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID, 5000);
+    Serial.printf("READ_REQUESTED %u\n", accepted ? 1 : 0);
   });
   bluetooth.onCharacteristicRead([](const EspBleGattResult &result) {
     const bool valid = result.success && result.value.length() == 4 &&
@@ -113,6 +153,11 @@ void setup()
     Serial.printf("UNSUBSCRIBED success=%u context=%s\n",
       result.success ? 1 : 0, contextName());
     bluetooth.disconnect(result.connectionId);
+  });
+  bluetooth.onDisconnected([](const EspBleConnection &connection) {
+    Serial.printf("GATT_DISCONNECTED snapshot_services=%u context=%s\n",
+      static_cast<unsigned>(
+        bluetooth.discoveredServiceCount(connection.id)), contextName());
   });
   bluetooth.scanner().onResult([](const EspBleScanResult &result) {
     if (connectionRequested || !result.advertisesService(SERVICE_UUID)) return;

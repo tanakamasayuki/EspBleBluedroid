@@ -9,12 +9,19 @@ def test_characteristic_read_write_is_binary_safe_and_deferred(dut, peers):
     dut.expect_exact("SCAN_STARTED 1", timeout=20)
     dut.expect_exact("CONNECT_REQUESTED 1", timeout=30)
     peripheral.expect_exact("GATT_PEER_CONNECTED", timeout=20)
-    dut.expect_exact("READ_REQUESTED 1", timeout=20)
+    dut.expect_exact("DISCOVERY_REQUESTED 1", timeout=20)
     dut.expect_exact("CONCURRENT_GATT_REJECTED 1 error=InvalidState", timeout=20)
     dut.expect_exact("GATT_UPDATE_PAUSED", timeout=20)
 
     dut.write("u")
     dut.expect_exact("GATT_UPDATE_START", timeout=20)
+    discovery = dut.expect(
+        rb"DISCOVERY success=1 services=(\d+) found=1 cccd=1 "
+        rb"properties=1 context=loop",
+        timeout=30,
+    )
+    assert int(discovery.group(1)) >= 1
+    dut.expect_exact("READ_REQUESTED 1", timeout=20)
     dut.expect_exact(
         "READ_RESULT success=1 length=4 hex=0041ff42 context=loop", timeout=20
     )
@@ -39,3 +46,4 @@ def test_characteristic_read_write_is_binary_safe_and_deferred(dut, peers):
     dut.expect_exact("NOTIFICATION valid=1 indication=0 context=loop", timeout=20)
     dut.expect_exact("UNSUBSCRIBE_REQUESTED 1", timeout=20)
     dut.expect_exact("UNSUBSCRIBED success=1 context=loop", timeout=20)
+    dut.expect_exact("GATT_DISCONNECTED snapshot_services=0 context=loop", timeout=20)
