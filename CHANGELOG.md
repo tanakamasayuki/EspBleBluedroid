@@ -20,5 +20,7 @@ All notable changes to this project are documented in this file.
   PSRAM-independent service, characteristic, and descriptor limits.
 - Add asynchronous, binary-safe Descriptor Read and Write using the same
   completion-result model as Characteristic operations.
+- Add handle-based Characteristic Read/Write and subscription overloads for
+  selecting an exact discovered characteristic when UUIDs are shared.
 - Add Arduino library metadata, CompileSmoke, release automation, and a core
   compatibility matrix for the generic original ESP32 target.

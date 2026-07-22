@@ -9,6 +9,7 @@ static constexpr const char *DESCRIPTOR_UUID =
 
 EspBleBluedroid bluetooth;
 bool connectionRequested = false;
+uint16_t targetCharacteristicHandle = 0;
 
 void setup()
 {
@@ -23,6 +24,20 @@ void setup()
     Serial.printf("Discovered services: %u\n",
       static_cast<unsigned>(
         bluetooth.discoveredServiceCount(result.connectionId)));
+    const size_t count = bluetooth.discoveredCharacteristicCount(
+      result.connectionId, SERVICE_UUID);
+    for (size_t index = 0; index < count; ++index)
+    {
+      EspBleGattCharacteristicInfo info;
+      if (bluetooth.discoveredCharacteristic(
+            result.connectionId, index, info, SERVICE_UUID) &&
+          info.characteristicUuid.equalsIgnoreCase(CHARACTERISTIC_UUID))
+      {
+        targetCharacteristicHandle = info.handle;
+        break;
+      }
+    }
+    if (targetCharacteristicHandle == 0) return;
     bluetooth.readDescriptor(
       result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID, DESCRIPTOR_UUID);
   });
@@ -35,18 +50,17 @@ void setup()
   bluetooth.onDescriptorWritten([](const EspBleGattResult &result) {
     if (!result.success) return;
     bluetooth.readCharacteristic(
-      result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID);
+      result.connectionId, targetCharacteristicHandle);
   });
   bluetooth.onCharacteristicRead([](const EspBleGattResult &result) {
     if (!result.success) return;
     bluetooth.writeCharacteristic(
-      result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID,
-      String("hello from Central"), true);
+      result.connectionId, result.handle, String("hello from Central"), true);
   });
   bluetooth.onCharacteristicWritten([](const EspBleGattResult &result) {
     if (!result.success) return;
     bluetooth.subscribe(
-      result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID, true);
+      result.connectionId, result.handle, true);
   });
   bluetooth.onSubscribed([](const EspBleGattResult &result) {
     Serial.println(result.success ? "Subscribed" : "Subscribe failed");

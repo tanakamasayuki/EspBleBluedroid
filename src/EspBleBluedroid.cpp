@@ -48,6 +48,29 @@ bool uuidEquals(const String &left, const char *right)
   return BLEUUID(left.c_str()).equals(BLEUUID(right));
 }
 
+BLERemoteCharacteristic *findCharacteristicByHandle(
+  BLEClient *client, uint16_t handle, String &serviceUuid)
+{
+  if (client == nullptr || handle == 0) return nullptr;
+  std::map<std::string, BLERemoteService *> *services = client->getServices();
+  if (services == nullptr) return nullptr;
+  for (const auto &serviceItem : *services)
+  {
+    BLERemoteService *service = serviceItem.second;
+    if (service == nullptr) continue;
+    std::map<uint16_t, BLERemoteCharacteristic *> *characteristics =
+      service->getCharacteristicsByHandle();
+    if (characteristics == nullptr) continue;
+    const auto found = characteristics->find(handle);
+    if (found != characteristics->end() && found->second != nullptr)
+    {
+      serviceUuid = service->getUUID().toString();
+      return found->second;
+    }
+  }
+  return nullptr;
+}
+
 bool sameSecurityConfig(
   const EspBleSecurityConfig &left, const EspBleSecurityConfig &right)
 {
@@ -401,6 +424,7 @@ struct EspBleConnectionImpl
       result.serviceUuid = impl->gattServiceUuid;
       result.characteristicUuid = impl->gattCharacteristicUuid;
       result.descriptorUuid = impl->gattDescriptorUuid;
+      result.handle = impl->gattCharacteristicHandle;
       result.response = impl->gattWriteResponse;
       writeValue = impl->gattWriteValue;
       if (impl->active && impl->connection.id == result.connectionId)
@@ -522,23 +546,43 @@ struct EspBleConnectionImpl
     }
     else
     {
-      BLERemoteService *service = client->getService(result.serviceUuid.c_str());
-      if (service == nullptr)
+      BLERemoteCharacteristic *characteristic = nullptr;
+      if (result.handle != 0)
       {
-        result.error = EspBleError::NotFound;
-        result.detail = "GATT service was not found";
-      }
-      else
-      {
-        BLERemoteCharacteristic *characteristic =
-          service->getCharacteristic(result.characteristicUuid.c_str());
+        characteristic = findCharacteristicByHandle(
+          client, result.handle, result.serviceUuid);
         if (characteristic == nullptr)
         {
           result.error = EspBleError::NotFound;
-          result.detail = "GATT characteristic was not found";
+          result.detail =
+            "GATT characteristic handle was not found (discover services first)";
         }
         else
         {
+          result.characteristicUuid = characteristic->getUUID().toString();
+        }
+      }
+      else
+      {
+        BLERemoteService *service = client->getService(result.serviceUuid.c_str());
+        if (service == nullptr)
+        {
+          result.error = EspBleError::NotFound;
+          result.detail = "GATT service was not found";
+        }
+        else
+        {
+          characteristic =
+            service->getCharacteristic(result.characteristicUuid.c_str());
+          if (characteristic == nullptr)
+          {
+            result.error = EspBleError::NotFound;
+            result.detail = "GATT characteristic was not found";
+          }
+        }
+      }
+      if (characteristic != nullptr)
+      {
           result.handle = characteristic->getHandle();
           result.readable = characteristic->canRead();
           result.writable = characteristic->canWrite();
@@ -686,7 +730,6 @@ struct EspBleConnectionImpl
               }
             }
           }
-        }
       }
     }
 
@@ -727,6 +770,7 @@ struct EspBleConnectionImpl
   String gattServiceUuid;
   String gattCharacteristicUuid;
   String gattDescriptorUuid;
+  uint16_t gattCharacteristicHandle = 0;
   String gattWriteValue;
   bool gattWriteResponse = true;
   uint32_t gattStartedAt = 0;
@@ -1623,6 +1667,89 @@ bool EspBleBluedroid::writeCharacteristic(
     response, timeoutMilliseconds);
 }
 
+bool EspBleBluedroid::readCharacteristic(
+  EspBleConnectionId connectionId,
+  uint16_t characteristicHandle,
+  uint32_t timeoutMilliseconds)
+{
+  if (characteristicHandle == 0)
+  {
+    setError(EspBleError::InvalidArgument,
+      "characteristic handle must be non-zero");
+    return false;
+  }
+  return startGattOperation(
+    EspBleGattOperation::Read, connectionId, nullptr, nullptr,
+    nullptr, 0, true, nullptr, timeoutMilliseconds, characteristicHandle);
+}
+
+bool EspBleBluedroid::writeCharacteristic(
+  EspBleConnectionId connectionId,
+  uint16_t characteristicHandle,
+  const uint8_t *data,
+  size_t length,
+  bool response,
+  uint32_t timeoutMilliseconds)
+{
+  if (characteristicHandle == 0)
+  {
+    setError(EspBleError::InvalidArgument,
+      "characteristic handle must be non-zero");
+    return false;
+  }
+  return startGattOperation(
+    EspBleGattOperation::Write, connectionId, nullptr, nullptr,
+    data, length, response, nullptr, timeoutMilliseconds,
+    characteristicHandle);
+}
+
+bool EspBleBluedroid::writeCharacteristic(
+  EspBleConnectionId connectionId,
+  uint16_t characteristicHandle,
+  const String &value,
+  bool response,
+  uint32_t timeoutMilliseconds)
+{
+  return writeCharacteristic(
+    connectionId, characteristicHandle,
+    reinterpret_cast<const uint8_t *>(value.c_str()), value.length(),
+    response, timeoutMilliseconds);
+}
+
+bool EspBleBluedroid::subscribe(
+  EspBleConnectionId connectionId,
+  uint16_t characteristicHandle,
+  bool notifications,
+  uint32_t timeoutMilliseconds)
+{
+  if (characteristicHandle == 0)
+  {
+    setError(EspBleError::InvalidArgument,
+      "characteristic handle must be non-zero");
+    return false;
+  }
+  return startGattOperation(
+    EspBleGattOperation::Subscribe, connectionId, nullptr, nullptr,
+    nullptr, 0, notifications, nullptr, timeoutMilliseconds,
+    characteristicHandle);
+}
+
+bool EspBleBluedroid::unsubscribe(
+  EspBleConnectionId connectionId,
+  uint16_t characteristicHandle,
+  uint32_t timeoutMilliseconds)
+{
+  if (characteristicHandle == 0)
+  {
+    setError(EspBleError::InvalidArgument,
+      "characteristic handle must be non-zero");
+    return false;
+  }
+  return startGattOperation(
+    EspBleGattOperation::Unsubscribe, connectionId, nullptr, nullptr,
+    nullptr, 0, true, nullptr, timeoutMilliseconds, characteristicHandle);
+}
+
 bool EspBleBluedroid::writeDescriptor(
   EspBleConnectionId connectionId,
   const char *serviceUuid,
@@ -1671,7 +1798,8 @@ bool EspBleBluedroid::startGattOperation(
   size_t length,
   bool response,
   const char *descriptorUuid,
-  uint32_t timeoutMilliseconds)
+  uint32_t timeoutMilliseconds,
+  uint16_t characteristicHandle)
 {
   if (!initialized_ || connectionImpl_ == nullptr)
   {
@@ -1683,7 +1811,8 @@ bool EspBleBluedroid::startGattOperation(
   const bool descriptorOperation =
     operation == EspBleGattOperation::ReadDescriptor ||
     operation == EspBleGattOperation::WriteDescriptor;
-  if ((!databaseDiscovery &&
+  const bool handleBased = characteristicHandle != 0;
+  if ((!databaseDiscovery && !handleBased &&
        (serviceUuid == nullptr || serviceUuid[0] == '\0' ||
         characteristicUuid == nullptr || characteristicUuid[0] == '\0')) ||
       (descriptorOperation &&
@@ -1720,6 +1849,7 @@ bool EspBleBluedroid::startGattOperation(
       characteristicUuid == nullptr ? "" : characteristicUuid;
     connectionImpl_->gattDescriptorUuid =
       descriptorUuid == nullptr ? "" : descriptorUuid;
+    connectionImpl_->gattCharacteristicHandle = characteristicHandle;
     if (databaseDiscovery)
     {
       delete connectionImpl_->gattDatabase;
@@ -1859,6 +1989,7 @@ void EspBleBluedroid::expireGattOperation()
   event.gattResult.serviceUuid = connectionImpl_->gattServiceUuid;
   event.gattResult.characteristicUuid = connectionImpl_->gattCharacteristicUuid;
   event.gattResult.descriptorUuid = connectionImpl_->gattDescriptorUuid;
+  event.gattResult.handle = connectionImpl_->gattCharacteristicHandle;
   event.gattResult.response = connectionImpl_->gattWriteResponse;
   event.gattResult.error = EspBleError::Timeout;
   event.gattResult.detail = "GATT operation timed out";

@@ -28,4 +28,4 @@ in-flight cancellation through `end()`, and reinitialization without stale event
 `peer/gatt_client` verifies public asynchronous Characteristic and Descriptor Read, both Write
 modes, Notification subscription/unsubscription, binary-safe values,
 connection-scoped database snapshots, peer reception, disconnect invalidation,
-and callback dispatch from `update()`.
+handle-based Characteristic targeting, and callback dispatch from `update()`.

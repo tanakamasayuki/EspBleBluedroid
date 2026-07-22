@@ -342,6 +342,34 @@ public:
     size_t length,
     bool response = true,
     uint32_t timeoutMilliseconds = 10000);
+  // Handle overloads select one exact characteristic from the discovery
+  // snapshot, including characteristics that share a UUID.
+  bool readCharacteristic(
+    EspBleConnectionId connectionId,
+    uint16_t characteristicHandle,
+    uint32_t timeoutMilliseconds = 10000);
+  bool writeCharacteristic(
+    EspBleConnectionId connectionId,
+    uint16_t characteristicHandle,
+    const uint8_t *data,
+    size_t length,
+    bool response = true,
+    uint32_t timeoutMilliseconds = 10000);
+  bool writeCharacteristic(
+    EspBleConnectionId connectionId,
+    uint16_t characteristicHandle,
+    const String &value,
+    bool response = true,
+    uint32_t timeoutMilliseconds = 10000);
+  bool subscribe(
+    EspBleConnectionId connectionId,
+    uint16_t characteristicHandle,
+    bool notifications = true,
+    uint32_t timeoutMilliseconds = 10000);
+  bool unsubscribe(
+    EspBleConnectionId connectionId,
+    uint16_t characteristicHandle,
+    uint32_t timeoutMilliseconds = 10000);
   bool subscribe(
     EspBleConnectionId connectionId,
     const char *serviceUuid,
@@ -405,7 +433,8 @@ private:
     size_t length,
     bool response,
     const char *descriptorUuid,
-    uint32_t timeoutMilliseconds);
+    uint32_t timeoutMilliseconds,
+    uint16_t characteristicHandle = 0);
   void expireGattOperation();
   void dispatchConnectionEvents();
 

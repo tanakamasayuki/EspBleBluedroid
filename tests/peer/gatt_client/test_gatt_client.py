@@ -5,6 +5,7 @@ def test_characteristic_read_write_is_binary_safe_and_deferred(dut, peers):
     dut.expect_exact(
         "INVALID_DESCRIPTOR_READ_REJECTED 1 error=InvalidArgument", timeout=20
     )
+    dut.expect_exact("ZERO_HANDLE_REJECTED 1 error=InvalidArgument", timeout=20)
     dut.expect_exact("GATT_CENTRAL_READY", timeout=20)
     peripheral.expect_exact("GATT_PEER_READY", timeout=20)
 
@@ -24,6 +25,11 @@ def test_characteristic_read_write_is_binary_safe_and_deferred(dut, peers):
         timeout=30,
     )
     assert int(discovery.group(1)) >= 1
+    dut.expect_exact("MISSING_HANDLE_READ_REQUESTED 1", timeout=20)
+    dut.expect_exact(
+        "MISSING_HANDLE_READ_RESULT success=0 error=NotFound handle=65534 context=loop",
+        timeout=20,
+    )
     dut.expect_exact("DESCRIPTOR_READ_REQUESTED 1", timeout=20)
     dut.expect_exact(
         "DESCRIPTOR_READ_RESULT success=1 length=4 hex=4400ff53 context=loop",
@@ -37,29 +43,31 @@ def test_characteristic_read_write_is_binary_safe_and_deferred(dut, peers):
         "DESCRIPTOR_WRITE_RESULT success=1 response=1 length=3 context=loop",
         timeout=20,
     )
-    dut.expect_exact("READ_REQUESTED 1", timeout=20)
+    handle_read = dut.expect(rb"HANDLE_READ_REQUESTED 1 handle=(\d+)", timeout=20)
+    assert int(handle_read.group(1)) > 0
     dut.expect_exact(
-        "READ_RESULT success=1 length=4 hex=0041ff42 context=loop", timeout=20
+        "HANDLE_READ_RESULT success=1 length=4 hex=0041ff42 context=loop",
+        timeout=20,
     )
-    dut.expect_exact("WRITE_RESPONSE_REQUESTED 1", timeout=20)
+    dut.expect_exact("HANDLE_WRITE_RESPONSE_REQUESTED 1", timeout=20)
     peripheral.expect_exact("GATT_PEER_WRITE length=3 hex=0057ff", timeout=20)
     dut.expect_exact(
         "WRITE_RESULT phase=0 success=1 response=1 length=3 context=loop",
         timeout=20,
     )
-    dut.expect_exact("WRITE_NO_RESPONSE_REQUESTED 1", timeout=20)
+    dut.expect_exact("HANDLE_WRITE_NO_RESPONSE_REQUESTED 1", timeout=20)
     peripheral.expect_exact("GATT_PEER_WRITE length=3 hex=4e0052", timeout=20)
     dut.expect_exact(
         "WRITE_RESULT phase=1 success=1 response=0 length=3 context=loop",
         timeout=20,
     )
-    dut.expect_exact("SUBSCRIBE_REQUESTED 1", timeout=20)
+    dut.expect_exact("HANDLE_SUBSCRIBE_REQUESTED 1", timeout=20)
     dut.expect_exact(
         "SUBSCRIBED success=1 notifications=1 context=loop", timeout=20
     )
     peripheral.write("n")
     peripheral.expect_exact("GATT_PEER_NOTIFIED", timeout=20)
     dut.expect_exact("NOTIFICATION valid=1 indication=0 context=loop", timeout=20)
-    dut.expect_exact("UNSUBSCRIBE_REQUESTED 1", timeout=20)
+    dut.expect_exact("HANDLE_UNSUBSCRIBE_REQUESTED 1", timeout=20)
     dut.expect_exact("UNSUBSCRIBED success=1 context=loop", timeout=20)
     dut.expect_exact("GATT_DISCONNECTED snapshot_services=0 context=loop", timeout=20)
