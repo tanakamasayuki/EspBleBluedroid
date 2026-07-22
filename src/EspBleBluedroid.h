@@ -117,6 +117,20 @@ struct EspBleConnectionFailure
   String detail;
 };
 
+struct EspBleSecurityChanged
+{
+  EspBleConnection connection;
+  bool success = false;
+  EspBleError error = EspBleError::None;
+  String detail;
+};
+
+struct EspBleBond
+{
+  String peerAddress;
+  EspBleAddressType peerAddressType = EspBleAddressType::Public;
+};
+
 enum class EspBleGattOperation : uint8_t
 {
   Discover = 0,
@@ -265,6 +279,8 @@ public:
   using ConnectionFailureCallback =
     std::function<void(const EspBleConnectionFailure &failure)>;
   using GattResultCallback = std::function<void(const EspBleGattResult &result)>;
+  using SecurityChangedCallback =
+    std::function<void(const EspBleSecurityChanged &event)>;
 
   EspBleBluedroid();
   ~EspBleBluedroid();
@@ -399,11 +415,17 @@ public:
   size_t connectionCount() const;
   bool connection(
     EspBleConnectionId connectionId, EspBleConnection &connection) const;
+  bool requestSecurity(EspBleConnectionId connectionId);
+  size_t bondCount() const;
+  bool bond(size_t index, EspBleBond &bond) const;
+  bool deleteBond(const EspBleBond &bond);
+  bool deleteAllBonds();
   size_t droppedEventCount() const;
 
   void onConnected(ConnectionCallback callback);
   void onDisconnected(ConnectionCallback callback);
   void onConnectionFailed(ConnectionFailureCallback callback);
+  void onSecurityChanged(SecurityChangedCallback callback);
   void onCharacteristicRead(GattResultCallback callback);
   void onCharacteristicWritten(GattResultCallback callback);
   void onDescriptorRead(GattResultCallback callback);
@@ -444,6 +466,7 @@ private:
   ConnectionCallback connectedCallback_;
   ConnectionCallback disconnectedCallback_;
   ConnectionFailureCallback connectionFailedCallback_;
+  SecurityChangedCallback securityChangedCallback_;
   GattResultCallback characteristicReadCallback_;
   GattResultCallback characteristicWrittenCallback_;
   GattResultCallback descriptorReadCallback_;

@@ -9,8 +9,9 @@ The project is in its initial bring-up stage. Its public API currently covers
 the root lifecycle, legacy advertising, scanning, one Central connection, and
 asynchronous GATT discovery, UUID/handle-based Characteristic operations,
 Descriptor Read/Write, and Notification subscription,
-verified by automated two-board peer tests on original ESP32 boards. Public
-Remaining GATT operations and Bluetooth Classic APIs will continue to be added test-first.
+verified by automated two-board peer tests on original ESP32 boards. Just Works
+security and BLE bond management are also available. MITM pairing and
+Bluetooth Classic APIs will continue to be added test-first.
 
 See [tests/README.md](tests/README.md) for setup and usage.
 

@@ -15,6 +15,7 @@
 | Event配送 | `EspBleScanner::onResult()` | stack callbackからqueueへcopyし、利用者callbackを`update()`から配送 |
 | Central接続 | `connect()` / `disconnect()` / connection snapshot / lifecycle callback | non-blocking要求、再接続ごとの新ID、二重要求・不正address拒否、非同期失敗、切断、再初期化 |
 | GATT Client | Database Discovery / UUID・handle指定Characteristic操作 / Descriptor Read・Write / Notification | connection単位snapshot、binary-safe値、CCCD、専用task、`update()`配送 |
+| BLE Security | Just Works / Bond / `requestSecurity()` / security callback | 初回bond、暗号化必須attribute、保存bond再接続、切断後のbond削除 |
 
 AdvertisingとScanの基本経路は`tests/peer/advertise_scan`、Advertising wire形式と
 payload境界は`tests/peer/advertise_payload`で実機確認している。Scanはduration停止、
@@ -34,7 +35,8 @@ CCCD購読、notificationまで確認している。
 - Advertising service UUIDは格納上限4、Scan Resultは格納上限8。超過したScan UUIDの
   個数はまだ個別に報告しない。
 - Scan result queueは16件。overflowは`droppedResultCount()`で確認できる。
-- Securityを有効にした`begin()`は`EspBleError::Unsupported`で失敗する。
+- LE Secure Connections Just Worksに対応。MITM、Passkey Entry、Numeric Comparisonの
+  callbackは未実装で、MITM指定の`begin()`は`EspBleError::Unsupported`で失敗する。
 - Central接続は同時1接続。Peripheral connectionの公開snapshotはGATT Server追加時に実装する。
 - Bluedroidの接続待機を1秒以下の区間に分けるため、接続試行中の`end()`は同期的に
   終了するが、復帰まで最大約1秒待つことがある。終了した試行のcallbackは配送しない。
@@ -45,14 +47,14 @@ CCCD購読、notificationまで確認している。
 - GATT timeoutの結果配送には`update()`が必要。timeout後の遅いbackend完了は配送しないが、
   Bluedroid wrapperの同期ATT待機自体は応答または切断までworker task内に残るため、
   その間は次のGATT操作を受理しない。
-- GATT Server、Security、Bond、HID、Bluetooth Classicは公開API未実装。
+- GATT Server、HID、Bluetooth Classicは公開API未実装。
 - Advertisingの時間指定停止は`update()`で処理するため、継続的な`update()`呼出しが必要。
 
 ## 次のテストスライス
 
 1. Scan queue overflowとdrop countを電波頻度に依存せず決定的に確認するtest seam。
 2. 接続timeoutの厳密な分類、接続成立後の`end()`。
-3. BLE Securityを実機で確定。
+3. BLE SecurityのPasskey Entry / Numeric Comparisonを実機で確定。
 4. Classic Inquiry、SPP、BLE/SPP dual-modeの順に追加。
 
 各項目は失敗するunitまたはpeerテストを先に追加してから実装する。

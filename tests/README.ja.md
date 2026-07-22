@@ -46,6 +46,7 @@ uv run --env-file .env pytest
 | `peer/advertise_payload` | raw AD構造、複数UUIDの集約、31 byte境界、時間指定停止 |
 | `peer/connect_disconnect` | non-blocking接続、再接続ID、非同期失敗、`update()`配送、切断、再初期化 |
 | `peer/gatt_client` | Database snapshot、UUID/handle指定Characteristic操作、Descriptor Read/Write、Notification購読/解除、切断時無効化、`update()`配送 |
+| `peer/security_bond` | Just Works、暗号化GATT、bond保存、暗号化再接続、security callback、bond削除 |
 
 特定のテストだけを実行する場合はパスを追加できます。
 

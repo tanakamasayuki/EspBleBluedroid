@@ -3,6 +3,7 @@
 #include <BLEAdvertising.h>
 #include <BLEClient.h>
 #include <BLEDevice.h>
+#include <BLESecurity.h>
 #include <BLERemoteCharacteristic.h>
 #include <BLERemoteDescriptor.h>
 #include <BLERemoteService.h>
@@ -174,6 +175,7 @@ struct EspBleConnectionImpl
     Connected,
     Disconnected,
     Failed,
+    SecurityChanged,
     GattResult,
     Notification,
   };
@@ -182,6 +184,7 @@ struct EspBleConnectionImpl
     EventType type = EventType::Connected;
     EspBleConnection connection;
     EspBleConnectionFailure failure;
+    EspBleSecurityChanged securityChanged;
     EspBleGattResult gattResult;
     EspBleGattNotification notification;
   };
@@ -215,10 +218,25 @@ struct EspBleConnectionImpl
     EspBleConnectionImpl *owner_;
   };
 
-  EspBleConnectionImpl() : callbacks(this) {}
+  class SecurityCallbacks : public BLESecurityCallbacks
+  {
+  public:
+    explicit SecurityCallbacks(EspBleConnectionImpl *owner) : owner_(owner) {}
+
+    void onAuthenticationComplete(esp_ble_auth_cmpl_t result) override
+    {
+      owner_->backendSecurityChanged(result);
+    }
+
+  private:
+    EspBleConnectionImpl *owner_;
+  };
+
+  EspBleConnectionImpl() : callbacks(this), securityCallbacks(this) {}
   ~EspBleConnectionImpl()
   {
     delete gattDatabase;
+    delete securityBackend;
   }
 
   bool pushEventLocked(const Event &event)
@@ -278,6 +296,57 @@ struct EspBleConnectionImpl
     {
       pushEventLocked(event);
     }
+  }
+
+  void backendSecurityChanged(const esp_ble_auth_cmpl_t &result)
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (ending || !active) return;
+    connection.encrypted = result.success;
+    connection.authenticated = result.success &&
+      (result.auth_mode & ESP_LE_AUTH_REQ_MITM) != 0;
+    connection.bonded = result.success &&
+      (result.auth_mode & ESP_LE_AUTH_BOND) != 0;
+    connection.encryptionKeySize = result.success ? 16 : 0;
+
+    if (result.success && connection.bonded)
+    {
+      int count = esp_ble_get_bond_device_num();
+      esp_ble_bond_dev_t *bonds = count > 0
+        ? new (std::nothrow) esp_ble_bond_dev_t[count] : nullptr;
+      if (bonds != nullptr)
+      {
+        int listed = count;
+        if (esp_ble_get_bond_device_list(&listed, bonds) == ESP_OK)
+        {
+          for (int index = 0; index < listed; ++index)
+          {
+            if (memcmp(bonds[index].bd_addr, result.bd_addr,
+                  sizeof(esp_bd_addr_t)) == 0 &&
+                (bonds[index].bond_key.key_mask & ESP_LE_KEY_PENC) != 0)
+            {
+              connection.encryptionKeySize =
+                bonds[index].bond_key.penc_key.key_size;
+              break;
+            }
+          }
+        }
+        delete[] bonds;
+      }
+    }
+
+    Event event;
+    event.type = EventType::SecurityChanged;
+    event.securityChanged.connection = connection;
+    event.securityChanged.success = result.success;
+    if (!result.success)
+    {
+      event.securityChanged.error = EspBleError::BackendFailure;
+      event.securityChanged.detail =
+        String("BLE authentication failed: ") +
+        String(static_cast<unsigned>(result.fail_reason));
+    }
+    pushEventLocked(event);
   }
 
   void queueNotification(
@@ -759,6 +828,8 @@ struct EspBleConnectionImpl
   mutable std::mutex mutex;
   BLEClient *client = nullptr;
   ClientCallbacks callbacks;
+  SecurityCallbacks securityCallbacks;
+  BLESecurity *securityBackend = nullptr;
   bool connecting = false;
   bool ending = false;
   bool active = false;
@@ -1257,11 +1328,53 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
       EspBleError::InvalidArgument, "preferred MTU must be between 23 and 517");
     return false;
   }
-  if (config.security.enabled)
+  if (!config.security.enabled &&
+      (config.security.mitm || config.security.staticPasskeyEnabled ||
+       config.security.ioCapability != EspBleSecurityIoCapability::None))
+  {
+    setError(
+      EspBleError::InvalidArgument,
+      "enable BLE security before configuring MITM or a passkey");
+    return false;
+  }
+  if (static_cast<uint8_t>(config.security.ioCapability) >
+      static_cast<uint8_t>(EspBleSecurityIoCapability::DisplayYesNo))
+  {
+    setError(
+      EspBleError::InvalidArgument,
+      "unsupported BLE Security I/O capability");
+    return false;
+  }
+  if (config.security.staticPasskeyEnabled &&
+      config.security.staticPasskey > 999999)
+  {
+    setError(
+      EspBleError::InvalidArgument,
+      "static BLE passkey must be between 000000 and 999999");
+    return false;
+  }
+  if (config.security.mitm &&
+      config.security.ioCapability == EspBleSecurityIoCapability::None)
+  {
+    setError(
+      EspBleError::InvalidArgument,
+      "MITM requires an input or output I/O capability");
+    return false;
+  }
+  if (!config.security.mitm &&
+      (config.security.staticPasskeyEnabled ||
+       config.security.ioCapability != EspBleSecurityIoCapability::None))
+  {
+    setError(
+      EspBleError::InvalidArgument,
+      "a static passkey and I/O capability require MITM");
+    return false;
+  }
+  if (config.security.enabled && config.security.mitm)
   {
     setError(
       EspBleError::Unsupported,
-      "BLE security is not implemented in EspBleBluedroid yet");
+      "MITM pairing callbacks are not implemented yet");
     return false;
   }
   connectionImpl_ = new (std::nothrow) EspBleConnectionImpl();
@@ -1285,6 +1398,30 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
     connectionImpl_ = nullptr;
     setError(EspBleError::BackendFailure, "failed to set preferred MTU");
     return false;
+  }
+  if (config.security.enabled)
+  {
+    connectionImpl_->securityBackend = new (std::nothrow) BLESecurity();
+    if (connectionImpl_->securityBackend == nullptr)
+    {
+      BLEDevice::deinit(false);
+      delete connectionImpl_;
+      connectionImpl_ = nullptr;
+      setError(
+        EspBleError::ResourceExhausted,
+        "failed to allocate BLE security state");
+      return false;
+    }
+    BLESecurity::setCapability(ESP_IO_CAP_NONE);
+    BLESecurity::setAuthenticationMode(config.security.bonding, false, true);
+    BLESecurity::setForceAuthentication(config.security.pairOnConnect);
+    BLEDevice::setSecurityCallbacks(&connectionImpl_->securityCallbacks);
+  }
+  else
+  {
+    BLESecurity::setAuthenticationMode(false, false, false);
+    BLESecurity::setForceAuthentication(false);
+    BLEDevice::setSecurityCallbacks(nullptr);
   }
 
   activeDeviceName_ = deviceName;
@@ -1333,6 +1470,9 @@ void EspBleBluedroid::end()
     connectionImpl_->eventHead = 0;
     connectionImpl_->eventCount = 0;
   }
+  BLEDevice::setSecurityCallbacks(nullptr);
+  BLESecurity::setAuthenticationMode(false, false, false);
+  BLESecurity::setForceAuthentication(false);
   BLEDevice::deinit(false);
   initialized_ = false;
   delete connectionImpl_;
@@ -1907,6 +2047,207 @@ bool EspBleBluedroid::connection(
   return true;
 }
 
+bool EspBleBluedroid::requestSecurity(EspBleConnectionId connectionId)
+{
+  if (!initialized_ || connectionImpl_ == nullptr ||
+      !activeSecurity_.enabled)
+  {
+    setError(EspBleError::InvalidState,
+      "BLE security is not enabled");
+    return false;
+  }
+  BLEClient *client = nullptr;
+  {
+    std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+    if (!connectionImpl_->active ||
+        connectionImpl_->connection.id != connectionId)
+    {
+      setError(EspBleError::InvalidArgument,
+        "Central connection ID was not found");
+      return false;
+    }
+    client = connectionImpl_->client;
+  }
+  int backendCode = ESP_FAIL;
+  if (client == nullptr ||
+      !BLESecurity::startSecurity(
+        client->getPeerAddress().getNative(), &backendCode))
+  {
+    setError(EspBleError::BackendFailure,
+      "failed to start BLE security");
+    return false;
+  }
+  clearError();
+  return true;
+}
+
+size_t EspBleBluedroid::bondCount() const
+{
+  if (!initialized_) return 0;
+  const int count = esp_ble_get_bond_device_num();
+  return count > 0 ? static_cast<size_t>(count) : 0;
+}
+
+bool EspBleBluedroid::bond(size_t index, EspBleBond &bond) const
+{
+  if (!initialized_) return false;
+  const int count = esp_ble_get_bond_device_num();
+  if (count <= 0 || index >= static_cast<size_t>(count)) return false;
+  esp_ble_bond_dev_t *bonds =
+    new (std::nothrow) esp_ble_bond_dev_t[count];
+  if (bonds == nullptr) return false;
+  int listed = count;
+  const bool success =
+    esp_ble_get_bond_device_list(&listed, bonds) == ESP_OK &&
+    index < static_cast<size_t>(listed);
+  if (success)
+  {
+    bond.peerAddress = BLEAddress(bonds[index].bd_addr).toString();
+    bond.peerAddressType =
+      static_cast<EspBleAddressType>(bonds[index].bd_addr_type);
+  }
+  delete[] bonds;
+  return success;
+}
+
+bool EspBleBluedroid::deleteBond(const EspBleBond &bond)
+{
+  if (!initialized_ || connectionImpl_ == nullptr)
+  {
+    setError(EspBleError::InvalidState,
+      "BLE stack is not initialized");
+    return false;
+  }
+  {
+    std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+    if (connectionImpl_->active || connectionImpl_->connecting)
+    {
+      setError(EspBleError::InvalidState,
+        "disconnect before deleting a BLE bond");
+      return false;
+    }
+  }
+  const int count = esp_ble_get_bond_device_num();
+  esp_ble_bond_dev_t *bonds = count > 0
+    ? new (std::nothrow) esp_ble_bond_dev_t[count] : nullptr;
+  if (count > 0 && bonds == nullptr)
+  {
+    setError(EspBleError::ResourceExhausted,
+      "failed to allocate BLE bond list");
+    return false;
+  }
+  int listed = count;
+  if (count > 0 &&
+      esp_ble_get_bond_device_list(&listed, bonds) != ESP_OK)
+  {
+    delete[] bonds;
+    setError(EspBleError::BackendFailure,
+      "failed to enumerate BLE bonds");
+    return false;
+  }
+  for (int index = 0; index < listed; ++index)
+  {
+    if (BLEAddress(bonds[index].bd_addr).toString().equalsIgnoreCase(
+          bond.peerAddress) &&
+        static_cast<uint8_t>(bond.peerAddressType) ==
+          static_cast<uint8_t>(bonds[index].bd_addr_type))
+    {
+      const esp_err_t result =
+        esp_ble_remove_bond_device(bonds[index].bd_addr);
+      delete[] bonds;
+      if (result != ESP_OK)
+      {
+        setError(EspBleError::BackendFailure,
+          "failed to delete BLE bond");
+        return false;
+      }
+      const uint32_t startedAt = millis();
+      while (esp_ble_get_bond_device_num() >= count &&
+             static_cast<uint32_t>(millis() - startedAt) < 2000)
+      {
+        delay(10);
+      }
+      if (esp_ble_get_bond_device_num() >= count)
+      {
+        setError(EspBleError::Timeout,
+          "timed out waiting for BLE bond deletion");
+        return false;
+      }
+      clearError();
+      return true;
+    }
+  }
+  delete[] bonds;
+  setError(EspBleError::NotFound, "BLE bond was not found");
+  return false;
+}
+
+bool EspBleBluedroid::deleteAllBonds()
+{
+  if (!initialized_ || connectionImpl_ == nullptr)
+  {
+    setError(EspBleError::InvalidState,
+      "BLE stack is not initialized");
+    return false;
+  }
+  {
+    std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+    if (connectionImpl_->active || connectionImpl_->connecting)
+    {
+      setError(EspBleError::InvalidState,
+        "disconnect before deleting BLE bonds");
+      return false;
+    }
+  }
+  const int count = esp_ble_get_bond_device_num();
+  if (count <= 0)
+  {
+    clearError();
+    return true;
+  }
+  esp_ble_bond_dev_t *bonds =
+    new (std::nothrow) esp_ble_bond_dev_t[count];
+  if (bonds == nullptr)
+  {
+    setError(EspBleError::ResourceExhausted,
+      "failed to allocate BLE bond list");
+    return false;
+  }
+  int listed = count;
+  if (esp_ble_get_bond_device_list(&listed, bonds) != ESP_OK)
+  {
+    delete[] bonds;
+    setError(EspBleError::BackendFailure,
+      "failed to enumerate BLE bonds");
+    return false;
+  }
+  for (int index = 0; index < listed; ++index)
+  {
+    if (esp_ble_remove_bond_device(bonds[index].bd_addr) != ESP_OK)
+    {
+      delete[] bonds;
+      setError(EspBleError::BackendFailure,
+        "failed to delete all BLE bonds");
+      return false;
+    }
+  }
+  delete[] bonds;
+  const uint32_t startedAt = millis();
+  while (esp_ble_get_bond_device_num() != 0 &&
+         static_cast<uint32_t>(millis() - startedAt) < 2000)
+  {
+    delay(10);
+  }
+  if (esp_ble_get_bond_device_num() != 0)
+  {
+    setError(EspBleError::Timeout,
+      "timed out waiting for BLE bond deletion");
+    return false;
+  }
+  clearError();
+  return true;
+}
+
 size_t EspBleBluedroid::droppedEventCount() const
 {
   if (connectionImpl_ == nullptr) return 0;
@@ -1927,6 +2268,11 @@ void EspBleBluedroid::onDisconnected(ConnectionCallback callback)
 void EspBleBluedroid::onConnectionFailed(ConnectionFailureCallback callback)
 {
   connectionFailedCallback_ = std::move(callback);
+}
+
+void EspBleBluedroid::onSecurityChanged(SecurityChangedCallback callback)
+{
+  securityChangedCallback_ = std::move(callback);
 }
 
 void EspBleBluedroid::onCharacteristicRead(GattResultCallback callback)
@@ -2030,6 +2376,12 @@ void EspBleBluedroid::dispatchConnectionEvents()
              connectionFailedCallback_)
     {
       connectionFailedCallback_(event.failure);
+    }
+    else if (
+      event.type == EspBleConnectionImpl::EventType::SecurityChanged &&
+      securityChangedCallback_)
+    {
+      securityChangedCallback_(event.securityChanged);
     }
     else if (
       event.type == EspBleConnectionImpl::EventType::GattResult &&

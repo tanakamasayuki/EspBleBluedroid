@@ -29,3 +29,5 @@ in-flight cancellation through `end()`, and reinitialization without stale event
 modes, Notification subscription/unsubscription, binary-safe values,
 connection-scoped database snapshots, peer reception, disconnect invalidation,
 handle-based Characteristic targeting, and callback dispatch from `update()`.
+`peer/security_bond` verifies Just Works pairing, encrypted GATT access, bond
+storage, encrypted reconnection, deferred security callbacks, and bond cleanup.

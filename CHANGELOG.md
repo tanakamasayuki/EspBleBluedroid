@@ -22,5 +22,8 @@ All notable changes to this project are documented in this file.
   completion-result model as Characteristic operations.
 - Add handle-based Characteristic Read/Write and subscription overloads for
   selecting an exact discovered characteristic when UUIDs are shared.
+- Add LE Secure Connections Just Works pairing, deferred security-state
+  callbacks, explicit security requests, BLE bond enumeration/deletion, and a
+  two-board bonding/reconnection test.
 - Add Arduino library metadata, CompileSmoke, release automation, and a core
   compatibility matrix for the generic original ESP32 target.
