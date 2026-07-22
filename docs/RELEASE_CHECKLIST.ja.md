@@ -14,8 +14,7 @@ EspBleBluedroidをリリースする前の確認項目です。`.github/workflow
 
 - `library.properties`のname、version、説明、architectures、includesを確認する。
 - `keywords.txt`に実装済みの主要class/APIだけが記載されている。
-- 生成済みの`docs/BOARDS.<version>.md`と`docs/COMPATIBILITY.<version>.md`が
-  現在のexample集合を反映している。
+- 生成済みの`docs/COMPATIBILITY.<version>.md`が現在のexample集合を反映している。
 
 ## 自動テスト
 
@@ -36,7 +35,7 @@ done
 ```
 
 - `compile-examples.yml`が全exampleを無印ESP32で通過している。
-- `board-matrix.yml` / `core-matrix.yml`を手動実行し、生成文書を更新する。
+- `core-matrix.yml`を手動実行し、生成文書を更新する。
 - release直前にBLE peer suiteを複数回実行する。
 - Classic実装後は各profileとdual-mode suiteも複数回実行する。
 - 接続反復後のheap低下、task残留、bond/link key storeの不整合がないことを確認する。
@@ -57,4 +56,3 @@ done
 - `python tools/bump_version.py --preview --level patch`でversion変更を確認する。
 - release workflowでversion、CHANGELOG、release branch、tag、GitHub releaseを作成する。
 - 公開後にArduino Library Managerから取得できるversionとCompileSmokeのbuildを確認する。
-

@@ -10,4 +10,6 @@ Legend: ✅ builds · ❌ fails · — example absent in this version · · not 
 | Feature (example) | 3.3.10 |
 | --- | --- |
 | Smoke (`CompileSmoke`) | ✅ |
+| GAP Advertise (`Gap/Advertise`) | ✅ |
+| GAP Scan (`Gap/Scan`) | ✅ |
 

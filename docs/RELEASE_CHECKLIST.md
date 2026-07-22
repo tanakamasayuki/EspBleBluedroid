@@ -9,7 +9,7 @@ common release toolkit and must not be edited per project.
 - The READMEs, API design policy, examples, and implementation agree.
 - New behavior was developed test-first as described in `docs/DEVELOPMENT.ja.md`.
 - `CHANGELOG.md` contains the user-visible changes under `Unreleased`.
-- `library.properties`, `keywords.txt`, and generated build matrices are current.
+- `library.properties`, `keywords.txt`, and the generated core compatibility matrix are current.
 
 ## Automated verification
 
@@ -26,7 +26,7 @@ done
 ```
 
 - Compile every example on the original ESP32.
-- Refresh the board and core compatibility matrices.
+- Refresh the core compatibility matrix for the generic original ESP32 target.
 - Repeat peer suites and check for flaky ordering, heap loss, leaked tasks, and
   inconsistent bond/link-key state.
 - After Classic support is added, run each profile suite and the BLE/Classic
@@ -38,4 +38,3 @@ done
 - Preview the version bump with `python tools/bump_version.py --preview`.
 - Run the release workflow and verify the branch, tag, archive, and release.
 - Compile CompileSmoke from the version published through Arduino Library Manager.
-

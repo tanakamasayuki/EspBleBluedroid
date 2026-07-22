@@ -15,3 +15,9 @@ The default ports are `/dev/ttyUSB0` for the central and `/dev/ttyUSB1` for the
 peripheral. `.env` is ignored by Git; edit only that local file when ports vary
 between machines or USB connection order. Running the test flashes both boards
 and overwrites their existing firmware.
+
+`peer/stack_smoke` verifies the underlying Bluedroid connection and GATT path.
+`peer/advertise_scan` verifies the public lifecycle, advertising payload limit,
+scanning, value-type results, and deferred callback dispatch through `update()`.
+`peer/advertise_payload` verifies raw AD structures, grouped UUIDs, the 31-byte
+boundary, and timed advertising stop behavior.

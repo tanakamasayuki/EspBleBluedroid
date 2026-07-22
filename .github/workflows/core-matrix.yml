@@ -10,10 +10,6 @@ on:
         description: "Comma-separated core versions, or 'auto' for supported releases"
         default: "auto"
         required: true
-      targets:
-        description: "Comma-separated target boards"
-        default: "esp32"
-        required: true
 
 permissions:
   contents: write
@@ -56,7 +52,7 @@ jobs:
           mkdir -p out
           python tools/version_matrix.py \
             --core-versions "${{ matrix.core }}" \
-            --targets "${{ inputs.targets }}" \
+            --targets esp32 \
             --title "arduino-esp32 Bluedroid core compatibility" \
             --json-only \
             --json "out/${{ matrix.core }}.json"
@@ -102,4 +98,3 @@ jobs:
             git pull --rebase origin "$GITHUB_REF_NAME"
             git push origin "HEAD:$GITHUB_REF_NAME"
           fi
-

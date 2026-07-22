@@ -7,10 +7,9 @@ compatibility matrix as Markdown (and JSON).
 
 Mechanism: for each core version the example's `sketch.yaml` platform pin is
 rewritten to that version before `arduino-cli compile --profile <target>` runs.
-arduino-cli auto-installs the pinned core version on first use. Targets that have
-no profile in the sketch.yaml are synthesized by cloning the `esp32` profile
-with the target's FQBN, so board coverage does not require editing every example.
-All sketch.yaml files are restored to their original content when the run ends.
+arduino-cli auto-installs the pinned core version on first use. The target is the
+generic original ESP32 (`esp32:esp32:esp32`). All sketch.yaml files are restored
+to their original content when the run ends.
 
 This is primarily driven by CI (`.github/workflows/*-matrix.yml`), because a full
 core sweep rewrites and rebuilds every sketch and would dirty a local checkout and
@@ -20,9 +19,8 @@ Examples:
   # core-version sweep on the original ESP32
   python tools/version_matrix.py --core-versions auto --targets esp32
 
-  # board sweep on the verified core with every example
-  python tools/version_matrix.py --core-versions 3.3.10 \
-      --targets esp32,pico32,esp32wrover,d1_mini32,esp32cam --examples all
+  # every example on the verified core
+  python tools/version_matrix.py --core-versions 3.3.10 --examples all
 
   # CI decomposition: one core per job writes a JSON payload, then merge them
   python tools/version_matrix.py --core-versions 3.3.10 --json-only --json out/3.3.10.json
@@ -53,18 +51,15 @@ CORE_VERSION_FLOOR = (3, 2, 0)
 # --examples (comma list, or `all`).
 DEFAULT_EXAMPLES = [
     ("Smoke", "CompileSmoke"),
+    ("GAP Advertise", "Gap/Advertise"),
+    ("GAP Scan", "Gap/Scan"),
 ]
 
-# Bluedroid with Bluetooth Classic is currently an original-ESP32 target. Board
-# aliases below exercise representative module/flash/PSRAM definitions while
-# keeping the same ESP32 radio/host stack family.
+# Module/flash/PSRAM variants within the ESP32 family are intentionally not a
+# separate compatibility dimension.
 DEFAULT_TARGETS = ["esp32"]
 KNOWN_TARGET_FQBNS = {
     "esp32": "esp32:esp32:esp32",
-    "pico32": "esp32:esp32:pico32",
-    "esp32wrover": "esp32:esp32:esp32wrover",
-    "d1_mini32": "esp32:esp32:d1_mini32",
-    "esp32cam": "esp32:esp32:esp32cam",
 }
 
 PASS, FAIL, ABSENT, NO_PROFILE, NA_BOARD = "pass", "fail", "absent", "no-profile", "na-board"

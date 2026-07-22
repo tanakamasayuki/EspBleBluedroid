@@ -10,3 +10,8 @@
 `stack_smoke`はライブラリの公開APIには依存せず、Arduino-ESP32同梱Bluedroid
 APIだけで接続し、テスト環境と基本GATT data pathを検証します。
 
+`advertise_scan`はEspBleBluedroidの公開APIを使い、lifecycle、Advertising、31 byte
+超過の拒否、Scan resultと、利用者callbackが`update()`から配送されることを検証します。
+
+`advertise_payload`は親側でraw PDUを解析し、複数Service UUIDのAD構造、31 byte境界、
+時間指定停止を検証します。

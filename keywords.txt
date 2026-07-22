@@ -1,3 +1,16 @@
 EspBleBluedroid	KEYWORD1
+EspBleAdvertising	KEYWORD1
+EspBleScanner	KEYWORD1
+EspBleScanResult	KEYWORD1
+EspBleScanConfig	KEYWORD1
+EspBleConfig	KEYWORD1
+EspBleError	KEYWORD1
+begin	KEYWORD2
+end	KEYWORD2
+update	KEYWORD2
+advertising	KEYWORD2
+scanner	KEYWORD2
+onResult	KEYWORD2
+start	KEYWORD2
+stop	KEYWORD2
 ESPBLEBLUEDROID_VERSION_STR	LITERAL1
-
