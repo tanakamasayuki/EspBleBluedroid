@@ -1,9 +1,11 @@
 #include "EspBleBluedroid.h"
 
 #include <BLEAdvertising.h>
+#include <BLEClient.h>
 #include <BLEDevice.h>
 #include <BLEScan.h>
 #include <BLEUtils.h>
+#include <cctype>
 #include <mutex>
 #include <new>
 #include <utility>
@@ -53,6 +55,26 @@ bool sameSecurityConfig(
     left.ioCapability == right.ioCapability &&
     left.staticPasskeyEnabled == right.staticPasskeyEnabled &&
     left.staticPasskey == right.staticPasskey;
+}
+
+bool isValidBleAddress(const char *address)
+{
+  if (address == nullptr || strlen(address) != 17)
+  {
+    return false;
+  }
+  for (size_t index = 0; index < 17; ++index)
+  {
+    if ((index + 1) % 3 == 0)
+    {
+      if (address[index] != ':') return false;
+    }
+    else if (!std::isxdigit(static_cast<unsigned char>(address[index])))
+    {
+      return false;
+    }
+  }
+  return true;
 }
 } // namespace
 
@@ -116,6 +138,157 @@ struct EspBleScannerImpl
   BackendCallbacks callbacks;
 };
 
+struct EspBleConnectionImpl
+{
+  static constexpr size_t EventCapacity = 8;
+
+  enum class EventType : uint8_t { Connected, Disconnected, Failed };
+  struct Event
+  {
+    EventType type = EventType::Connected;
+    EspBleConnection connection;
+    EspBleConnectionFailure failure;
+  };
+
+  class ClientCallbacks : public BLEClientCallbacks
+  {
+  public:
+    explicit ClientCallbacks(EspBleConnectionImpl *owner) : owner_(owner) {}
+    void onConnect(BLEClient *client) override
+    {
+      owner_->backendConnected(client);
+    }
+    void onDisconnect(BLEClient *) override
+    {
+      owner_->backendDisconnected();
+    }
+  private:
+    EspBleConnectionImpl *owner_;
+  };
+
+  EspBleConnectionImpl() : callbacks(this) {}
+
+  bool pushEventLocked(const Event &event)
+  {
+    if (eventCount == EventCapacity)
+    {
+      ++droppedEvents;
+      return false;
+    }
+    events[(eventHead + eventCount) % EventCapacity] = event;
+    ++eventCount;
+    return true;
+  }
+
+  void backendConnected(BLEClient *connectedClient)
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (active)
+    {
+      return;
+    }
+    active = true;
+    connection = EspBleConnection();
+    connection.id = nextConnectionId++;
+    if (nextConnectionId == 0) nextConnectionId = 1;
+    connection.handle = connectedClient->getConnId();
+    connection.peerAddress = target.address;
+    connection.peerAddressType = target.addressType;
+    connection.localRole = EspBleRole::Central;
+    connection.mtu = connectedClient->getMTU();
+    Event event;
+    event.type = EventType::Connected;
+    event.connection = connection;
+    pushEventLocked(event);
+  }
+
+  void backendDisconnected()
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (!active)
+    {
+      return;
+    }
+    Event event;
+    event.type = EventType::Disconnected;
+    event.connection = connection;
+    active = false;
+    connection = EspBleConnection();
+    pushEventLocked(event);
+  }
+
+  static void connectTaskEntry(void *argument)
+  {
+    EspBleConnectionImpl *impl =
+      static_cast<EspBleConnectionImpl *>(argument);
+    EspBleScanResult target;
+    uint32_t timeoutMilliseconds;
+    BLEClient *client;
+    {
+      std::lock_guard<std::mutex> lock(impl->mutex);
+      target = impl->target;
+      timeoutMilliseconds = impl->timeoutMilliseconds;
+      client = impl->client;
+    }
+
+    if (client == nullptr)
+    {
+      client = BLEDevice::createClient();
+      if (client != nullptr)
+      {
+        client->setClientCallbacks(&impl->callbacks);
+        std::lock_guard<std::mutex> lock(impl->mutex);
+        impl->client = client;
+      }
+    }
+
+    const uint32_t startedAt = millis();
+    const bool connected = client != nullptr && client->connect(
+      BLEAddress(target.address, static_cast<uint8_t>(target.addressType)),
+      static_cast<uint8_t>(target.addressType), timeoutMilliseconds);
+    if (connected)
+    {
+      impl->backendConnected(client);
+    }
+    else
+    {
+      std::lock_guard<std::mutex> lock(impl->mutex);
+      Event event;
+      event.type = EventType::Failed;
+      event.failure.peerAddress = target.address;
+      event.failure.error = client == nullptr
+        ? EspBleError::ResourceExhausted
+        : (static_cast<uint32_t>(millis() - startedAt) >= timeoutMilliseconds
+            ? EspBleError::Timeout : EspBleError::BackendFailure);
+      event.failure.detail = client == nullptr
+        ? "failed to create BLE client" : "BLE connection failed";
+      impl->pushEventLocked(event);
+    }
+
+    {
+      std::lock_guard<std::mutex> lock(impl->mutex);
+      impl->connecting = false;
+      impl->connectTask = nullptr;
+    }
+    vTaskDelete(nullptr);
+  }
+
+  mutable std::mutex mutex;
+  BLEClient *client = nullptr;
+  ClientCallbacks callbacks;
+  bool connecting = false;
+  bool active = false;
+  TaskHandle_t connectTask = nullptr;
+  EspBleScanResult target;
+  uint32_t timeoutMilliseconds = 10000;
+  EspBleConnection connection;
+  EspBleConnectionId nextConnectionId = 1;
+  Event events[EventCapacity];
+  size_t eventHead = 0;
+  size_t eventCount = 0;
+  size_t droppedEvents = 0;
+};
+
 bool EspBleScanResult::hasName() const
 {
   return !name.isEmpty();
@@ -136,6 +309,11 @@ bool EspBleScanResult::advertisesService(const char *uuid) const
     }
   }
   return false;
+}
+
+size_t EspBleConnection::maximumNotificationPayload() const
+{
+  return mtu > 3 ? mtu - 3 : 0;
 }
 
 EspBleAdvertising::EspBleAdvertising(EspBleBluedroid *owner) : owner_(owner) {}
@@ -588,14 +766,25 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
       "BLE security is not implemented in EspBleBluedroid yet");
     return false;
   }
+  connectionImpl_ = new (std::nothrow) EspBleConnectionImpl();
+  if (connectionImpl_ == nullptr)
+  {
+    setError(
+      EspBleError::ResourceExhausted, "failed to allocate connection state");
+    return false;
+  }
   if (!BLEDevice::init(deviceName))
   {
+    delete connectionImpl_;
+    connectionImpl_ = nullptr;
     setError(EspBleError::BackendFailure, "BLEDevice::init failed");
     return false;
   }
   if (BLEDevice::setMTU(config.preferredMtu) != ESP_OK)
   {
     BLEDevice::deinit(false);
+    delete connectionImpl_;
+    connectionImpl_ = nullptr;
     setError(EspBleError::BackendFailure, "failed to set preferred MTU");
     return false;
   }
@@ -624,13 +813,33 @@ void EspBleBluedroid::end()
     advertising_.advertising_ = false;
   }
   scanner_.flushPendingResults();
+  if (connectionImpl_ != nullptr)
+  {
+    while (true)
+    {
+      {
+        std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+        if (!connectionImpl_->connecting) break;
+      }
+      delay(1);
+    }
+    std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+    connectionImpl_->active = false;
+    connectionImpl_->eventHead = 0;
+    connectionImpl_->eventCount = 0;
+  }
   BLEDevice::deinit(false);
   initialized_ = false;
+  delete connectionImpl_;
+  connectionImpl_ = nullptr;
 }
 
 void EspBleBluedroid::update()
 {
   advertising_.update();
+  // Dispatch connection completions before Scan Results. A connect() accepted
+  // from a Scan callback can therefore never complete in that same update().
+  dispatchConnectionEvents();
   scanner_.dispatchPendingResults();
 }
 
@@ -647,6 +856,174 @@ EspBleAdvertising &EspBleBluedroid::advertising()
 EspBleScanner &EspBleBluedroid::scanner()
 {
   return scanner_;
+}
+
+bool EspBleBluedroid::connect(
+  const EspBleScanResult &scanResult, uint32_t timeoutMilliseconds)
+{
+  if (!initialized_ || connectionImpl_ == nullptr)
+  {
+    setError(EspBleError::InvalidState, "BLE stack is not initialized");
+    return false;
+  }
+  if (!isValidBleAddress(scanResult.address.c_str()) ||
+      static_cast<uint8_t>(scanResult.addressType) >
+        static_cast<uint8_t>(EspBleAddressType::RandomIdentity) ||
+      timeoutMilliseconds == 0)
+  {
+    setError(
+      EspBleError::InvalidArgument,
+      "valid peer address, address type, and nonzero timeout are required");
+    return false;
+  }
+  {
+    std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+    if (connectionImpl_->connecting || connectionImpl_->active)
+    {
+      setError(
+        EspBleError::InvalidState,
+        "a connection attempt or active connection already exists");
+      return false;
+    }
+    connectionImpl_->target = scanResult;
+    connectionImpl_->timeoutMilliseconds = timeoutMilliseconds;
+    connectionImpl_->connecting = true;
+  }
+
+  TaskHandle_t task = nullptr;
+  const BaseType_t result = xTaskCreate(
+    EspBleConnectionImpl::connectTaskEntry,
+    "espblebd-connect", 6144, connectionImpl_, 1, &task);
+  if (result != pdPASS)
+  {
+    std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+    connectionImpl_->connecting = false;
+    setError(EspBleError::ResourceExhausted, "failed to create connection task");
+    return false;
+  }
+  {
+    std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+    if (connectionImpl_->connecting)
+    {
+      connectionImpl_->connectTask = task;
+    }
+  }
+  clearError();
+  return true;
+}
+
+bool EspBleBluedroid::connect(
+  const char *address,
+  EspBleAddressType addressType,
+  uint32_t timeoutMilliseconds)
+{
+  EspBleScanResult target;
+  target.address = address == nullptr ? "" : address;
+  target.addressType = addressType;
+  return connect(target, timeoutMilliseconds);
+}
+
+bool EspBleBluedroid::disconnect(EspBleConnectionId connectionId)
+{
+  if (!initialized_ || connectionImpl_ == nullptr)
+  {
+    setError(EspBleError::InvalidState, "BLE stack is not initialized");
+    return false;
+  }
+  BLEClient *client = nullptr;
+  {
+    std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+    if (!connectionImpl_->active ||
+        connectionImpl_->connection.id != connectionId)
+    {
+      setError(EspBleError::InvalidArgument, "connection ID was not found");
+      return false;
+    }
+    client = connectionImpl_->client;
+  }
+  if (client == nullptr || client->disconnect() != ESP_OK)
+  {
+    setError(EspBleError::BackendFailure, "failed to request disconnection");
+    return false;
+  }
+  clearError();
+  return true;
+}
+
+size_t EspBleBluedroid::connectionCount() const
+{
+  if (connectionImpl_ == nullptr) return 0;
+  std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+  return connectionImpl_->active ? 1 : 0;
+}
+
+bool EspBleBluedroid::connection(
+  EspBleConnectionId connectionId, EspBleConnection &connection) const
+{
+  if (connectionImpl_ == nullptr) return false;
+  std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+  if (!connectionImpl_->active ||
+      connectionImpl_->connection.id != connectionId)
+  {
+    return false;
+  }
+  connection = connectionImpl_->connection;
+  return true;
+}
+
+size_t EspBleBluedroid::droppedEventCount() const
+{
+  if (connectionImpl_ == nullptr) return 0;
+  std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+  return connectionImpl_->droppedEvents;
+}
+
+void EspBleBluedroid::onConnected(ConnectionCallback callback)
+{
+  connectedCallback_ = std::move(callback);
+}
+
+void EspBleBluedroid::onDisconnected(ConnectionCallback callback)
+{
+  disconnectedCallback_ = std::move(callback);
+}
+
+void EspBleBluedroid::onConnectionFailed(ConnectionFailureCallback callback)
+{
+  connectionFailedCallback_ = std::move(callback);
+}
+
+void EspBleBluedroid::dispatchConnectionEvents()
+{
+  if (connectionImpl_ == nullptr) return;
+  while (true)
+  {
+    EspBleConnectionImpl::Event event;
+    {
+      std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+      if (connectionImpl_->eventCount == 0) break;
+      event = std::move(
+        connectionImpl_->events[connectionImpl_->eventHead]);
+      connectionImpl_->eventHead =
+        (connectionImpl_->eventHead + 1) % EspBleConnectionImpl::EventCapacity;
+      --connectionImpl_->eventCount;
+    }
+    if (event.type == EspBleConnectionImpl::EventType::Connected &&
+        connectedCallback_)
+    {
+      connectedCallback_(event.connection);
+    }
+    else if (event.type == EspBleConnectionImpl::EventType::Disconnected &&
+             disconnectedCallback_)
+    {
+      disconnectedCallback_(event.connection);
+    }
+    else if (event.type == EspBleConnectionImpl::EventType::Failed &&
+             connectionFailedCallback_)
+    {
+      connectionFailedCallback_(event.failure);
+    }
+  }
 }
 
 EspBleError EspBleBluedroid::lastError() const

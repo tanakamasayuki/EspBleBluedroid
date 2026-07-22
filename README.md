@@ -6,9 +6,9 @@ library, [EspBle](../EspBle/), especially for GATT operations after a
 connection is established.
 
 The project is in its initial bring-up stage. Its public API currently covers
-the root lifecycle, legacy advertising, and scanning, verified by an automated
-two-board peer test on original ESP32 boards. Public GATT and Bluetooth Classic
-APIs will be added test-first.
+the root lifecycle, legacy advertising, scanning, and one Central connection,
+verified by automated two-board peer tests on original ESP32 boards. Public
+GATT and Bluetooth Classic APIs will be added test-first.
 
 See [tests/README.md](tests/README.md) for setup and usage.
 

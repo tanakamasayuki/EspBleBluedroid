@@ -85,8 +85,41 @@ struct EspBleScanResult
   bool advertisesService(const char *uuid) const;
 };
 
+enum class EspBleRole : uint8_t
+{
+  Central = 0,
+  Peripheral,
+};
+
+using EspBleConnectionId = uint32_t;
+
+struct EspBleConnection
+{
+  EspBleConnectionId id = 0;
+  uint16_t handle = 0xffff;
+  String peerAddress;
+  EspBleAddressType peerAddressType = EspBleAddressType::Public;
+  EspBleRole localRole = EspBleRole::Central;
+  uint16_t mtu = 23;
+  bool encrypted = false;
+  bool authenticated = false;
+  bool bonded = false;
+  uint8_t encryptionKeySize = 0;
+  int disconnectReason = 0;
+
+  size_t maximumNotificationPayload() const;
+};
+
+struct EspBleConnectionFailure
+{
+  String peerAddress;
+  EspBleError error = EspBleError::BackendFailure;
+  String detail;
+};
+
 class EspBleBluedroid;
 struct EspBleScannerImpl;
+struct EspBleConnectionImpl;
 
 class EspBleAdvertising
 {
@@ -154,6 +187,11 @@ private:
 class EspBleBluedroid
 {
 public:
+  using ConnectionCallback =
+    std::function<void(const EspBleConnection &connection)>;
+  using ConnectionFailureCallback =
+    std::function<void(const EspBleConnectionFailure &failure)>;
+
   EspBleBluedroid();
   ~EspBleBluedroid();
 
@@ -168,6 +206,23 @@ public:
   EspBleAdvertising &advertising();
   EspBleScanner &scanner();
 
+  bool connect(
+    const EspBleScanResult &scanResult,
+    uint32_t timeoutMilliseconds = 10000);
+  bool connect(
+    const char *address,
+    EspBleAddressType addressType,
+    uint32_t timeoutMilliseconds = 10000);
+  bool disconnect(EspBleConnectionId connectionId);
+  size_t connectionCount() const;
+  bool connection(
+    EspBleConnectionId connectionId, EspBleConnection &connection) const;
+  size_t droppedEventCount() const;
+
+  void onConnected(ConnectionCallback callback);
+  void onDisconnected(ConnectionCallback callback);
+  void onConnectionFailed(ConnectionFailureCallback callback);
+
   EspBleError lastError() const;
   const char *lastErrorName() const;
   const String &lastErrorDetail() const;
@@ -178,9 +233,14 @@ private:
   friend class EspBleScanner;
 
   void setError(EspBleError error, const char *detail = nullptr);
+  void dispatchConnectionEvents();
 
   EspBleAdvertising advertising_;
   EspBleScanner scanner_;
+  EspBleConnectionImpl *connectionImpl_ = nullptr;
+  ConnectionCallback connectedCallback_;
+  ConnectionCallback disconnectedCallback_;
+  ConnectionFailureCallback connectionFailedCallback_;
   bool initialized_ = false;
   String activeDeviceName_;
   uint16_t activePreferredMtu_ = 23;

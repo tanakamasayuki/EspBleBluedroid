@@ -21,3 +21,5 @@ and overwrites their existing firmware.
 scanning, value-type results, and deferred callback dispatch through `update()`.
 `peer/advertise_payload` verifies raw AD structures, grouped UUIDs, the 31-byte
 boundary, and timed advertising stop behavior.
+`peer/connect_disconnect` verifies non-blocking connection requests, stable IDs,
+deferred callbacks, disconnection, and reinitialization.

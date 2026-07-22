@@ -4,9 +4,9 @@ ESP32のBluedroidスタックを利用するArduinoライブラリです。NimBL
 兄弟ライブラリ[EspBle](../EspBle/)と、接続後のGATT操作を中心に似た使い勝手を
 提供することを目標にしています。
 
-現在は実装の最初の段階です。root lifecycle、Legacy Advertising、Scanの公開APIを
-実装し、無印ESP32を2台使ったpeerテストで検証しています。GATT接続後の公開APIと
-Bluetooth Classicは今後、テストファーストで追加します。
+現在は実装の最初の段階です。root lifecycle、Legacy Advertising、Scan、Central
+1接続の公開APIを実装し、無印ESP32を2台使ったpeerテストで検証しています。
+接続後のGATT公開APIとBluetooth Classicは今後、テストファーストで追加します。
 
 ## 現在のテスト範囲
 

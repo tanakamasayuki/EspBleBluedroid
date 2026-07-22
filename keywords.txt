@@ -2,6 +2,10 @@ EspBleBluedroid	KEYWORD1
 EspBleAdvertising	KEYWORD1
 EspBleScanner	KEYWORD1
 EspBleScanResult	KEYWORD1
+EspBleConnection	KEYWORD1
+EspBleConnectionFailure	KEYWORD1
+EspBleConnectionId	KEYWORD1
+EspBleRole	KEYWORD1
 EspBleScanConfig	KEYWORD1
 EspBleConfig	KEYWORD1
 EspBleError	KEYWORD1
@@ -10,6 +14,12 @@ end	KEYWORD2
 update	KEYWORD2
 advertising	KEYWORD2
 scanner	KEYWORD2
+connect	KEYWORD2
+disconnect	KEYWORD2
+onConnected	KEYWORD2
+onDisconnected	KEYWORD2
+onConnectionFailed	KEYWORD2
+connectionCount	KEYWORD2
 onResult	KEYWORD2
 start	KEYWORD2
 stop	KEYWORD2

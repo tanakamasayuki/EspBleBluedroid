@@ -12,4 +12,5 @@ Legend: ✅ builds · ❌ fails · — example absent in this version · · not 
 | Smoke (`CompileSmoke`) | ✅ |
 | GAP Advertise (`Gap/Advertise`) | ✅ |
 | GAP Scan (`Gap/Scan`) | ✅ |
+| GAP Connect (`Gap/Connect`) | ✅ |
 

@@ -15,3 +15,6 @@ APIだけで接続し、テスト環境と基本GATT data pathを検証します
 
 `advertise_payload`は親側でraw PDUを解析し、複数Service UUIDのAD構造、31 byte境界、
 時間指定停止を検証します。
+
+`connect_disconnect`は公開APIによるCentral接続、安定したconnection ID、callbackの
+`update()`配送、切断、stack再初期化を検証します。
