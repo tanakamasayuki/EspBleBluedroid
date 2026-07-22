@@ -10,8 +10,8 @@ the root lifecycle, legacy advertising, scanning, one Central connection, and
 asynchronous GATT discovery, UUID/handle-based Characteristic operations,
 Descriptor Read/Write, and Notification subscription,
 verified by automated two-board peer tests on original ESP32 boards. Just Works
-security and BLE bond management are also available. MITM pairing and
-Bluetooth Classic APIs will continue to be added test-first.
+security, static-passkey MITM, and BLE bond management are also available.
+Interactive pairing and Bluetooth Classic APIs will continue to be added test-first.
 
 See [tests/README.md](tests/README.md) for setup and usage.
 

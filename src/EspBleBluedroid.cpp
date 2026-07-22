@@ -176,6 +176,7 @@ struct EspBleConnectionImpl
     Disconnected,
     Failed,
     SecurityChanged,
+    PasskeyDisplayed,
     GattResult,
     Notification,
   };
@@ -185,6 +186,7 @@ struct EspBleConnectionImpl
     EspBleConnection connection;
     EspBleConnectionFailure failure;
     EspBleSecurityChanged securityChanged;
+    EspBlePasskeyDisplayed passkeyDisplayed;
     EspBleGattResult gattResult;
     EspBleGattNotification notification;
   };
@@ -226,6 +228,16 @@ struct EspBleConnectionImpl
     void onAuthenticationComplete(esp_ble_auth_cmpl_t result) override
     {
       owner_->backendSecurityChanged(result);
+    }
+
+    uint32_t onPassKeyRequest() override
+    {
+      return owner_->staticPasskey;
+    }
+
+    void onPassKeyNotify(uint32_t passkey) override
+    {
+      owner_->backendPasskeyDisplayed(passkey);
     }
 
   private:
@@ -346,6 +358,17 @@ struct EspBleConnectionImpl
         String("BLE authentication failed: ") +
         String(static_cast<unsigned>(result.fail_reason));
     }
+    pushEventLocked(event);
+  }
+
+  void backendPasskeyDisplayed(uint32_t passkey)
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (ending || !active) return;
+    Event event;
+    event.type = EventType::PasskeyDisplayed;
+    event.passkeyDisplayed.connection = connection;
+    event.passkeyDisplayed.passkey = passkey;
     pushEventLocked(event);
   }
 
@@ -830,6 +853,7 @@ struct EspBleConnectionImpl
   ClientCallbacks callbacks;
   SecurityCallbacks securityCallbacks;
   BLESecurity *securityBackend = nullptr;
+  uint32_t staticPasskey = 0;
   bool connecting = false;
   bool ending = false;
   bool active = false;
@@ -1370,11 +1394,14 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
       "a static passkey and I/O capability require MITM");
     return false;
   }
-  if (config.security.enabled && config.security.mitm)
+  if (config.security.enabled && config.security.mitm &&
+      (!config.security.staticPasskeyEnabled ||
+       config.security.ioCapability ==
+         EspBleSecurityIoCapability::DisplayYesNo))
   {
     setError(
       EspBleError::Unsupported,
-      "MITM pairing callbacks are not implemented yet");
+      "MITM currently requires a static passkey and DisplayOnly or KeyboardOnly");
     return false;
   }
   connectionImpl_ = new (std::nothrow) EspBleConnectionImpl();
@@ -1412,8 +1439,25 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
         "failed to allocate BLE security state");
       return false;
     }
-    BLESecurity::setCapability(ESP_IO_CAP_NONE);
-    BLESecurity::setAuthenticationMode(config.security.bonding, false, true);
+    uint8_t ioCapability = ESP_IO_CAP_NONE;
+    if (config.security.ioCapability ==
+        EspBleSecurityIoCapability::DisplayOnly)
+    {
+      ioCapability = ESP_IO_CAP_OUT;
+    }
+    else if (config.security.ioCapability ==
+             EspBleSecurityIoCapability::KeyboardOnly)
+    {
+      ioCapability = ESP_IO_CAP_IN;
+    }
+    BLESecurity::setCapability(ioCapability);
+    connectionImpl_->staticPasskey = config.security.staticPasskey;
+    if (config.security.staticPasskeyEnabled)
+    {
+      BLESecurity::setPassKey(true, config.security.staticPasskey);
+    }
+    BLESecurity::setAuthenticationMode(
+      config.security.bonding, config.security.mitm, true);
     BLESecurity::setForceAuthentication(config.security.pairOnConnect);
     BLEDevice::setSecurityCallbacks(&connectionImpl_->securityCallbacks);
   }
@@ -2275,6 +2319,11 @@ void EspBleBluedroid::onSecurityChanged(SecurityChangedCallback callback)
   securityChangedCallback_ = std::move(callback);
 }
 
+void EspBleBluedroid::onPasskeyDisplayed(PasskeyDisplayedCallback callback)
+{
+  passkeyDisplayedCallback_ = std::move(callback);
+}
+
 void EspBleBluedroid::onCharacteristicRead(GattResultCallback callback)
 {
   characteristicReadCallback_ = std::move(callback);
@@ -2382,6 +2431,12 @@ void EspBleBluedroid::dispatchConnectionEvents()
       securityChangedCallback_)
     {
       securityChangedCallback_(event.securityChanged);
+    }
+    else if (
+      event.type == EspBleConnectionImpl::EventType::PasskeyDisplayed &&
+      passkeyDisplayedCallback_)
+    {
+      passkeyDisplayedCallback_(event.passkeyDisplayed);
     }
     else if (
       event.type == EspBleConnectionImpl::EventType::GattResult &&

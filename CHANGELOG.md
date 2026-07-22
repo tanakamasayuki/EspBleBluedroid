@@ -25,5 +25,8 @@ All notable changes to this project are documented in this file.
 - Add LE Secure Connections Just Works pairing, deferred security-state
   callbacks, explicit security requests, BLE bond enumeration/deletion, and a
   two-board bonding/reconnection test.
+- Add static-passkey MITM pairing for DisplayOnly/KeyboardOnly devices,
+  deferred passkey-display events, authenticated connection snapshots, and an
+  authenticated GATT peer test.
 - Add Arduino library metadata, CompileSmoke, release automation, and a core
   compatibility matrix for the generic original ESP32 target.

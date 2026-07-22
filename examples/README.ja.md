@@ -11,6 +11,7 @@
 | GATT | [Read](Gatt/Read/README.ja.md) | 接続後の非同期Battery Characteristic Read |
 | GATT | [Client](Gatt/Client/README.ja.md) | Read、Write、Notification購読のcallback chain |
 | Security | [JustWorksClient](Security/JustWorksClient/README.ja.md) | Just Works pairing、bond保存、暗号化再接続 |
+| Security | [StaticPasskeyClient](Security/StaticPasskeyClient/README.ja.md) | 静的passkeyのMITM pairingと認証状態 |
 
 公開機能を追加するときは、先に対応するunitまたはpeerテストを追加し、その後に
 exampleを追加します。

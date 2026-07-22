@@ -125,6 +125,12 @@ struct EspBleSecurityChanged
   String detail;
 };
 
+struct EspBlePasskeyDisplayed
+{
+  EspBleConnection connection;
+  uint32_t passkey = 0;
+};
+
 struct EspBleBond
 {
   String peerAddress;
@@ -281,6 +287,8 @@ public:
   using GattResultCallback = std::function<void(const EspBleGattResult &result)>;
   using SecurityChangedCallback =
     std::function<void(const EspBleSecurityChanged &event)>;
+  using PasskeyDisplayedCallback =
+    std::function<void(const EspBlePasskeyDisplayed &event)>;
 
   EspBleBluedroid();
   ~EspBleBluedroid();
@@ -426,6 +434,7 @@ public:
   void onDisconnected(ConnectionCallback callback);
   void onConnectionFailed(ConnectionFailureCallback callback);
   void onSecurityChanged(SecurityChangedCallback callback);
+  void onPasskeyDisplayed(PasskeyDisplayedCallback callback);
   void onCharacteristicRead(GattResultCallback callback);
   void onCharacteristicWritten(GattResultCallback callback);
   void onDescriptorRead(GattResultCallback callback);
@@ -467,6 +476,7 @@ private:
   ConnectionCallback disconnectedCallback_;
   ConnectionFailureCallback connectionFailedCallback_;
   SecurityChangedCallback securityChangedCallback_;
+  PasskeyDisplayedCallback passkeyDisplayedCallback_;
   GattResultCallback characteristicReadCallback_;
   GattResultCallback characteristicWrittenCallback_;
   GattResultCallback descriptorReadCallback_;
