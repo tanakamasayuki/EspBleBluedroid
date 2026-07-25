@@ -224,8 +224,13 @@ Passkey表示と入力はEspBleに近い公開面を維持するが、Bluedroid 
 library callback型へ固定しない。
 
 `providePasskey()`の成功は値をmailboxへ受理したことを意味し、pairing成功を意味
-しない。認証結果は`onSecurityChanged()`で確定する。Numeric Comparisonは
-DisplayYesNo用の明示的な確認APIとpeerテストが揃うまで`Unsupported`とする。
+しない。認証結果は`onSecurityChanged()`で確定する。
+
+DisplayYesNoのNumeric Comparisonでは、両側に出る6桁値を
+`onNumericComparison()`へ`update()`から配送する。applicationは値の一致を利用者へ
+確認し、`confirmNumericComparison(true)`で承認、`false`で拒否する。同期stack
+callbackの待機上限は同じく30秒で、時間切れは拒否として扱う。確認APIの成功は回答を
+mailboxへ受理したことを意味し、pairing結果は`onSecurityChanged()`で確定する。
 
 Arduino-ESP32 BLE wrapperはprocess内のpasskey設定済みflagを公開APIで解除できない。
 したがって静的passkeyまたはDisplayOnlyの自動生成passkeyを設定して`end()`した後、

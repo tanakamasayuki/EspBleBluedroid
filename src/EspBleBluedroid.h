@@ -425,6 +425,7 @@ public:
     EspBleConnectionId connectionId, EspBleConnection &connection) const;
   bool requestSecurity(EspBleConnectionId connectionId);
   bool providePasskey(uint32_t passkey);
+  bool confirmNumericComparison(bool accept);
   size_t bondCount() const;
   bool bond(size_t index, EspBleBond &bond) const;
   bool deleteBond(const EspBleBond &bond);
@@ -436,6 +437,7 @@ public:
   void onConnectionFailed(ConnectionFailureCallback callback);
   void onSecurityChanged(SecurityChangedCallback callback);
   void onPasskeyDisplayed(PasskeyDisplayedCallback callback);
+  void onNumericComparison(PasskeyDisplayedCallback callback);
   void onCharacteristicRead(GattResultCallback callback);
   void onCharacteristicWritten(GattResultCallback callback);
   void onDescriptorRead(GattResultCallback callback);
@@ -478,6 +480,7 @@ private:
   ConnectionFailureCallback connectionFailedCallback_;
   SecurityChangedCallback securityChangedCallback_;
   PasskeyDisplayedCallback passkeyDisplayedCallback_;
+  PasskeyDisplayedCallback numericComparisonCallback_;
   GattResultCallback characteristicReadCallback_;
   GattResultCallback characteristicWrittenCallback_;
   GattResultCallback descriptorReadCallback_;

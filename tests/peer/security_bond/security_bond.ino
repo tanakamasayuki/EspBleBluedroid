@@ -28,13 +28,15 @@ void setup()
   const bool invalidAccepted = bluetooth.begin(invalidSecurity);
   const String invalidError = bluetooth.lastErrorName();
 
-  EspBleConfig unsupportedMitm;
-  unsupportedMitm.security.enabled = true;
-  unsupportedMitm.security.mitm = true;
-  unsupportedMitm.security.ioCapability =
-    EspBleSecurityIoCapability::DisplayYesNo;
-  const bool mitmAccepted = bluetooth.begin(unsupportedMitm);
-  const String mitmError = bluetooth.lastErrorName();
+  EspBleConfig invalidPasskey;
+  invalidPasskey.security.enabled = true;
+  invalidPasskey.security.mitm = true;
+  invalidPasskey.security.ioCapability =
+    EspBleSecurityIoCapability::DisplayOnly;
+  invalidPasskey.security.staticPasskeyEnabled = true;
+  invalidPasskey.security.staticPasskey = 1000000;
+  const bool passkeyAccepted = bluetooth.begin(invalidPasskey);
+  const String passkeyError = bluetooth.lastErrorName();
 
   EspBleConfig config;
   config.deviceName = "Bluedroid Security Central";
@@ -49,8 +51,8 @@ void setup()
   }
   Serial.printf("DISABLED_SECURITY_OPTIONS_REJECTED %u error=%s\n",
     invalidAccepted ? 0 : 1, invalidError.c_str());
-  Serial.printf("MITM_REJECTED %u error=%s\n",
-    mitmAccepted ? 0 : 1, mitmError.c_str());
+  Serial.printf("INVALID_PASSKEY_REJECTED %u error=%s\n",
+    passkeyAccepted ? 0 : 1, passkeyError.c_str());
 
   bluetooth.onConnected([](const EspBleConnection &connection) {
     connectionId = connection.id;

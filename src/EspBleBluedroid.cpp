@@ -177,6 +177,7 @@ struct EspBleConnectionImpl
     Failed,
     SecurityChanged,
     PasskeyDisplayed,
+    NumericComparison,
     GattResult,
     Notification,
   };
@@ -240,6 +241,11 @@ struct EspBleConnectionImpl
       owner_->backendPasskeyDisplayed(passkey);
     }
 
+    bool onConfirmPIN(uint32_t pin) override
+    {
+      return owner_->requestNumericComparison(pin);
+    }
+
   private:
     EspBleConnectionImpl *owner_;
   };
@@ -288,6 +294,38 @@ struct EspBleConnectionImpl
       vTaskDelay(1);
     }
     return 0;
+  }
+
+  bool requestNumericComparison(uint32_t pin)
+  {
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      if (ending || !active) return false;
+      Event event;
+      event.type = EventType::NumericComparison;
+      event.passkeyDisplayed.connection = connection;
+      event.passkeyDisplayed.passkey = pin;
+      pushEventLocked(event);
+    }
+
+    const uint32_t startedAt = millis();
+    while (millis() - startedAt < 30000)
+    {
+      {
+        std::lock_guard<std::mutex> lock(passkeyMutex);
+        if (numericComparisonConfirmed)
+        {
+          numericComparisonConfirmed = false;
+          return numericComparisonAccept;
+        }
+      }
+      {
+        std::lock_guard<std::mutex> lock(mutex);
+        if (ending) return false;
+      }
+      vTaskDelay(1);
+    }
+    return false;
   }
 
   void backendConnected(BLEClient *connectedClient)
@@ -885,6 +923,8 @@ struct EspBleConnectionImpl
   uint32_t staticPasskey = 0;
   bool passkeyProvided = false;
   uint32_t providedPasskey = 0;
+  bool numericComparisonConfirmed = false;
+  bool numericComparisonAccept = false;
   bool connecting = false;
   bool ending = false;
   bool active = false;
@@ -1425,15 +1465,6 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
       "a static passkey and I/O capability require MITM");
     return false;
   }
-  if (config.security.enabled && config.security.mitm &&
-      config.security.ioCapability ==
-        EspBleSecurityIoCapability::DisplayYesNo)
-  {
-    setError(
-      EspBleError::Unsupported,
-      "Numeric Comparison is not implemented");
-    return false;
-  }
   connectionImpl_ = new (std::nothrow) EspBleConnectionImpl();
   if (connectionImpl_ == nullptr)
   {
@@ -1480,6 +1511,11 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
     {
       ioCapability = ESP_IO_CAP_IN;
     }
+    else if (config.security.ioCapability ==
+             EspBleSecurityIoCapability::DisplayYesNo)
+    {
+      ioCapability = ESP_IO_CAP_IO;
+    }
     BLESecurity::setCapability(ioCapability);
     {
       std::lock_guard<std::mutex> lock(connectionImpl_->passkeyMutex);
@@ -1487,6 +1523,7 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
         config.security.staticPasskeyEnabled;
       connectionImpl_->staticPasskey = config.security.staticPasskey;
       connectionImpl_->passkeyProvided = false;
+      connectionImpl_->numericComparisonConfirmed = false;
     }
     if (config.security.staticPasskeyEnabled)
     {
@@ -2191,6 +2228,23 @@ bool EspBleBluedroid::providePasskey(uint32_t passkey)
   return true;
 }
 
+bool EspBleBluedroid::confirmNumericComparison(bool accept)
+{
+  if (!initialized_ || connectionImpl_ == nullptr)
+  {
+    setError(EspBleError::InvalidState,
+      "Bluetooth stack is not initialized");
+    return false;
+  }
+  {
+    std::lock_guard<std::mutex> lock(connectionImpl_->passkeyMutex);
+    connectionImpl_->numericComparisonAccept = accept;
+    connectionImpl_->numericComparisonConfirmed = true;
+  }
+  clearError();
+  return true;
+}
+
 size_t EspBleBluedroid::bondCount() const
 {
   if (!initialized_) return 0;
@@ -2390,6 +2444,11 @@ void EspBleBluedroid::onPasskeyDisplayed(PasskeyDisplayedCallback callback)
   passkeyDisplayedCallback_ = std::move(callback);
 }
 
+void EspBleBluedroid::onNumericComparison(PasskeyDisplayedCallback callback)
+{
+  numericComparisonCallback_ = std::move(callback);
+}
+
 void EspBleBluedroid::onCharacteristicRead(GattResultCallback callback)
 {
   characteristicReadCallback_ = std::move(callback);
@@ -2503,6 +2562,12 @@ void EspBleBluedroid::dispatchConnectionEvents()
       passkeyDisplayedCallback_)
     {
       passkeyDisplayedCallback_(event.passkeyDisplayed);
+    }
+    else if (
+      event.type == EspBleConnectionImpl::EventType::NumericComparison &&
+      numericComparisonCallback_)
+    {
+      numericComparisonCallback_(event.passkeyDisplayed);
     }
     else if (
       event.type == EspBleConnectionImpl::EventType::GattResult &&

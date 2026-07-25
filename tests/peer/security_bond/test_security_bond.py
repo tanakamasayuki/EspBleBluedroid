@@ -29,7 +29,9 @@ def test_just_works_bond_and_reconnect(dut, peers):
     dut.expect_exact(
         "DISABLED_SECURITY_OPTIONS_REJECTED 1 error=InvalidArgument", timeout=20
     )
-    dut.expect_exact("MITM_REJECTED 1 error=Unsupported", timeout=20)
+    dut.expect_exact(
+        "INVALID_PASSKEY_REJECTED 1 error=InvalidArgument", timeout=20
+    )
     dut.expect_exact("SECURITY_CENTRAL_READY", timeout=20)
     peripheral.expect_exact("SECURITY_PERIPHERAL_READY", timeout=20)
 

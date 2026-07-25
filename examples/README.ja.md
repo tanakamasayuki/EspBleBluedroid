@@ -13,6 +13,7 @@
 | Security | [JustWorksClient](Security/JustWorksClient/README.ja.md) | Just Works pairing、bond保存、暗号化再接続 |
 | Security | [StaticPasskeyClient](Security/StaticPasskeyClient/README.ja.md) | 静的passkeyのMITM pairingと認証状態 |
 | Security | [RuntimePasskeyClient](Security/RuntimePasskeyClient/README.ja.md) | 実行時入力passkeyによるKeyboardOnlyのMITM pairing |
+| Security | [NumericComparisonClient](Security/NumericComparisonClient/README.ja.md) | DisplayYesNoの比較確認によるMITM pairing |
 
 公開機能を追加するときは、先に対応するunitまたはpeerテストを追加し、その後に
 exampleを追加します。

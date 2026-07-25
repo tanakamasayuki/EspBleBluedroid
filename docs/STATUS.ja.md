@@ -15,7 +15,7 @@
 | Event配送 | `EspBleScanner::onResult()` | stack callbackからqueueへcopyし、利用者callbackを`update()`から配送 |
 | Central接続 | `connect()` / `disconnect()` / connection snapshot / lifecycle callback | non-blocking要求、再接続ごとの新ID、二重要求・不正address拒否、非同期失敗、切断、再初期化 |
 | GATT Client | Database Discovery / UUID・handle指定Characteristic操作 / Descriptor Read・Write / Notification | connection単位snapshot、binary-safe値、CCCD、専用task、`update()`配送 |
-| BLE Security | Just Works / Static・Runtime Passkey MITM / Bond / security callback | 暗号化・認証必須attribute、保存bond再接続、passkey表示・入力、bond管理 |
+| BLE Security | Just Works / Static・Runtime Passkey / Numeric Comparison / Bond | 暗号化・認証必須attribute、保存bond再接続、passkey表示・入力・比較確認、bond管理 |
 
 AdvertisingとScanの基本経路は`tests/peer/advertise_scan`、Advertising wire形式と
 payload境界は`tests/peer/advertise_payload`で実機確認している。Scanはduration停止、
@@ -36,9 +36,9 @@ CCCD購読、notificationまで確認している。
   個数はまだ個別に報告しない。
 - Scan result queueは16件。overflowは`droppedResultCount()`で確認できる。
 - LE Secure Connections Just Works、DisplayOnly/KeyboardOnlyの静的passkey MITM、
-  KeyboardOnlyの実行時Passkey Entryに対応。実行時入力は`providePasskey()`で行い、
-  Bluedroid callbackの待機上限は30秒。Numeric Comparisonは未実装で、
-  DisplayYesNo設定の`begin()`は`EspBleError::Unsupported`で失敗する。
+  KeyboardOnlyの実行時Passkey Entry、DisplayYesNoのNumeric Comparisonに対応。
+  実行時入力は`providePasskey()`、比較確認は`confirmNumericComparison()`で行い、
+  Bluedroid callbackの待機上限はいずれも30秒。
 - Arduino-ESP32 BLE wrapperはprocess内のpasskey設定を解除できない。このため、同一bootで
   静的またはDisplayOnlyのpasskey設定を使って`end()`した後、KeyboardOnlyの実行時入力へ
   構成変更する場合は再起動が必要。通常の同一構成での再初期化には影響しない。
@@ -59,7 +59,7 @@ CCCD購読、notificationまで確認している。
 
 1. Scan queue overflowとdrop countを電波頻度に依存せず決定的に確認するtest seam。
 2. 接続timeoutの厳密な分類、接続成立後の`end()`。
-3. BLE SecurityのNumeric Comparisonを実機で確定。
-4. Classic Inquiry、SPP、BLE/SPP dual-modeの順に追加。
+3. BLE Security入力待ち中の切断・`end()`と明示拒否を実機で確定。
+4. Classic capability、Inquiry、SPP、BLE/SPP dual-modeの順に追加。
 
 各項目は失敗するunitまたはpeerテストを先に追加してから実装する。

@@ -36,3 +36,6 @@ authenticated connection state, authenticated GATT access, and bond storage.
 `peer/runtime_passkey` verifies KeyboardOnly runtime passkey entry against a
 DisplayOnly peer, including the generated passkey relay, authenticated and
 bonded state, disconnection, and bond cleanup.
+`peer/numeric_comparison` verifies DisplayYesNo Numeric Comparison, matching
+six-digit values on both boards, explicit confirmation through `update()`,
+authenticated and bonded state, disconnection, and bond cleanup.
