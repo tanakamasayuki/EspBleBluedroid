@@ -9,3 +9,5 @@
 - (JA) 明示確認を伴うLE Secure Connections Numeric Comparisonを追加。
 - (EN) Cancel pending Security input on disconnect/end and cover rejection retry.
 - (JA) 切断・終了時のSecurity入力待ち解除と拒否後の再試行を追加。
+- (EN) Add deterministic Scan queue capacity, overflow, and flush coverage.
+- (JA) Scan queue容量・overflow・flushの決定的テストを追加。

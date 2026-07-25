@@ -31,3 +31,14 @@ def test_scan_duration_explicit_stop_and_end_flush(dut, peers):
     dut.expect_exact(
         "END_SCAN started=1 ended=1 reinitialized=1 stale=0", timeout=20
     )
+
+
+def test_scan_queue_overflow_and_deterministic_flush(dut, peers):
+    dut.write("q")
+    dut.expect_exact(
+        "SCAN_QUEUE pending=16 delivered=16 dropped=2 remaining=0", timeout=20
+    )
+    dut.expect_exact(
+        "SCAN_QUEUE_FLUSH reinitialized=1 stale=0 dropped=0 pending=0",
+        timeout=20,
+    )

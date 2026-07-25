@@ -259,6 +259,10 @@ public:
   bool stop();
   bool isScanning() const;
   size_t droppedResultCount() const;
+#ifdef ESP_BLE_BLUEDROID_TESTING
+  bool injectResultForTest(const EspBleScanResult &result);
+  size_t pendingResultCountForTest() const;
+#endif
 
 private:
   friend class EspBleBluedroid;

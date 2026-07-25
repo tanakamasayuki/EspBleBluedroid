@@ -140,15 +140,7 @@ struct EspBleScannerImpl
           device.getServiceUUID(index).toString();
       }
 
-      std::lock_guard<std::mutex> lock(owner_->mutex);
-      if (owner_->count == ScanQueueCapacity)
-      {
-        ++owner_->dropped;
-        return;
-      }
-      const size_t tail = (owner_->head + owner_->count) % ScanQueueCapacity;
-      owner_->queue[tail] = std::move(result);
-      ++owner_->count;
+      owner_->enqueue(std::move(result));
     }
 
   private:
@@ -156,6 +148,20 @@ struct EspBleScannerImpl
   };
 
   EspBleScannerImpl() : callbacks(this) {}
+
+  bool enqueue(EspBleScanResult result)
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (count == ScanQueueCapacity)
+    {
+      ++dropped;
+      return false;
+    }
+    const size_t tail = (head + count) % ScanQueueCapacity;
+    queue[tail] = std::move(result);
+    ++count;
+    return true;
+  }
 
   mutable std::mutex mutex;
   EspBleScanResult queue[ScanQueueCapacity];
@@ -1349,6 +1355,25 @@ size_t EspBleScanner::droppedResultCount() const
   std::lock_guard<std::mutex> lock(impl_->mutex);
   return impl_->dropped;
 }
+
+#ifdef ESP_BLE_BLUEDROID_TESTING
+bool EspBleScanner::injectResultForTest(const EspBleScanResult &result)
+{
+  if (impl_ == nullptr)
+  {
+    impl_ = new (std::nothrow) EspBleScannerImpl();
+    if (impl_ == nullptr) return false;
+  }
+  return impl_->enqueue(result);
+}
+
+size_t EspBleScanner::pendingResultCountForTest() const
+{
+  if (impl_ == nullptr) return 0;
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  return impl_->count;
+}
+#endif
 
 void EspBleScanner::flushPendingResults()
 {

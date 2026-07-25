@@ -11,7 +11,7 @@
 | Lifecycle | `begin()` / `end()` / `update()` / `initialized()` | 初期化前の操作拒否、同一設定での`begin()`再実行、接続試行の終了 |
 | Error | `lastError()` / `lastErrorName()` / `lastErrorDetail()` | state・argument・backend・resource・unsupportedの分類 |
 | Advertising | name、service UUID、manufacturer data、appearance、scan response、connectable、interval、開始・停止 | raw PDU、複数UUIDの集約、31 byte境界、時間停止を実機確認 |
-| Scan | active/passive、interval/window、duration、duplicate指定、開始・停止 | 値型へのcopy、duration・明示停止、`end()`時の未配送queue破棄を実機確認 |
+| Scan | active/passive、interval/window、duration、duplicate指定、開始・停止 | 値型copy、duration・明示停止、16件queue・overflow、`end()`時flushを確認 |
 | Event配送 | `EspBleScanner::onResult()` | stack callbackからqueueへcopyし、利用者callbackを`update()`から配送 |
 | Central接続 | `connect()` / `disconnect()` / connection snapshot / lifecycle callback | non-blocking要求、再接続ごとの新ID、二重要求・不正address拒否、非同期失敗、切断、再初期化 |
 | GATT Client | Database Discovery / UUID・handle指定Characteristic操作 / Descriptor Read・Write / Notification | connection単位snapshot、binary-safe値、CCCD、専用task、`update()`配送 |
@@ -19,7 +19,8 @@
 
 AdvertisingとScanの基本経路は`tests/peer/advertise_scan`、Advertising wire形式と
 payload境界は`tests/peer/advertise_payload`で実機確認している。Scanはduration停止、
-明示停止、未配送結果を残した`end()`と再初期化も確認している。
+明示停止、16件queueへ18件を決定的に注入した16件配送・2件drop、未配送結果を残した
+`end()`と再初期化も確認している。
 Central接続は`tests/peer/connect_disconnect`でlink確立とcallback配送を分離し、切断後の
 再Advertising・再Scan・再接続、新しいID、到達不能peerの非同期失敗、接続試行中の
 `end()`と再初期化まで確認している。
@@ -60,9 +61,8 @@ CCCD購読、notificationまで確認している。
 
 ## 次のテストスライス
 
-1. Scan queue overflowとdrop countを電波頻度に依存せず決定的に確認するtest seam。
-2. 接続timeoutの厳密な分類、接続成立後の`end()`。
-3. Security入力・比較確認の30秒timeoutを、実機時間へ依存しすぎないtest seamで確定。
-4. Classic capability、Inquiry、SPP、BLE/SPP dual-modeの順に追加。
+1. 接続timeoutの厳密な分類、接続成立後の`end()`。
+2. Security入力・比較確認の30秒timeoutを、実機時間へ依存しすぎないtest seamで確定。
+3. Classic capability、Inquiry、SPP、BLE/SPP dual-modeの順に追加。
 
 各項目は失敗するunitまたはpeerテストを先に追加してから実装する。

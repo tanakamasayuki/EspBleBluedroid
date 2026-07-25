@@ -140,6 +140,49 @@ void loop()
         endScanStarted ? 1 : 0, ended ? 1 : 0, beganAgain ? 1 : 0,
         static_cast<unsigned>(callbackCount - callbacksBeforeEnd));
     }
+#ifdef ESP_BLE_BLUEDROID_TESTING
+    else if (command == 'q')
+    {
+      const uint16_t callbacksBeforeOverflow = callbackCount;
+      const size_t dropsBeforeOverflow =
+        bluetooth.scanner().droppedResultCount();
+      for (uint8_t index = 0; index < 18; ++index)
+      {
+        EspBleScanResult injected;
+        injected.name = String("Injected ") + String(index);
+        bluetooth.scanner().injectResultForTest(injected);
+      }
+      const size_t pendingAtCapacity =
+        bluetooth.scanner().pendingResultCountForTest();
+      bluetooth.update();
+      Serial.printf(
+        "SCAN_QUEUE pending=%u delivered=%u dropped=%u remaining=%u\n",
+        static_cast<unsigned>(pendingAtCapacity),
+        static_cast<unsigned>(callbackCount - callbacksBeforeOverflow),
+        static_cast<unsigned>(
+          bluetooth.scanner().droppedResultCount() - dropsBeforeOverflow),
+        static_cast<unsigned>(
+          bluetooth.scanner().pendingResultCountForTest()));
+
+      for (uint8_t index = 0; index < 3; ++index)
+      {
+        EspBleScanResult injected;
+        injected.name = String("Stale ") + String(index);
+        bluetooth.scanner().injectResultForTest(injected);
+      }
+      const uint16_t callbacksBeforeFlush = callbackCount;
+      bluetooth.end();
+      const bool beganAgain = bluetooth.begin(makeConfig());
+      bluetooth.update();
+      Serial.printf(
+        "SCAN_QUEUE_FLUSH reinitialized=%u stale=%u dropped=%u pending=%u\n",
+        beganAgain ? 1 : 0,
+        static_cast<unsigned>(callbackCount - callbacksBeforeFlush),
+        static_cast<unsigned>(bluetooth.scanner().droppedResultCount()),
+        static_cast<unsigned>(
+          bluetooth.scanner().pendingResultCountForTest()));
+    }
+#endif
   }
   if (scanStarted && !updatesEnabled &&
       static_cast<int32_t>(millis() - enableUpdatesAt) >= 0)

@@ -27,6 +27,8 @@ examples/     公開APIのbuild回帰と利用例
 - Classic profileは接続側と待受側、双方向data、切断、再接続、認証失敗を含める。
 - BLEとClassicのdual-modeは単独機能testと分け、同時trafficを明示的に検証する。
 - flakyな順序を固定化せず、仕様上順序保証が必要なイベントだけ順番をassertする。
+- queue overflowなど電波頻度では決定的に作れない状態は、test buildだけで有効になる
+  compile-time seamから本番と同じ内部経路へ入力する。通常buildへtest APIを露出しない。
 
 ## 変更単位
 
@@ -40,4 +42,3 @@ examples/     公開APIのbuild回帰と利用例
 - 必要なArduino IDE keyword
 
 大きなprofileは、接続、Discovery、最小data path、Security、stressの順に小さく分割する。
-
