@@ -424,6 +424,7 @@ public:
   bool connection(
     EspBleConnectionId connectionId, EspBleConnection &connection) const;
   bool requestSecurity(EspBleConnectionId connectionId);
+  bool providePasskey(uint32_t passkey);
   size_t bondCount() const;
   bool bond(size_t index, EspBleBond &bond) const;
   bool deleteBond(const EspBleBond &bond);

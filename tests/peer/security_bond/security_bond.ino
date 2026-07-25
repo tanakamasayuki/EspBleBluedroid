@@ -32,7 +32,7 @@ void setup()
   unsupportedMitm.security.enabled = true;
   unsupportedMitm.security.mitm = true;
   unsupportedMitm.security.ioCapability =
-    EspBleSecurityIoCapability::DisplayOnly;
+    EspBleSecurityIoCapability::DisplayYesNo;
   const bool mitmAccepted = bluetooth.begin(unsupportedMitm);
   const String mitmError = bluetooth.lastErrorName();
 

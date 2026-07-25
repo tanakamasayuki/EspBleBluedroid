@@ -33,3 +33,6 @@ handle-based Characteristic targeting, and callback dispatch from `update()`.
 storage, encrypted reconnection, deferred security callbacks, and bond cleanup.
 `peer/security_passkey` verifies static-passkey MITM, deferred passkey display,
 authenticated connection state, authenticated GATT access, and bond storage.
+`peer/runtime_passkey` verifies KeyboardOnly runtime passkey entry against a
+DisplayOnly peer, including the generated passkey relay, authenticated and
+bonded state, disconnection, and bond cleanup.

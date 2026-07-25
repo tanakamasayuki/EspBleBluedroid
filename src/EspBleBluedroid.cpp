@@ -232,7 +232,7 @@ struct EspBleConnectionImpl
 
     uint32_t onPassKeyRequest() override
     {
-      return owner_->staticPasskey;
+      return owner_->requestPasskey();
     }
 
     void onPassKeyNotify(uint32_t passkey) override
@@ -261,6 +261,33 @@ struct EspBleConnectionImpl
     events[(eventHead + eventCount) % EventCapacity] = event;
     ++eventCount;
     return true;
+  }
+
+  uint32_t requestPasskey()
+  {
+    {
+      std::lock_guard<std::mutex> lock(passkeyMutex);
+      if (staticPasskeyEnabled) return staticPasskey;
+    }
+
+    const uint32_t startedAt = millis();
+    while (millis() - startedAt < 30000)
+    {
+      {
+        std::lock_guard<std::mutex> lock(passkeyMutex);
+        if (passkeyProvided)
+        {
+          passkeyProvided = false;
+          return providedPasskey;
+        }
+      }
+      {
+        std::lock_guard<std::mutex> lock(mutex);
+        if (ending) return 0;
+      }
+      vTaskDelay(1);
+    }
+    return 0;
   }
 
   void backendConnected(BLEClient *connectedClient)
@@ -853,7 +880,11 @@ struct EspBleConnectionImpl
   ClientCallbacks callbacks;
   SecurityCallbacks securityCallbacks;
   BLESecurity *securityBackend = nullptr;
+  std::mutex passkeyMutex;
+  bool staticPasskeyEnabled = false;
   uint32_t staticPasskey = 0;
+  bool passkeyProvided = false;
+  uint32_t providedPasskey = 0;
   bool connecting = false;
   bool ending = false;
   bool active = false;
@@ -1395,13 +1426,12 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
     return false;
   }
   if (config.security.enabled && config.security.mitm &&
-      (!config.security.staticPasskeyEnabled ||
-       config.security.ioCapability ==
-         EspBleSecurityIoCapability::DisplayYesNo))
+      config.security.ioCapability ==
+        EspBleSecurityIoCapability::DisplayYesNo)
   {
     setError(
       EspBleError::Unsupported,
-      "MITM currently requires a static passkey and DisplayOnly or KeyboardOnly");
+      "Numeric Comparison is not implemented");
     return false;
   }
   connectionImpl_ = new (std::nothrow) EspBleConnectionImpl();
@@ -1451,10 +1481,23 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
       ioCapability = ESP_IO_CAP_IN;
     }
     BLESecurity::setCapability(ioCapability);
-    connectionImpl_->staticPasskey = config.security.staticPasskey;
+    {
+      std::lock_guard<std::mutex> lock(connectionImpl_->passkeyMutex);
+      connectionImpl_->staticPasskeyEnabled =
+        config.security.staticPasskeyEnabled;
+      connectionImpl_->staticPasskey = config.security.staticPasskey;
+      connectionImpl_->passkeyProvided = false;
+    }
     if (config.security.staticPasskeyEnabled)
     {
       BLESecurity::setPassKey(true, config.security.staticPasskey);
+    }
+    else if (
+      config.security.ioCapability ==
+      EspBleSecurityIoCapability::DisplayOnly)
+    {
+      BLESecurity::setPassKey(false);
+      BLESecurity::regenPassKeyOnConnect(true);
     }
     BLESecurity::setAuthenticationMode(
       config.security.bonding, config.security.mitm, true);
@@ -2120,6 +2163,29 @@ bool EspBleBluedroid::requestSecurity(EspBleConnectionId connectionId)
     setError(EspBleError::BackendFailure,
       "failed to start BLE security");
     return false;
+  }
+  clearError();
+  return true;
+}
+
+bool EspBleBluedroid::providePasskey(uint32_t passkey)
+{
+  if (!initialized_ || connectionImpl_ == nullptr)
+  {
+    setError(EspBleError::InvalidState,
+      "Bluetooth stack is not initialized");
+    return false;
+  }
+  if (passkey > 999999)
+  {
+    setError(EspBleError::InvalidArgument,
+      "BLE passkey must be between 000000 and 999999");
+    return false;
+  }
+  {
+    std::lock_guard<std::mutex> lock(connectionImpl_->passkeyMutex);
+    connectionImpl_->providedPasskey = passkey;
+    connectionImpl_->passkeyProvided = true;
   }
   clearError();
   return true;

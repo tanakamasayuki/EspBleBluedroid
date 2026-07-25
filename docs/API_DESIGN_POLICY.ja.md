@@ -214,6 +214,25 @@ Arduino-ESP32 3.3.10の同梱BLE APIはBluedroid/NimBLEで共通化されてい�
 同名APIを採用する条件は「コンパイルできる」ことではなく、成功・失敗・完了callback・
 timeout・値の寿命まで同じ意味をPeerテストで確認できることである。
 
+### Passkey UI
+
+Passkey表示と入力はEspBleに近い公開面を維持するが、Bluedroid callbackの制約を
+隠さず扱う。DisplayOnly側の値は`onPasskeyDisplayed()`へqueueし、他の利用者callbackと
+同じく`update()`から配送する。KeyboardOnly側は同期的に値を返すstack callbackを
+最大30秒だけ待機させ、applicationが`providePasskey()`へ渡した6桁値をmailboxから
+返す。値は入力要求の直前に渡してもよく、Serialやkeypadなどのout-of-band UIを
+library callback型へ固定しない。
+
+`providePasskey()`の成功は値をmailboxへ受理したことを意味し、pairing成功を意味
+しない。認証結果は`onSecurityChanged()`で確定する。Numeric Comparisonは
+DisplayYesNo用の明示的な確認APIとpeerテストが揃うまで`Unsupported`とする。
+
+Arduino-ESP32 BLE wrapperはprocess内のpasskey設定済みflagを公開APIで解除できない。
+したがって静的passkeyまたはDisplayOnlyの自動生成passkeyを設定して`end()`した後、
+同一bootでKeyboardOnly実行時入力へ変更する構成遷移は再起動を必要とする。この制約を
+回避するためにprivate backend stateへ依存せず、Core側に解除APIが追加された時点で
+adapter内に閉じて対応する。
+
 ## API互換性の分類
 
 EspBleのAPIを移植するときは、各機能を次の3分類へ明示する。
