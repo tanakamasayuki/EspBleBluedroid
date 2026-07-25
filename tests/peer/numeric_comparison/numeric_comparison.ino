@@ -85,10 +85,10 @@ void loop()
       Serial.printf("NUMCMP_SCAN_STARTED %u\n",
         bluetooth.scanner().start() ? 1 : 0);
     }
-    else if (command == 'y')
+    else if (command == 'y' || command == 'n')
     {
       Serial.printf("NUMCMP_CENTRAL_CONFIRM accepted=%u\n",
-        bluetooth.confirmNumericComparison(true) ? 1 : 0);
+        bluetooth.confirmNumericComparison(command == 'y') ? 1 : 0);
     }
     else if (command == 'd' && connectionId != 0)
     {

@@ -231,6 +231,13 @@ DisplayYesNoのNumeric Comparisonでは、両側に出る6桁値を
 確認し、`confirmNumericComparison(true)`で承認、`false`で拒否する。同期stack
 callbackの待機上限は同じく30秒で、時間切れは拒否として扱う。確認APIの成功は回答を
 mailboxへ受理したことを意味し、pairing結果は`onSecurityChanged()`で確定する。
+明示拒否後もBluedroidはBLE linkを維持するため、認証失敗と切断は別イベントとして
+扱い、link終了が必要なapplicationは`disconnect()`を明示的に要求する。
+
+Passkey EntryまたはNumeric Comparisonの同期callback待機中に`disconnect()`や`end()`が
+要求された場合は、mailbox待機をcancelしてbackendへ拒否を返す。これにより30秒timeout
+まで切断callbackやstack終了が遅延しない。切断要求の失敗時はcancel状態をrollbackし、
+現在のpairing応答待ちを継続する。
 
 Arduino-ESP32 BLE wrapperはprocess内のpasskey設定済みflagを公開APIで解除できない。
 したがって静的passkeyまたはDisplayOnlyの自動生成passkeyを設定して`end()`した後、

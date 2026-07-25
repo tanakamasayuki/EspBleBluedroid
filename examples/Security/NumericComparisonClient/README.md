@@ -9,3 +9,6 @@ peer, then enter `y` to accept or `n` to reject it.
 `onNumericComparison()` runs from `update()`. The Bluedroid confirmation waits
 for `confirmNumericComparison()` for up to 30 seconds and rejects pairing when
 the application answers `false` or does not answer in time.
+
+Bluedroid keeps the unencrypted BLE link after a rejection. Call
+`disconnect()` when the application should close that link.

@@ -28,6 +28,43 @@ def test_numeric_comparison(dut, peers):
     ).group(1)
     assert central_value == peripheral_value
 
+    dut.write("n")
+    peripheral.write("n")
+    dut.expect_exact("NUMCMP_CENTRAL_CONFIRM accepted=1", timeout=20)
+    peripheral.expect_exact("NUMCMP_PEER_CONFIRM accepted=1", timeout=20)
+    dut.expect_exact(
+        "NUMCMP_CENTRAL_SECURITY success=0 encrypted=0 authenticated=0 bonded=0 key=0 context=loop",
+        timeout=30,
+    )
+    peripheral.expect_exact(
+        "NUMCMP_PEER_SECURITY success=0 encrypted=0 authenticated=0 bonded=0 key=16",
+        timeout=30,
+    )
+    dut.write("d")
+    dut.expect_exact("NUMCMP_DISCONNECT_REQUESTED 1", timeout=20)
+    dut.expect_exact(
+        "NUMCMP_CENTRAL_DISCONNECTED id=1 context=loop", timeout=30
+    )
+    peripheral.expect_exact(
+        "NUMCMP_PEER_DISCONNECTED authenticated=0", timeout=30
+    )
+
+    peripheral.write("a")
+    peripheral.expect_exact("NUMCMP_PEER_ADVERTISING", timeout=20)
+    dut.write("s")
+    dut.expect_exact("NUMCMP_SCAN_STARTED 1", timeout=20)
+    dut.expect_exact("NUMCMP_CONNECT_REQUESTED 1", timeout=30)
+    peripheral.expect_exact("NUMCMP_PEER_CONNECTED", timeout=20)
+    dut.expect_exact("NUMCMP_CENTRAL_CONNECTED id=2", timeout=20)
+    central_value = dut.expect(
+        re.compile(rb"NUMCMP_CENTRAL_VALUE id=2 value=(\d{6}) context=loop"),
+        timeout=30,
+    ).group(1)
+    peripheral_value = peripheral.expect(
+        re.compile(rb"NUMCMP_PEER_VALUE value=(\d{6})"), timeout=30
+    ).group(1)
+    assert central_value == peripheral_value
+
     dut.write("y")
     peripheral.write("y")
     dut.expect_exact("NUMCMP_CENTRAL_CONFIRM accepted=1", timeout=20)
@@ -44,7 +81,7 @@ def test_numeric_comparison(dut, peers):
     dut.write("d")
     dut.expect_exact("NUMCMP_DISCONNECT_REQUESTED 1", timeout=20)
     dut.expect_exact(
-        "NUMCMP_CENTRAL_DISCONNECTED id=1 context=loop", timeout=20
+        "NUMCMP_CENTRAL_DISCONNECTED id=2 context=loop", timeout=20
     )
     peripheral.expect_exact(
         "NUMCMP_PEER_DISCONNECTED authenticated=1", timeout=20

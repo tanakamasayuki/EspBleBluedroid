@@ -116,14 +116,19 @@ void loop()
       Serial.printf("NUMCMP_PEER_BONDS_CLEARED success=%u count=%d\n",
         cleared ? 1 : 0, esp_ble_get_bond_device_num());
     }
-    else if (command == 'y')
+    else if (command == 'y' || command == 'n')
     {
       {
         std::lock_guard<std::mutex> lock(confirmationMutex);
-        confirmationAccept = true;
+        confirmationAccept = command == 'y';
         confirmationReady = true;
       }
       Serial.println("NUMCMP_PEER_CONFIRM accepted=1");
+    }
+    else if (command == 'a')
+    {
+      BLEDevice::startAdvertising();
+      Serial.println("NUMCMP_PEER_ADVERTISING");
     }
   }
   delay(1);

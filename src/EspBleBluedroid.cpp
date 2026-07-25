@@ -289,7 +289,7 @@ struct EspBleConnectionImpl
       }
       {
         std::lock_guard<std::mutex> lock(mutex);
-        if (ending) return 0;
+        if (ending || securityInputCancelled) return 0;
       }
       vTaskDelay(1);
     }
@@ -321,7 +321,7 @@ struct EspBleConnectionImpl
       }
       {
         std::lock_guard<std::mutex> lock(mutex);
-        if (ending) return false;
+        if (ending || securityInputCancelled) return false;
       }
       vTaskDelay(1);
     }
@@ -336,6 +336,7 @@ struct EspBleConnectionImpl
       return;
     }
     active = true;
+    securityInputCancelled = false;
     connection = EspBleConnection();
     connection.id = nextConnectionId++;
     if (nextConnectionId == 0) nextConnectionId = 1;
@@ -928,6 +929,7 @@ struct EspBleConnectionImpl
   bool connecting = false;
   bool ending = false;
   bool active = false;
+  bool securityInputCancelled = false;
   TaskHandle_t connectTask = nullptr;
   bool gattOperating = false;
   TaskHandle_t gattTask = nullptr;
@@ -1710,9 +1712,18 @@ bool EspBleBluedroid::disconnect(EspBleConnectionId connectionId)
       return false;
     }
     client = connectionImpl_->client;
+    connectionImpl_->securityInputCancelled = true;
   }
   if (client == nullptr || client->disconnect() != ESP_OK)
   {
+    {
+      std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+      if (connectionImpl_->active &&
+          connectionImpl_->connection.id == connectionId)
+      {
+        connectionImpl_->securityInputCancelled = false;
+      }
+    }
     setError(EspBleError::BackendFailure, "failed to request disconnection");
     return false;
   }

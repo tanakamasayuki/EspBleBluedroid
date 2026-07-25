@@ -39,6 +39,9 @@ CCCD購読、notificationまで確認している。
   KeyboardOnlyの実行時Passkey Entry、DisplayYesNoのNumeric Comparisonに対応。
   実行時入力は`providePasskey()`、比較確認は`confirmNumericComparison()`で行い、
   Bluedroid callbackの待機上限はいずれも30秒。
+- Passkey Entry待機中の`disconnect()`と`end()`は入力待ちをcancelして即時終了する。
+  Numeric Comparisonの明示拒否は認証を失敗させるが、BluedroidはBLE linkを自動では
+  切断しないため、applicationが必要に応じて`disconnect()`する。
 - Arduino-ESP32 BLE wrapperはprocess内のpasskey設定を解除できない。このため、同一bootで
   静的またはDisplayOnlyのpasskey設定を使って`end()`した後、KeyboardOnlyの実行時入力へ
   構成変更する場合は再起動が必要。通常の同一構成での再初期化には影響しない。
@@ -59,7 +62,7 @@ CCCD購読、notificationまで確認している。
 
 1. Scan queue overflowとdrop countを電波頻度に依存せず決定的に確認するtest seam。
 2. 接続timeoutの厳密な分類、接続成立後の`end()`。
-3. BLE Security入力待ち中の切断・`end()`と明示拒否を実機で確定。
+3. Security入力・比較確認の30秒timeoutを、実機時間へ依存しすぎないtest seamで確定。
 4. Classic capability、Inquiry、SPP、BLE/SPP dual-modeの順に追加。
 
 各項目は失敗するunitまたはpeerテストを先に追加してから実装する。

@@ -35,7 +35,9 @@ storage, encrypted reconnection, deferred security callbacks, and bond cleanup.
 authenticated connection state, authenticated GATT access, and bond storage.
 `peer/runtime_passkey` verifies KeyboardOnly runtime passkey entry against a
 DisplayOnly peer, including the generated passkey relay, authenticated and
-bonded state, disconnection, and bond cleanup.
+bonded state, bounded disconnect and `end()` while input is pending,
+reinitialization, successful pairing afterward, and bond cleanup.
 `peer/numeric_comparison` verifies DisplayYesNo Numeric Comparison, matching
-six-digit values on both boards, explicit confirmation through `update()`,
-authenticated and bonded state, disconnection, and bond cleanup.
+six-digit values on both boards, explicit rejection without implicit link
+disconnection, explicit disconnect and successful retry, confirmation through
+`update()`, authenticated and bonded state, and bond cleanup.

@@ -6,10 +6,8 @@ EspBleBluedroid bluetooth;
 EspBleConnectionId connectionId = 0;
 bool connectionRequested = false;
 
-void setup()
+EspBleConfig runtimePasskeyConfig()
 {
-  Serial.begin(115200);
-  delay(500);
   EspBleConfig config;
   config.deviceName = "Bluedroid Runtime Central";
   config.security.enabled = true;
@@ -17,6 +15,14 @@ void setup()
   config.security.pairOnConnect = true;
   config.security.mitm = true;
   config.security.ioCapability = EspBleSecurityIoCapability::KeyboardOnly;
+  return config;
+}
+
+void setup()
+{
+  Serial.begin(115200);
+  delay(500);
+  EspBleConfig config = runtimePasskeyConfig();
   if (!bluetooth.begin(config))
   {
     Serial.printf("RUNTIME_PASSKEY_INIT_FAILED %s %s\n",
@@ -83,6 +89,18 @@ void loop()
     {
       Serial.printf("RUNTIME_PASSKEY_DISCONNECT_REQUESTED %u\n",
         bluetooth.disconnect(connectionId) ? 1 : 0);
+    }
+    else if (command == 'e')
+    {
+      const uint32_t startedAt = millis();
+      bluetooth.end();
+      connectionId = 0;
+      connectionRequested = false;
+      EspBleConfig config = runtimePasskeyConfig();
+      const bool initialized = bluetooth.begin(config);
+      Serial.printf("RUNTIME_PASSKEY_END_REINIT success=%u elapsed=%u\n",
+        initialized ? 1 : 0,
+        static_cast<unsigned>(millis() - startedAt));
     }
   }
   bluetooth.update();

@@ -91,11 +91,20 @@ void setup()
 
 void loop()
 {
-  if (Serial.available() && Serial.read() == 'x')
+  if (Serial.available())
   {
-    const bool cleared = clearBonds();
-    Serial.printf("RUNTIME_PEER_BONDS_CLEARED success=%u count=%d\n",
-      cleared ? 1 : 0, esp_ble_get_bond_device_num());
+    const char command = Serial.read();
+    if (command == 'x')
+    {
+      const bool cleared = clearBonds();
+      Serial.printf("RUNTIME_PEER_BONDS_CLEARED success=%u count=%d\n",
+        cleared ? 1 : 0, esp_ble_get_bond_device_num());
+    }
+    else if (command == 'a')
+    {
+      BLEDevice::startAdvertising();
+      Serial.println("RUNTIME_PASSKEY_PEER_ADVERTISING");
+    }
   }
   delay(1);
 }
