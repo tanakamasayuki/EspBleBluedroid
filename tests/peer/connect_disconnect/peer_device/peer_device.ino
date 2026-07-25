@@ -38,6 +38,20 @@ void setup()
 
 void loop()
 {
+  if (Serial.available())
+  {
+    const char command = Serial.read();
+    if (command == 'p')
+    {
+      BLEDevice::stopAdvertising();
+      Serial.println("PEER_ADVERTISING_STOPPED");
+    }
+    else if (command == 'a')
+    {
+      BLEDevice::startAdvertising();
+      Serial.println("PEER_ADVERTISING_STARTED");
+    }
+  }
   if (readvertise)
   {
     readvertise = false;

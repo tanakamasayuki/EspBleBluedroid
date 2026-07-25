@@ -11,3 +11,5 @@
 - (JA) 切断・終了時のSecurity入力待ち解除と拒否後の再試行を追加。
 - (EN) Add deterministic Scan queue capacity, overflow, and flush coverage.
 - (JA) Scan queue容量・overflow・flushの決定的テストを追加。
+- (EN) Verify exact connection timeout and established-link shutdown semantics.
+- (JA) 接続timeout分類と接続成立後の終了semanticsを実機確認。

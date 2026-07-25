@@ -8,12 +8,12 @@
 
 | 領域 | 公開面 | 確認内容 |
 |---|---|---|
-| Lifecycle | `begin()` / `end()` / `update()` / `initialized()` | 初期化前の操作拒否、同一設定での`begin()`再実行、接続試行の終了 |
+| Lifecycle | `begin()` / `end()` / `update()` / `initialized()` | 初期化前操作拒否、同一設定の再実行、接続試行・active linkの終了 |
 | Error | `lastError()` / `lastErrorName()` / `lastErrorDetail()` | state・argument・backend・resource・unsupportedの分類 |
 | Advertising | name、service UUID、manufacturer data、appearance、scan response、connectable、interval、開始・停止 | raw PDU、複数UUIDの集約、31 byte境界、時間停止を実機確認 |
 | Scan | active/passive、interval/window、duration、duplicate指定、開始・停止 | 値型copy、duration・明示停止、16件queue・overflow、`end()`時flushを確認 |
 | Event配送 | `EspBleScanner::onResult()` | stack callbackからqueueへcopyし、利用者callbackを`update()`から配送 |
-| Central接続 | `connect()` / `disconnect()` / connection snapshot / lifecycle callback | non-blocking要求、再接続ごとの新ID、二重要求・不正address拒否、非同期失敗、切断、再初期化 |
+| Central接続 | `connect()` / `disconnect()` / connection snapshot / lifecycle callback | non-blocking要求、再接続ID、timeout分類、切断、active link終了、再初期化 |
 | GATT Client | Database Discovery / UUID・handle指定Characteristic操作 / Descriptor Read・Write / Notification | connection単位snapshot、binary-safe値、CCCD、専用task、`update()`配送 |
 | BLE Security | Just Works / Static・Runtime Passkey / Numeric Comparison / Bond | 暗号化・認証必須attribute、保存bond再接続、passkey表示・入力・比較確認、bond管理 |
 
@@ -22,8 +22,8 @@ payload境界は`tests/peer/advertise_payload`で実機確認している。Scan
 明示停止、16件queueへ18件を決定的に注入した16件配送・2件drop、未配送結果を残した
 `end()`と再初期化も確認している。
 Central接続は`tests/peer/connect_disconnect`でlink確立とcallback配送を分離し、切断後の
-再Advertising・再Scan・再接続、新しいID、到達不能peerの非同期失敗、接続試行中の
-`end()`と再初期化まで確認している。
+再Advertising・再Scan・再接続、新しいID、Advertising停止peerへの厳密なtimeout、
+接続試行中と接続成立後の`end()`、peer切断、再初期化まで確認している。
 `tests/peer/stack_smoke`は、公開API実装前のbackend成立性として接続、GATT read/write、
 CCCD購読、notificationまで確認している。
 
@@ -47,6 +47,9 @@ CCCD購読、notificationまで確認している。
   静的またはDisplayOnlyのpasskey設定を使って`end()`した後、KeyboardOnlyの実行時入力へ
   構成変更する場合は再起動が必要。通常の同一構成での再初期化には影響しない。
 - Central接続は同時1接続。Peripheral connectionの公開snapshotはGATT Server追加時に実装する。
+- Connection IDは1回の`begin()`〜`end()` lifecycle内だけで有効。`end()`はactive linkと
+  未配送eventを破棄し、利用者の`onDisconnected()`は配送しない。再初期化後はIDを再利用
+  することがある。
 - Bluedroidの接続待機を1秒以下の区間に分けるため、接続試行中の`end()`は同期的に
   終了するが、復帰まで最大約1秒待つことがある。終了した試行のcallbackは配送しない。
 - GATT ClientはDatabase Discovery、Characteristic/Descriptor Read/Write、Subscribe/Unsubscribe。
@@ -61,8 +64,7 @@ CCCD購読、notificationまで確認している。
 
 ## 次のテストスライス
 
-1. 接続timeoutの厳密な分類、接続成立後の`end()`。
-2. Security入力・比較確認の30秒timeoutを、実機時間へ依存しすぎないtest seamで確定。
-3. Classic capability、Inquiry、SPP、BLE/SPP dual-modeの順に追加。
+1. Security入力・比較確認の30秒timeoutを、実機時間へ依存しすぎないtest seamで確定。
+2. Classic capability、Inquiry、SPP、BLE/SPP dual-modeの順に追加。
 
 各項目は失敗するunitまたはpeerテストを先に追加してから実装する。

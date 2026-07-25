@@ -24,8 +24,10 @@ deterministic 16-result queue overflow/drop accounting through a test-only seam.
 `peer/advertise_payload` verifies raw AD structures, grouped UUIDs, the 31-byte
 boundary, and timed advertising stop behavior.
 `peer/connect_disconnect` verifies non-blocking connection requests, reconnect
-IDs, asynchronous failures, deferred callbacks, disconnection, bounded
-in-flight cancellation through `end()`, and reinitialization without stale events.
+IDs, exact timeout classification against a non-advertising known peer,
+deferred callbacks, disconnection, bounded `end()` during an in-flight attempt
+and an established link, peer disconnection, and reinitialization without
+stale events.
 `peer/gatt_client` verifies public asynchronous Characteristic and Descriptor Read, both Write
 modes, Notification subscription/unsubscription, binary-safe values,
 connection-scoped database snapshots, peer reception, disconnect invalidation,

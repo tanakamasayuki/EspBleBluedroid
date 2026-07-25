@@ -35,6 +35,11 @@ EspBleの次の性質はbackend固有ではなく、利用者にとって有用�
 BLEの通常利用では、EspBleからの移植時にincludeとroot型を変更した後、接続後の
 GATTコードをなるべく維持できる形を目標とする。
 
+Connection IDの有効範囲は1回のroot lifecycle、つまり成功した`begin()`から`end()`まで
+とする。同じlifecycle内の再接続では新しいIDを発行するが、`end()`後の再初期化では
+番号を再利用してよい。`end()`は全linkと未配送eventを破棄するterminal操作なので、
+終了対象linkの`onDisconnected()`は配送せず、applicationは保持中のIDをすべて破棄する。
+
 ```cpp
 #include <EspBleBluedroid.h>
 

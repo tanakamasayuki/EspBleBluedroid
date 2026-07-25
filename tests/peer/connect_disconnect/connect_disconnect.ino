@@ -9,6 +9,7 @@ bool updatesEnabled = true;
 bool requestInFlight = false;
 bool lifecycleComplete = false;
 bool reinitialized = false;
+bool endEstablishedConnection = false;
 uint8_t connectedSequence = 0;
 EspBleConnectionId firstConnectionId = 0;
 uint8_t failureCallbackCount = 0;
@@ -51,6 +52,24 @@ void setup()
       connectedSequence, static_cast<unsigned long>(connection.id), stable ? 1 : 0,
       freshId ? 1 : 0,
       connection.mtu);
+    if (endEstablishedConnection)
+    {
+      const uint32_t startedAt = millis();
+      bluetooth.end();
+      const uint32_t elapsed = millis() - startedAt;
+      requestInFlight = false;
+      endEstablishedConnection = false;
+      Serial.printf(
+        "END_ESTABLISHED id=%lu elapsed=%lu initialized=%u count=%u\n",
+        static_cast<unsigned long>(connection.id),
+        static_cast<unsigned long>(elapsed),
+        bluetooth.initialized() ? 1 : 0,
+        static_cast<unsigned>(bluetooth.connectionCount()));
+      const bool beganAgain = bluetooth.begin(makeConfig());
+      Serial.printf("END_ESTABLISHED_REINITIALIZED %u\n",
+        beganAgain ? 1 : 0);
+      return;
+    }
     Serial.printf("DISCONNECT_ACCEPTED %u\n",
       bluetooth.disconnect(connection.id) ? 1 : 0);
   });
@@ -66,10 +85,7 @@ void setup()
     }
     else
     {
-      requestInFlight = bluetooth.connect(
-        "02:00:00:00:00:01", EspBleAddressType::Public, 1200);
-      Serial.printf("FAILURE_REQUEST_ACCEPTED %u\n",
-        requestInFlight ? 1 : 0);
+      Serial.println("TIMEOUT_COMMAND_READY");
     }
   });
   bluetooth.onConnectionFailed([](const EspBleConnectionFailure &failure) {
@@ -150,6 +166,27 @@ void loop()
       Serial.printf("END_REINITIALIZED %u stale_failures=%u\n",
         beganAgain ? 1 : 0,
         static_cast<unsigned>(failureCallbackCount - failuresBeforeEnd));
+    }
+    else if (command == 'f')
+    {
+      requestInFlight = bluetooth.connect(target, 1200);
+      Serial.printf("TIMEOUT_REQUEST_ACCEPTED %u\n",
+        requestInFlight ? 1 : 0);
+    }
+    else if (command == 'z')
+    {
+      if (!bluetooth.initialized())
+      {
+        bluetooth.begin(makeConfig());
+      }
+      endEstablishedConnection = true;
+      EspBleScanConfig config;
+      config.active = true;
+      config.wantDuplicates = true;
+      config.intervalMilliseconds = 100;
+      config.windowMilliseconds = 50;
+      Serial.printf("END_ESTABLISHED_SCAN_STARTED %u\n",
+        bluetooth.scanner().start(config) ? 1 : 0);
     }
   }
 
