@@ -354,8 +354,12 @@ struct EspBluedroidSppImpl
   uint32_t backendHandle = 0;
   EspBluedroidSppSession activeSession;
   EspBluedroidSppSessionId nextSessionId = 1;
-  bool txPending = false;
-  String txValue;
+  String txQueue[EspBluedroidSpp::WriteQueueCapacity];
+  size_t txHead = 0;
+  size_t txCount = 0;
+  size_t droppedWrites = 0;
+  bool txInFlight = false;
+  bool txCongested = false;
   bool connecting = false;
   String connectAddress;
   esp_bd_addr_t connectBackendAddress = {};
@@ -366,6 +370,41 @@ struct EspBluedroidSppImpl
 namespace
 {
 std::atomic<EspBluedroidSppImpl *> activeSpp{nullptr};
+
+void startNextSppWrite(EspBluedroidSppImpl *impl)
+{
+  uint32_t handle = 0;
+  uint8_t *data = nullptr;
+  size_t length = 0;
+  {
+    std::lock_guard<std::mutex> lock(impl->mutex);
+    if (
+      impl->backendHandle == 0 || impl->txCount == 0 ||
+      impl->txInFlight || impl->txCongested)
+    {
+      return;
+    }
+    String &value = impl->txQueue[impl->txHead];
+    handle = impl->backendHandle;
+    data = reinterpret_cast<uint8_t *>(
+      const_cast<char *>(value.c_str()));
+    length = value.length();
+    impl->txInFlight = true;
+  }
+  if (esp_spp_write(handle, length, data) != ESP_OK)
+  {
+    {
+      std::lock_guard<std::mutex> lock(impl->mutex);
+      impl->txQueue[impl->txHead] = "";
+      impl->txHead =
+        (impl->txHead + 1) % EspBluedroidSpp::WriteQueueCapacity;
+      --impl->txCount;
+      ++impl->droppedWrites;
+      impl->txInFlight = false;
+    }
+    startNextSppWrite(impl);
+  }
+}
 
 void failSppConnection(
   EspBluedroidSppImpl *impl,
@@ -569,12 +608,35 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
   }
   else if (event == ESP_SPP_WRITE_EVT)
   {
-    std::lock_guard<std::mutex> lock(impl->mutex);
-    if (parameter->write.handle == impl->backendHandle)
     {
-      impl->txPending = false;
-      impl->txValue = "";
+      std::lock_guard<std::mutex> lock(impl->mutex);
+      if (
+        parameter->write.handle != impl->backendHandle ||
+        !impl->txInFlight || impl->txCount == 0)
+      {
+        return;
+      }
+      if (parameter->write.status != ESP_SPP_SUCCESS)
+      {
+        ++impl->droppedWrites;
+      }
+      impl->txQueue[impl->txHead] = "";
+      impl->txHead =
+        (impl->txHead + 1) % EspBluedroidSpp::WriteQueueCapacity;
+      --impl->txCount;
+      impl->txInFlight = false;
+      impl->txCongested = parameter->write.cong;
     }
+    startNextSppWrite(impl);
+  }
+  else if (event == ESP_SPP_CONG_EVT)
+  {
+    {
+      std::lock_guard<std::mutex> lock(impl->mutex);
+      if (parameter->cong.handle != impl->backendHandle) return;
+      impl->txCongested = parameter->cong.cong;
+    }
+    if (!parameter->cong.cong) startNextSppWrite(impl);
   }
   else if (event == ESP_SPP_CLOSE_EVT)
   {
@@ -585,8 +647,11 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
       session = impl->activeSession;
       impl->backendHandle = 0;
       impl->activeSession = EspBluedroidSppSession();
-      impl->txPending = false;
-      impl->txValue = "";
+      for (String &value : impl->txQueue) value = "";
+      impl->txHead = 0;
+      impl->txCount = 0;
+      impl->txInFlight = false;
+      impl->txCongested = false;
     }
     EspBluedroidSppImpl::Event queued;
     queued.type = EspBluedroidSppImpl::EventType::Disconnected;
@@ -2206,8 +2271,12 @@ void EspBluedroidSpp::end()
   impl_->backendHandle = 0;
   impl_->activeSession = EspBluedroidSppSession();
   impl_->nextSessionId = 1;
-  impl_->txPending = false;
-  impl_->txValue = "";
+  for (String &value : impl_->txQueue) value = "";
+  impl_->txHead = 0;
+  impl_->txCount = 0;
+  impl_->droppedWrites = 0;
+  impl_->txInFlight = false;
+  impl_->txCongested = false;
   impl_->connecting = false;
   impl_->connectAddress = "";
   memset(impl_->connectBackendAddress, 0, sizeof(impl_->connectBackendAddress));
@@ -2444,7 +2513,6 @@ bool EspBluedroidSpp::write(
   owner_->setError(EspBleError::Unsupported, "SPP is not enabled");
   return false;
 #else
-  uint32_t handle = 0;
   {
     std::lock_guard<std::mutex> lock(impl_->mutex);
     if (
@@ -2454,38 +2522,28 @@ bool EspBluedroidSpp::write(
       owner_->setError(EspBleError::NotFound, "SPP session was not found");
       return false;
     }
-    if (impl_->txPending)
+    if (impl_->txCount == EspBluedroidSpp::WriteQueueCapacity)
     {
+      ++impl_->droppedWrites;
       owner_->setError(
-        EspBleError::InvalidState, "an SPP write is already pending");
+        EspBleError::ResourceExhausted, "SPP write queue is full");
       return false;
     }
-    impl_->txValue = String(
+    const size_t tail =
+      (impl_->txHead + impl_->txCount) %
+      EspBluedroidSpp::WriteQueueCapacity;
+    impl_->txQueue[tail] = String(
       reinterpret_cast<const char *>(data), length);
-    if (impl_->txValue.length() != length)
+    if (impl_->txQueue[tail].length() != length)
     {
-      impl_->txValue = "";
+      impl_->txQueue[tail] = "";
       owner_->setError(
         EspBleError::ResourceExhausted, "failed to copy SPP write data");
       return false;
     }
-    impl_->txPending = true;
-    handle = impl_->backendHandle;
+    ++impl_->txCount;
   }
-  uint8_t *buffer = nullptr;
-  {
-    std::lock_guard<std::mutex> lock(impl_->mutex);
-    buffer = reinterpret_cast<uint8_t *>(
-      const_cast<char *>(impl_->txValue.c_str()));
-  }
-  if (esp_spp_write(handle, length, buffer) != ESP_OK)
-  {
-    std::lock_guard<std::mutex> lock(impl_->mutex);
-    impl_->txPending = false;
-    impl_->txValue = "";
-    owner_->setError(EspBleError::BackendFailure, "failed to write SPP data");
-    return false;
-  }
+  startNextSppWrite(impl_);
   owner_->clearError();
   return true;
 #endif
@@ -2535,6 +2593,20 @@ bool EspBluedroidSpp::disconnect(EspBluedroidSppSessionId sessionId)
   owner_->clearError();
   return true;
 #endif
+}
+
+size_t EspBluedroidSpp::pendingWriteCount() const
+{
+  if (impl_ == nullptr) return 0;
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  return impl_->txCount;
+}
+
+size_t EspBluedroidSpp::droppedWriteCount() const
+{
+  if (impl_ == nullptr) return 0;
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  return impl_->droppedWrites;
 }
 
 size_t EspBluedroidSpp::droppedEventCount() const

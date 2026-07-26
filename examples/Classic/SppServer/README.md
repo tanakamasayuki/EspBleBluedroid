@@ -11,6 +11,7 @@ SPP data is binary-safe. Events own a copied `String`, so embedded NUL bytes
 remain available through `value.length()` and indexing. Callbacks run from
 `bluetooth.update()`, not from the Bluedroid callback.
 
-The current implementation supports one active SPP session and one pending
-write of 1–990 bytes. A later write can be submitted after the peer receives
-the previous one. Client connection and SPP security will be added separately.
+The current implementation supports one active SPP session and an eight-entry
+write queue. Each write contains 1–990 bytes. Use `pendingWriteCount()` and
+`droppedWriteCount()` for bounded-queue diagnostics. SPP security will be added
+separately.

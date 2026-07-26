@@ -16,7 +16,7 @@
 | Central接続 | `connect()` / `disconnect()` / connection snapshot / lifecycle callback | non-blocking要求、再接続ID、timeout分類、切断、active link終了、再初期化 |
 | GATT Client | Database Discovery / UUID・handle指定Characteristic操作 / Descriptor Read・Write / Notification | connection単位snapshot、binary-safe値、CCCD、専用task、`update()`配送 |
 | BLE Security | Just Works / Static・Runtime Passkey / Numeric Comparison / Bond | 暗号化・認証必須attribute、保存bond再接続、passkey表示・入力・比較確認、bond管理 |
-| Capability | `capabilities()` | BLE、Classic、dual-mode、Classic Inquiry、未実装SPPを初期化前に判定 |
+| Capability | `capabilities()` | BLE、Classic、dual-mode、Classic Inquiry、SPPを初期化前に判定 |
 | Classic Inquiry | `classic().inquiry()` | name、address、Class of Device、RSSI、明示停止、完了event、`update()`配送 |
 | Classic SPP Server | `classic().spp().startServer()` / session / write / disconnect | binary-safe双方向data、remote切断、再接続ID、稼働中`end()`、`update()`配送 |
 | Classic SPP Client | `classic().spp().connect()` / connection failure / 共通session API | non-blocking SDP/RFCOMM接続、binary data、local切断、再接続ID、timeout |
@@ -32,7 +32,8 @@ Central接続は`tests/peer/connect_disconnect`でlink確立とcallback配送を
 Classic Inquiryは`tests/peer/classic_inquiry`でBTDM初期化、discoverableなClassic peer、
 結果callback内からの停止、完了eventまで確認している。
 SPP Serverは`tests/peer/spp_server`でraw ESP-IDF Clientとの双方向binary data、
-2回の接続で異なるsession ID、remote切断、server稼働中の終了まで確認している。
+2回の接続で異なるsession ID、remote切断、server稼働中の終了に加え、8件送信queueの
+順序とoverflowを確認している。
 SPP Clientは`tests/peer/spp_client`でraw ESP-IDF Serverとの非同期接続、双方向data、
 公開APIからの切断、再接続ID、Server停止後の失敗/timeout eventまで確認している。
 dual modeは`tests/peer/dual_mode_scan_spp`でSPP session中のactive BLE Scanと、
@@ -76,8 +77,10 @@ CCCD購読、notificationまで確認している。
 - Classic Inquiry result queueは16件。overflowは`droppedResultCount()`で確認できる。
   Inquiry時間は1〜61秒、`maxResponses=0`はbackend上限まで探索する。Classic Inquiryは
   BLE Scanとは別の操作・結果型であり、同時実行の保証はdual-modeテスト追加後に確定する。
-- SPPはClient/Server、pendingまたはactive session 1つ、pending write 1つ、
+- SPPはClient/Server、pendingまたはactive session 1つ、送信queue 8件、
   1 writeあたり1〜990 byteに対応。ClientはSDPの先頭SPP serviceを利用する。
+  queue使用量は`pendingWriteCount()`、拒否・backend送信失敗の累積は
+  `droppedWriteCount()`で確認できる。
   複数session、Security、送信完了callback、高帯域receive bufferは未実装。
 - BLE ScanとSPP session/dataの同時利用は確認済み。BLE GATT接続・ATT trafficとSPPの
   同時利用、長時間・高負荷時のfairnessは未確認。
@@ -86,7 +89,7 @@ CCCD購読、notificationまで確認している。
 
 ## 次のテストスライス
 
-1. SPP Securityと送受信queue。
+1. SPP Securityと高帯域receive buffer。
 2. BLE GATT/SPP dual-modeと長時間traffic。
 
 各項目は失敗するunitまたはpeerテストを先に追加してから実装する。

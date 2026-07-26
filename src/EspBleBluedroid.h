@@ -374,6 +374,7 @@ private:
 class EspBluedroidSpp
 {
 public:
+  static constexpr size_t WriteQueueCapacity = 8;
   using ServerStartedCallback = std::function<void()>;
   using SessionCallback =
     std::function<void(const EspBluedroidSppSession &session)>;
@@ -406,6 +407,8 @@ public:
     EspBluedroidSppSessionId sessionId,
     const String &value);
   bool disconnect(EspBluedroidSppSessionId sessionId);
+  size_t pendingWriteCount() const;
+  size_t droppedWriteCount() const;
   size_t droppedEventCount() const;
 
 private:

@@ -10,6 +10,6 @@ SPP dataはbinary-safeです。eventはcopyされた`String`を所有するた�
 `value.length()`とindex accessで保持されます。callbackはBluedroid callbackではなく
 `bluetooth.update()`から配送されます。
 
-現在はactive SPP session 1つ、1〜990 byteのpending write 1つに対応します。相手が
-直前のdataを受信した後で次のwriteを要求できます。Client接続とSPP Securityは
-別のテストsliceで追加します。
+現在はactive SPP session 1つ、8件の送信queue、1 writeあたり1〜990 byteに対応します。
+`pendingWriteCount()`と`droppedWriteCount()`で固定長queueの状態を確認できます。
+SPP Securityは別のテストsliceで追加します。

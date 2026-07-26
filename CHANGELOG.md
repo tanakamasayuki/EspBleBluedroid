@@ -24,3 +24,5 @@
 - (JA) 共通sessionを使う非同期Classic SPP Client接続を追加。
 - (EN) Verify active BLE Scan and binary SPP traffic on one dual-mode stack.
 - (JA) 1つのdual-mode stack上のactive BLE Scanとbinary SPP trafficを検証。
+- (EN) Add an ordered eight-entry SPP write queue with overflow diagnostics.
+- (JA) 順序保証付き8件SPP送信queueとoverflow診断を追加。

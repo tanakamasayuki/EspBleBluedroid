@@ -7,6 +7,8 @@
 #include <esp32-hal-bt.h>
 
 esp_bd_addr_t serverAddress = {};
+uint8_t received[8 * 3] = {};
+size_t receivedLength = 0;
 
 void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
 {
@@ -31,16 +33,26 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
            parameter->open.status == ESP_SPP_SUCCESS)
   {
     Serial.println("SPP_RAW_CONNECTED");
+    receivedLength = 0;
     static uint8_t message[] = {0x00, 0x7f, 'P'};
     esp_spp_write(parameter->open.handle, sizeof(message), message);
   }
   else if (event == ESP_SPP_DATA_IND_EVT)
   {
+    const size_t remaining = sizeof(received) - receivedLength;
+    const size_t copyLength =
+      parameter->data_ind.len < remaining
+      ? parameter->data_ind.len
+      : remaining;
+    memcpy(
+      received + receivedLength, parameter->data_ind.data, copyLength);
+    receivedLength += copyLength;
+    if (receivedLength != sizeof(received)) return;
     Serial.printf("SPP_RAW_RX length=%u hex=",
-      static_cast<unsigned>(parameter->data_ind.len));
-    for (size_t index = 0; index < parameter->data_ind.len; ++index)
+      static_cast<unsigned>(receivedLength));
+    for (size_t index = 0; index < receivedLength; ++index)
     {
-      Serial.printf("%02x", parameter->data_ind.data[index]);
+      Serial.printf("%02x", received[index]);
     }
     Serial.println();
     esp_spp_disconnect(parameter->data_ind.handle);

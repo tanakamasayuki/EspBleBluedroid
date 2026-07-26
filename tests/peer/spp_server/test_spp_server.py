@@ -42,8 +42,17 @@ def test_public_spp_server_bidirectional_data_and_disconnect(dut, peers):
             ),
             timeout=30,
         )
-        dut.expect_exact("SPP_SERVER_WRITE_ACCEPTED 1", timeout=30)
-        client.expect_exact("SPP_RAW_RX length=3 hex=ff0053", timeout=30)
+        dut.expect_exact(
+            "SPP_SERVER_WRITE_ACCEPTED 111111110 "
+            f"pending=8 dropped={attempt + 1}",
+            timeout=30,
+        )
+        client.expect_exact(
+            "SPP_RAW_RX length=24 "
+            "hex=a00053a10053a20053a30053"
+            "a40053a50053a60053a70053",
+            timeout=30,
+        )
         client.expect_exact("SPP_RAW_DISCONNECTED", timeout=30)
         dut.expect(
             re.compile(

@@ -68,10 +68,21 @@ void initializeBluetooth()
       Serial.printf("%02x", static_cast<uint8_t>(event.value[index]));
     }
     Serial.printf(" context=%s\n", contextName());
-    const uint8_t reply[] = {0xff, 0x00, 'S'};
-    Serial.printf("SPP_SERVER_WRITE_ACCEPTED %u\n",
-      bluetooth.classic().spp().write(
-        event.sessionId, reply, sizeof(reply)) ? 1 : 0);
+    Serial.print("SPP_SERVER_WRITE_ACCEPTED ");
+    for (size_t index = 0;
+         index < EspBluedroidSpp::WriteQueueCapacity + 1;
+         ++index)
+    {
+      const uint8_t reply[] = {
+        static_cast<uint8_t>(0xa0 + index), 0x00, 'S'};
+      Serial.print(bluetooth.classic().spp().write(
+        event.sessionId, reply, sizeof(reply)) ? '1' : '0');
+    }
+    Serial.printf(" pending=%u dropped=%u\n",
+      static_cast<unsigned>(
+        bluetooth.classic().spp().pendingWriteCount()),
+      static_cast<unsigned>(
+        bluetooth.classic().spp().droppedWriteCount()));
   });
   bluetooth.classic().spp().onDisconnected(
     [](const EspBluedroidSppSession &session) {

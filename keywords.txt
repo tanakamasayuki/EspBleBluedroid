@@ -32,6 +32,8 @@ inquiry	KEYWORD2
 spp	KEYWORD2
 startServer	KEYWORD2
 stopServer	KEYWORD2
+pendingWriteCount	KEYWORD2
+droppedWriteCount	KEYWORD2
 connect	KEYWORD2
 disconnect	KEYWORD2
 onConnected	KEYWORD2
