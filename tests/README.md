@@ -61,3 +61,7 @@ connected, then starts binary SPP traffic from the deferred Scan callback.
 `peer/spp_receive_buffer` verifies the session-scoped 2048-byte receive ring,
 binary-safe `peek()`/single-byte/bulk reads, deterministic overflow accounting,
 and buffer invalidation on disconnect against a 2300-byte raw ESP-IDF burst.
+`peer/spp_stream` verifies that an established session can be attached to an
+Arduino `Stream`, including `Print` text/number output, CRLF, binary writes,
+automatic 990-byte write chunking, `readBytes()`, `availableForWrite()`,
+`flush()`, invalid attachment, and automatic disconnected behavior.

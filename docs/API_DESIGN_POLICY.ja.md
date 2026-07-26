@@ -174,11 +174,13 @@ backpressure方針を持たせる。lifecycleと操作完了イベントを優�
 transport/profile別に取得できるようにする。
 
 SPPなどのstream dataは`update()` eventだけでは帯域不足になる可能性がある。
-SPPはsession IDを明示するStream風の`available()`、`peek()`、`read()`と、
-`update()`配送のpacket/状態イベントを分ける。受信byteはstack callbackで固定長ringへ
-copyし、`update()`頻度から切り離す。満杯時は先着dataを保持して超過byte数を公開する。
-zero-copy/raw callbackが必要になった場合はadvanced APIとし、stack contextまたは
-専用task contextであることを型名と文書に明記する。
+SPPはsession IDを明示する`available()`、`peek()`、`read()`と、`update()`配送の
+packet/状態イベントを分ける。接続後は非所有の`EspBluedroidSppStream`をsessionへ
+bindでき、Arduino `Stream`/`Print`として同じdata pathを利用できる。接続確立・切断は
+profile固有eventのままとし、`Stream::begin()`へ隠さない。受信byteはstack callbackで
+固定長ringへcopyし、`update()`頻度から切り離す。満杯時は先着dataを保持して超過byte数を
+公開する。zero-copy/raw callbackが必要になった場合はadvanced APIとし、stack context
+または専用task contextであることを型名と文書に明記する。
 
 ## Errorとcapability
 

@@ -376,6 +376,7 @@ class EspBluedroidSpp
 public:
   static constexpr size_t WriteQueueCapacity = 8;
   static constexpr size_t ReceiveBufferCapacity = 2048;
+  static constexpr size_t MaximumWriteSize = 990;
   using ServerStartedCallback = std::function<void()>;
   using SessionCallback =
     std::function<void(const EspBluedroidSppSession &session)>;
@@ -409,6 +410,7 @@ public:
     const String &value);
   bool disconnect(EspBluedroidSppSessionId sessionId);
   size_t pendingWriteCount() const;
+  size_t pendingWriteCount(EspBluedroidSppSessionId sessionId) const;
   size_t droppedWriteCount() const;
   size_t available(EspBluedroidSppSessionId sessionId) const;
   int peek(EspBluedroidSppSessionId sessionId) const;
@@ -437,6 +439,36 @@ private:
   DataCallback dataCallback_;
   ConnectionFailureCallback connectionFailedCallback_;
   EspBluedroidSppImpl *impl_ = nullptr;
+};
+
+class EspBluedroidSppStream : public Stream
+{
+public:
+  EspBluedroidSppStream() = default;
+  EspBluedroidSppStream(
+    EspBluedroidSpp &spp,
+    EspBluedroidSppSessionId sessionId);
+
+  bool attach(
+    EspBluedroidSpp &spp,
+    EspBluedroidSppSessionId sessionId);
+  void detach();
+  bool connected() const;
+  explicit operator bool() const;
+  EspBluedroidSppSessionId sessionId() const;
+
+  int available() override;
+  int peek() override;
+  int read() override;
+  int availableForWrite() override;
+  void flush() override;
+  size_t write(uint8_t value) override;
+  size_t write(const uint8_t *data, size_t length) override;
+  using Print::write;
+
+private:
+  EspBluedroidSpp *spp_ = nullptr;
+  EspBluedroidSppSessionId sessionId_ = 0;
 };
 
 class EspBluedroidClassic

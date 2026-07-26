@@ -28,3 +28,5 @@
 - (JA) 順序保証付き8件SPP送信queueとoverflow診断を追加。
 - (EN) Add a bounded 2048-byte SPP receive ring with Stream-like reads.
 - (JA) Stream風readとoverflow診断を備えた2048 byte固定長SPP受信ringを追加。
+- (EN) Add an Arduino Stream/Print wrapper for established SPP sessions.
+- (JA) 確立済みSPP session用Arduino Stream/Printラッパーを追加。

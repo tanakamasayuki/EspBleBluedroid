@@ -20,6 +20,7 @@
 | Classic Inquiry | `classic().inquiry()` | name、address、Class of Device、RSSI、明示停止、完了event、`update()`配送 |
 | Classic SPP Server | `classic().spp().startServer()` / session / read / write / disconnect | binary-safe双方向data、固定長RX ring、remote切断、再接続ID、稼働中`end()` |
 | Classic SPP Client | `classic().spp().connect()` / connection failure / 共通session API | non-blocking SDP/RFCOMM接続、共通RX ring、local切断、再接続ID、timeout |
+| Classic SPP Stream | `EspBluedroidSppStream` | sessionへbindするArduino `Stream`/`Print`、`print()`、`readBytes()`、`flush()`、切断検知 |
 | BLE/SPP dual mode | active BLE Scan + active SPP session | Scan callbackからSPP write、binary応答、独立queue、停止・切断 |
 
 AdvertisingとScanの基本経路は`tests/peer/advertise_scan`、Advertising wire形式と
@@ -79,11 +80,14 @@ CCCD購読、notificationまで確認している。
   BLE Scanとは別の操作・結果型であり、同時実行の保証はdual-modeテスト追加後に確定する。
 - SPPはClient/Server、pendingまたはactive session 1つ、送信queue 8件、
   1 writeあたり1〜990 byteに対応。ClientはSDPの先頭SPP serviceを利用する。
-  queue使用量は`pendingWriteCount()`、拒否・backend送信失敗の累積は
-  `droppedWriteCount()`で確認できる。
+  queue使用量は`pendingWriteCount()`またはsession指定overload、拒否・backend送信失敗の
+  累積は`droppedWriteCount()`で確認できる。
   受信は`onData()`のpacket eventに加え、stack callbackで退避する2048 byteの
   固定長ringを`available()`、`peek()`、`read()`で読める。満杯時は既存byteを保持し、
   超過分を`droppedReceiveByteCount()`で確認できる。
+  `EspBluedroidSppStream`をsessionへ`attach()`するとArduino `Stream`/`Print` APIを
+  利用できる。writeは990 byte単位へ分割し、`availableForWrite()`は固定長送信queueの
+  残り容量をbyteで返す。ラッパーはstackやsessionを所有しない。
   複数session、Security、送信完了callbackは未実装。
 - BLE ScanとSPP session/dataの同時利用は確認済み。BLE GATT接続・ATT trafficとSPPの
   同時利用、長時間・高負荷時のfairnessは未確認。
