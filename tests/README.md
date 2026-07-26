@@ -62,6 +62,8 @@ Characteristic Read/Write, subscription/notification, and a bounded
 64-notification burst bridged to SPP. The test accounts for BLE event-queue
 drops explicitly and verifies that every delivered notification completes its
 SPP round trip and reaches the receive ring without SPP write or receive loss.
+It also fills the BLE connection-event queue deterministically and verifies
+that a GATT completion evicts one notification instead of being dropped.
 `peer/spp_receive_buffer` verifies the session-scoped 2048-byte receive ring,
 binary-safe `peek()`/single-byte/bulk reads, deterministic overflow accounting,
 and buffer invalidation on disconnect against a 2300-byte raw ESP-IDF burst.

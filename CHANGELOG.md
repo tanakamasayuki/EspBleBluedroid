@@ -32,6 +32,10 @@
   BLE event-drop accounting and lossless SPP receive-ring checks for delivered data.
 - (JA) 64通知のbounded dual-mode飽和試験を追加し、BLE event dropの明示集計と
   配送済みdataのSPP受信ring保持を検証。
+- (EN) Preserve BLE connection-control and GATT-completion events by evicting
+  the oldest notification when the shared bounded queue is full.
+- (JA) BLE connection event queue満杯時は最古のNotificationを退避し、接続制御・
+  Security・GATT完了eventを保持。
 - (EN) Add an ordered eight-entry SPP write queue with overflow diagnostics.
 - (JA) 順序保証付き8件SPP送信queueとoverflow診断を追加。
 - (EN) Add a bounded 2048-byte SPP receive ring with Stream-like reads.

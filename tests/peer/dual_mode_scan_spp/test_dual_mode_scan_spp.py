@@ -12,6 +12,15 @@ def test_ble_gatt_and_spp_data_share_dual_mode_stack(dut, peers):
 
     dut.write("i")
     dut.expect_exact("DUAL_HOST_READY", timeout=30)
+    dut.write("p")
+    dut.expect_exact(
+        "DUAL_PRIORITY_INJECTED notifications=8 control=1", timeout=30
+    )
+    dut.expect_exact(
+        "DUAL_PRIORITY_COMPLETE notifications=7 dropped=1 "
+        "success=1 context=loop",
+        timeout=30,
+    )
     dut.write(f"c{address}\n")
     dut.expect_exact("DUAL_CONNECT_ACCEPTED 1", timeout=30)
     peer.expect_exact("DUAL_PEER_SPP_CONNECTED", timeout=30)

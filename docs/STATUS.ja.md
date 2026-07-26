@@ -22,7 +22,7 @@
 | Classic SPP Client | `classic().spp().connect()` / connection failure / 共通session API | non-blocking SDP/RFCOMM接続、共通RX ring、local切断、再接続ID、timeout |
 | Classic SPP Stream | `EspBluedroidSppStream` | sessionへbindするArduino `Stream`/`Print`、`print()`、`readBytes()`、`flush()`、切断検知 |
 | Classic Security | Numeric Comparison / Passkey Entry / SPP security mode / `classic().bond*()` | DisplayOnly/KeyboardOnly、比較値、明示回答、Client/Server認証失敗後retry、bond再接続・列挙・削除、認証・暗号化SPP data |
-| BLE/SPP dual mode | active BLE Scan・GATT Client + active SPP session | Discovery、Read/Write、Notification、64通知のbounded burst、drop集計、配送済み通知のSPP往復、独立queue、停止・切断 |
+| BLE/SPP dual mode | active BLE Scan・GATT Client + active SPP session | Discovery、Read/Write、Notification、64通知のbounded burst、drop集計、配送済み通知のSPP往復、GATT完了優先配送、停止・切断 |
 
 AdvertisingとScanの基本経路は`tests/peer/advertise_scan`、Advertising wire形式と
 payload境界は`tests/peer/advertise_payload`で実機確認している。Scanはduration停止、
@@ -55,6 +55,8 @@ BLE Central接続、GATT Discovery / Characteristic Read・Write / Notification�
 配送された通知はすべてSPP peerの受信・応答と公開RX ringのpacket数・byte数まで一致し、
 SPP write/RX dropとapplication pendingは0になる。burst中にBLE event queueが飽和した
 場合も、配送数と`droppedEventCount()`の合計が送信64件に一致し、欠落を明示的に観測する。
+加えて8件のBLE connection event queueをNotificationで満杯にした状態へGATT完了を
+決定的に注入し、最古のNotification 1件をdropしてGATT完了を保持・配送することを確認した。
 `tests/peer/stack_smoke`は、公開API実装前のbackend成立性として接続、GATT read/write、
 CCCD購読、notificationまで確認している。
 
@@ -112,14 +114,15 @@ CCCD購読、notificationまで確認している。
   複数session、送信完了callbackは未実装。
 - BLE ScanおよびBLE GATT接続・ATT trafficとSPP session/dataの同時利用は確認済み。
   64 Notificationのbounded burstではBLE event queueのdropを含む全件を集計し、
-  配送済み通知のSPP往復とRX ring保持を確認している。長時間負荷時のfairnessと、
-  BLE control eventを含む連続飽和状態は未確認。
+  配送済み通知のSPP往復とRX ring保持を確認している。BLE connection event queue
+  満杯時はNotificationより接続・Security・GATT完了などの制御eventを優先する。
+  長時間負荷と連続飽和状態でのfairnessは未確認。
 - GATT Server、HIDおよびSPP以外のClassic profileは公開API未実装。
 - Advertisingの時間指定停止は`update()`で処理するため、継続的な`update()`呼出しが必要。
 
 ## 次のテストスライス
 
-1. BLE GATT/SPP dual-modeの長時間trafficと、control eventを含む連続飽和時のfairness。
+1. BLE GATT/SPP dual-modeの長時間trafficと連続飽和時のfairness。
 2. SPP送信完了通知と複数sessionの設計。
 
 各項目は失敗するunitまたはpeerテストを先に追加してから実装する。

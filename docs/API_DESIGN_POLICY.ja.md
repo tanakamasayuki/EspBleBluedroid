@@ -178,6 +178,10 @@ transport別drop数を合わせて入力総数を検証できるようにし、s
 必要がある利用者はcallbackではなく固定長ringと`Stream` APIを主経路にする。ring自体の
 容量超過も別のdrop byte数として観測可能にする。
 
+BLE connection event queueでは、満杯時に接続・切断・Security・GATT完了などの制御
+eventが到着した場合、最古のNotificationを1件dropして制御eventを保持する。制御event
+だけで満杯の場合は新着をdropし、いずれの場合も`droppedEventCount()`へ加算する。
+
 SPPなどのstream dataは`update()` eventだけでは帯域不足になる可能性がある。
 SPPはsession IDを明示する`available()`、`peek()`、`read()`と、`update()`配送の
 packet/状態イベントを分ける。接続後は非所有の`EspBluedroidSppStream`をsessionへ
@@ -332,8 +336,8 @@ Classic対応は「buildで有効だから一括公開」せず、profileごと�
 3. BLEとSPPのdual-mode同時利用。resource競合とevent starvationを検証する。
    BLE ScanとGATT Discovery / Read / Write / Notification中のSPP binary trafficを
    実装・確認済み。64 Notificationのbounded burstではBLE event dropを明示集計し、
-   配送済み通知のSPP往復とRX ring保持を確認済み。長時間負荷とcontrol eventを含む
-   連続飽和時のfairnessは未確認。
+   配送済み通知のSPP往復とRX ring保持を確認済み。満杯時のGATT完了優先配送も
+   決定的に確認済み。長時間負荷と連続飽和時のfairnessは未確認。
 4. Classic HID Host/Device。HOGPと共有できるusage/report codecだけを共通化する。
 5. A2DP/AVRCP。audio data pathとcontrol eventを分離して設計する。
 6. HFP。同期音声linkを含むため、別途resource/latency設計を行う。

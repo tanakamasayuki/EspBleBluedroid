@@ -1,0 +1,2 @@
+[flags]
+ESP_BLE_BLUEDROID_TESTING = true

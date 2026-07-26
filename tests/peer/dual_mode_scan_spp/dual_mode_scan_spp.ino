@@ -15,7 +15,10 @@ size_t sppReceiveCount = 0;
 size_t notificationCount = 0;
 size_t trafficSppCallbackCount = 0;
 size_t pendingTrafficWrites = 0;
+size_t trafficBleDroppedBaseline = 0;
+size_t priorityNotificationCount = 0;
 bool trafficActive = false;
+bool priorityTestActive = false;
 bool initialized = false;
 bool scanResultHandled = false;
 
@@ -180,6 +183,7 @@ void initializeBluetooth()
         result.connectionId, characteristicHandle, true, 5000) ? 1 : 0);
   });
   bluetooth.onSubscribed([](const EspBleGattResult &result) {
+    trafficBleDroppedBaseline = bluetooth.droppedEventCount();
     trafficActive = true;
     Serial.printf(
       "DUAL_GATT_SUBSCRIBED success=%u spp_sessions=%u context=%s\n",
@@ -188,6 +192,11 @@ void initializeBluetooth()
       contextName());
   });
   bluetooth.onNotification([](const EspBleGattNotification &notification) {
+    if (priorityTestActive)
+    {
+      ++priorityNotificationCount;
+      return;
+    }
     ++notificationCount;
     const bool valid =
       notification.value.length() == 3 &&
@@ -205,6 +214,17 @@ void initializeBluetooth()
       static_cast<unsigned>(pendingTrafficWrites));
   });
   bluetooth.onUnsubscribed([](const EspBleGattResult &result) {
+    if (priorityTestActive)
+    {
+      priorityTestActive = false;
+      Serial.printf(
+        "DUAL_PRIORITY_COMPLETE notifications=%u dropped=%u "
+        "success=%u context=%s\n",
+        static_cast<unsigned>(priorityNotificationCount),
+        static_cast<unsigned>(bluetooth.droppedEventCount()),
+        result.success ? 1 : 0, contextName());
+      return;
+    }
     Serial.printf(
       "DUAL_GATT_UNSUBSCRIBED success=%u spp_sessions=%u context=%s\n",
       result.success ? 1 : 0,
@@ -247,6 +267,34 @@ void loop()
       Serial.printf("DUAL_CONNECT_ACCEPTED %u\n",
         bluetooth.classic().spp().connect(address.c_str()) ? 1 : 0);
     }
+#ifdef ESP_BLE_BLUEDROID_TESTING
+    else if (command == 'p' && bluetooth.initialized())
+    {
+      priorityTestActive = true;
+      priorityNotificationCount = 0;
+      size_t acceptedNotifications = 0;
+      for (size_t index = 0; index < 8; ++index)
+      {
+        EspBleGattNotification notification;
+        notification.connectionId = 77;
+        notification.value = String(static_cast<char>('0' + index));
+        if (bluetooth.injectNotificationForTest(notification))
+        {
+          ++acceptedNotifications;
+        }
+      }
+      EspBleGattResult result;
+      result.operation = EspBleGattOperation::Unsubscribe;
+      result.connectionId = 77;
+      result.success = true;
+      const bool controlAccepted =
+        bluetooth.injectGattResultForTest(result);
+      Serial.printf(
+        "DUAL_PRIORITY_INJECTED notifications=%u control=%u\n",
+        static_cast<unsigned>(acceptedNotifications),
+        controlAccepted ? 1 : 0);
+    }
+#endif
     else if (command == 'q' && sppSessionId != 0)
     {
       size_t byteCount = 0;
@@ -278,7 +326,8 @@ void loop()
         static_cast<unsigned>(validPacketCount),
         static_cast<unsigned>(byteCount),
         static_cast<unsigned>(trafficSppCallbackCount),
-        static_cast<unsigned>(bluetooth.droppedEventCount()),
+        static_cast<unsigned>(
+          bluetooth.droppedEventCount() - trafficBleDroppedBaseline),
         static_cast<unsigned>(sppEventDropped),
         static_cast<unsigned>(
           bluetooth.classic().spp().droppedReceiveByteCount()),

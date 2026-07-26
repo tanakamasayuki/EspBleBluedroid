@@ -1072,8 +1072,37 @@ struct EspBleConnectionImpl
   {
     if (eventCount == EventCapacity)
     {
+      if (event.type == EventType::Notification)
+      {
+        ++droppedEvents;
+        return false;
+      }
+
+      size_t notificationOffset = EventCapacity;
+      for (size_t offset = 0; offset < eventCount; ++offset)
+      {
+        if (
+          events[(eventHead + offset) % EventCapacity].type ==
+          EventType::Notification)
+        {
+          notificationOffset = offset;
+          break;
+        }
+      }
+      if (notificationOffset == EventCapacity)
+      {
+        ++droppedEvents;
+        return false;
+      }
+
+      for (size_t offset = notificationOffset;
+           offset + 1 < eventCount; ++offset)
+      {
+        events[(eventHead + offset) % EventCapacity] = std::move(
+          events[(eventHead + offset + 1) % EventCapacity]);
+      }
+      --eventCount;
       ++droppedEvents;
-      return false;
     }
     events[(eventHead + eventCount) % EventCapacity] = event;
     ++eventCount;
@@ -4181,6 +4210,28 @@ bool EspBleBluedroid::setSecurityResponseTimeoutForTest(
   }
   clearError();
   return true;
+}
+
+bool EspBleBluedroid::injectNotificationForTest(
+  const EspBleGattNotification &notification)
+{
+  if (!initialized_ || connectionImpl_ == nullptr) return false;
+  std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+  EspBleConnectionImpl::Event event;
+  event.type = EspBleConnectionImpl::EventType::Notification;
+  event.notification = notification;
+  return connectionImpl_->pushEventLocked(event);
+}
+
+bool EspBleBluedroid::injectGattResultForTest(
+  const EspBleGattResult &result)
+{
+  if (!initialized_ || connectionImpl_ == nullptr) return false;
+  std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+  EspBleConnectionImpl::Event event;
+  event.type = EspBleConnectionImpl::EventType::GattResult;
+  event.gattResult = result;
+  return connectionImpl_->pushEventLocked(event);
 }
 #endif
 

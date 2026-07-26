@@ -609,6 +609,9 @@ public:
   EspBluedroidClassic &classic();
 #ifdef ESP_BLE_BLUEDROID_TESTING
   bool setSecurityResponseTimeoutForTest(uint32_t timeoutMilliseconds);
+  bool injectNotificationForTest(
+    const EspBleGattNotification &notification);
+  bool injectGattResultForTest(const EspBleGattResult &result);
 #endif
 
   bool connect(
