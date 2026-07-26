@@ -360,6 +360,10 @@ struct EspBluedroidSppImpl
   size_t droppedWrites = 0;
   bool txInFlight = false;
   bool txCongested = false;
+  uint8_t rxBuffer[EspBluedroidSpp::ReceiveBufferCapacity] = {};
+  size_t rxHead = 0;
+  size_t rxCount = 0;
+  size_t droppedReceiveBytes = 0;
   bool connecting = false;
   String connectAddress;
   esp_bd_addr_t connectBackendAddress = {};
@@ -548,6 +552,9 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
         session.incoming = false;
         impl->backendHandle = parameter->open.handle;
         impl->activeSession = session;
+        impl->rxHead = 0;
+        impl->rxCount = 0;
+        impl->droppedReceiveBytes = 0;
         impl->connecting = false;
         impl->connectAddress = "";
         impl->connectDeadlineMs = 0;
@@ -582,6 +589,9 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
       session.incoming = true;
       impl->backendHandle = parameter->srv_open.handle;
       impl->activeSession = session;
+      impl->rxHead = 0;
+      impl->rxCount = 0;
+      impl->droppedReceiveBytes = 0;
     }
     EspBluedroidSppImpl::Event queued;
     queued.type = EspBluedroidSppImpl::EventType::Connected;
@@ -597,6 +607,19 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
       std::lock_guard<std::mutex> lock(impl->mutex);
       if (parameter->data_ind.handle != impl->backendHandle) return;
       sessionId = impl->activeSession.id;
+      for (size_t index = 0; index < parameter->data_ind.len; ++index)
+      {
+        if (impl->rxCount == EspBluedroidSpp::ReceiveBufferCapacity)
+        {
+          ++impl->droppedReceiveBytes;
+          continue;
+        }
+        const size_t tail =
+          (impl->rxHead + impl->rxCount) %
+          EspBluedroidSpp::ReceiveBufferCapacity;
+        impl->rxBuffer[tail] = parameter->data_ind.data[index];
+        ++impl->rxCount;
+      }
     }
     EspBluedroidSppImpl::Event queued;
     queued.type = EspBluedroidSppImpl::EventType::Data;
@@ -652,6 +675,8 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
       impl->txCount = 0;
       impl->txInFlight = false;
       impl->txCongested = false;
+      impl->rxHead = 0;
+      impl->rxCount = 0;
     }
     EspBluedroidSppImpl::Event queued;
     queued.type = EspBluedroidSppImpl::EventType::Disconnected;
@@ -2277,6 +2302,9 @@ void EspBluedroidSpp::end()
   impl_->droppedWrites = 0;
   impl_->txInFlight = false;
   impl_->txCongested = false;
+  impl_->rxHead = 0;
+  impl_->rxCount = 0;
+  impl_->droppedReceiveBytes = 0;
   impl_->connecting = false;
   impl_->connectAddress = "";
   memset(impl_->connectBackendAddress, 0, sizeof(impl_->connectBackendAddress));
@@ -2607,6 +2635,88 @@ size_t EspBluedroidSpp::droppedWriteCount() const
   if (impl_ == nullptr) return 0;
   std::lock_guard<std::mutex> lock(impl_->mutex);
   return impl_->droppedWrites;
+}
+
+size_t EspBluedroidSpp::available(
+  EspBluedroidSppSessionId sessionId) const
+{
+  if (impl_ == nullptr || sessionId == 0) return 0;
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  if (
+    impl_->backendHandle == 0 ||
+    impl_->activeSession.id != sessionId)
+  {
+    return 0;
+  }
+  return impl_->rxCount;
+}
+
+int EspBluedroidSpp::peek(EspBluedroidSppSessionId sessionId) const
+{
+  if (impl_ == nullptr || sessionId == 0) return -1;
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  if (
+    impl_->backendHandle == 0 ||
+    impl_->activeSession.id != sessionId ||
+    impl_->rxCount == 0)
+  {
+    return -1;
+  }
+  return impl_->rxBuffer[impl_->rxHead];
+}
+
+int EspBluedroidSpp::read(EspBluedroidSppSessionId sessionId)
+{
+  if (impl_ == nullptr || sessionId == 0) return -1;
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  if (
+    impl_->backendHandle == 0 ||
+    impl_->activeSession.id != sessionId ||
+    impl_->rxCount == 0)
+  {
+    return -1;
+  }
+  const int value = impl_->rxBuffer[impl_->rxHead];
+  impl_->rxHead =
+    (impl_->rxHead + 1) % EspBluedroidSpp::ReceiveBufferCapacity;
+  --impl_->rxCount;
+  return value;
+}
+
+size_t EspBluedroidSpp::read(
+  EspBluedroidSppSessionId sessionId,
+  uint8_t *data,
+  size_t length)
+{
+  if (
+    impl_ == nullptr || sessionId == 0 ||
+    data == nullptr || length == 0)
+  {
+    return 0;
+  }
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  if (
+    impl_->backendHandle == 0 ||
+    impl_->activeSession.id != sessionId)
+  {
+    return 0;
+  }
+  const size_t count = std::min(length, impl_->rxCount);
+  for (size_t index = 0; index < count; ++index)
+  {
+    data[index] = impl_->rxBuffer[impl_->rxHead];
+    impl_->rxHead =
+      (impl_->rxHead + 1) % EspBluedroidSpp::ReceiveBufferCapacity;
+  }
+  impl_->rxCount -= count;
+  return count;
+}
+
+size_t EspBluedroidSpp::droppedReceiveByteCount() const
+{
+  if (impl_ == nullptr) return 0;
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  return impl_->droppedReceiveBytes;
 }
 
 size_t EspBluedroidSpp::droppedEventCount() const

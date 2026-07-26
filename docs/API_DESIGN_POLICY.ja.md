@@ -174,9 +174,11 @@ backpressure方針を持たせる。lifecycleと操作完了イベントを優�
 transport/profile別に取得できるようにする。
 
 SPPなどのstream dataは`update()` eventだけでは帯域不足になる可能性がある。
-初期SPPはArduino `Stream`互換のread/writeと、`update()`配送の状態イベントを分ける
-案を優先する。zero-copy/raw callbackが必要になった場合はadvanced APIとし、stack
-contextまたは専用task contextであることを型名と文書に明記する。
+SPPはsession IDを明示するStream風の`available()`、`peek()`、`read()`と、
+`update()`配送のpacket/状態イベントを分ける。受信byteはstack callbackで固定長ringへ
+copyし、`update()`頻度から切り離す。満杯時は先着dataを保持して超過byte数を公開する。
+zero-copy/raw callbackが必要になった場合はadvanced APIとし、stack contextまたは
+専用task contextであることを型名と文書に明記する。
 
 ## Errorとcapability
 
@@ -299,8 +301,8 @@ Classic対応は「buildで有効だから一括公開」せず、profileごと�
 
 1. Classic capabilityとInquiry。BLE Scanとの差を確定する。（実装済み）
 2. SPP。Client/Server session、双方向data、切断、再接続、Securityを検証する。
-   Client/Server session、双方向data、切断、再接続は実装済み。Security、高帯域向け
-   receive bufferは未実装。
+   Client/Server session、双方向data、切断、再接続、固定長receive bufferは実装済み。
+   Securityは未実装。
 3. BLEとSPPのdual-mode同時利用。resource競合とevent starvationを検証する。
    BLE Scan中のSPP binary trafficは実装・確認済み。GATT/SPP同時trafficは未確認。
 4. Classic HID Host/Device。HOGPと共有できるusage/report codecだけを共通化する。

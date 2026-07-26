@@ -34,6 +34,10 @@ startServer	KEYWORD2
 stopServer	KEYWORD2
 pendingWriteCount	KEYWORD2
 droppedWriteCount	KEYWORD2
+available	KEYWORD2
+peek	KEYWORD2
+read	KEYWORD2
+droppedReceiveByteCount	KEYWORD2
 connect	KEYWORD2
 disconnect	KEYWORD2
 onConnected	KEYWORD2

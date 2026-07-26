@@ -13,5 +13,7 @@ remain available through `value.length()` and indexing. Callbacks run from
 
 The current implementation supports one active SPP session and an eight-entry
 write queue. Each write contains 1–990 bytes. Use `pendingWriteCount()` and
-`droppedWriteCount()` for bounded-queue diagnostics. SPP security will be added
-separately.
+`droppedWriteCount()` for bounded-queue diagnostics. A separate 2048-byte
+receive ring provides session-scoped `available()`, `peek()`, and `read()`
+without waiting for `update()`; `droppedReceiveByteCount()` reports bytes
+rejected while that ring was full. SPP security will be added separately.

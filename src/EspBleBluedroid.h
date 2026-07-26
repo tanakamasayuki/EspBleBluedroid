@@ -375,6 +375,7 @@ class EspBluedroidSpp
 {
 public:
   static constexpr size_t WriteQueueCapacity = 8;
+  static constexpr size_t ReceiveBufferCapacity = 2048;
   using ServerStartedCallback = std::function<void()>;
   using SessionCallback =
     std::function<void(const EspBluedroidSppSession &session)>;
@@ -409,6 +410,14 @@ public:
   bool disconnect(EspBluedroidSppSessionId sessionId);
   size_t pendingWriteCount() const;
   size_t droppedWriteCount() const;
+  size_t available(EspBluedroidSppSessionId sessionId) const;
+  int peek(EspBluedroidSppSessionId sessionId) const;
+  int read(EspBluedroidSppSessionId sessionId);
+  size_t read(
+    EspBluedroidSppSessionId sessionId,
+    uint8_t *data,
+    size_t length);
+  size_t droppedReceiveByteCount() const;
   size_t droppedEventCount() const;
 
 private:

@@ -18,8 +18,8 @@
 | BLE Security | Just Works / Static・Runtime Passkey / Numeric Comparison / Bond | 暗号化・認証必須attribute、保存bond再接続、passkey表示・入力・比較確認、bond管理 |
 | Capability | `capabilities()` | BLE、Classic、dual-mode、Classic Inquiry、SPPを初期化前に判定 |
 | Classic Inquiry | `classic().inquiry()` | name、address、Class of Device、RSSI、明示停止、完了event、`update()`配送 |
-| Classic SPP Server | `classic().spp().startServer()` / session / write / disconnect | binary-safe双方向data、remote切断、再接続ID、稼働中`end()`、`update()`配送 |
-| Classic SPP Client | `classic().spp().connect()` / connection failure / 共通session API | non-blocking SDP/RFCOMM接続、binary data、local切断、再接続ID、timeout |
+| Classic SPP Server | `classic().spp().startServer()` / session / read / write / disconnect | binary-safe双方向data、固定長RX ring、remote切断、再接続ID、稼働中`end()` |
+| Classic SPP Client | `classic().spp().connect()` / connection failure / 共通session API | non-blocking SDP/RFCOMM接続、共通RX ring、local切断、再接続ID、timeout |
 | BLE/SPP dual mode | active BLE Scan + active SPP session | Scan callbackからSPP write、binary応答、独立queue、停止・切断 |
 
 AdvertisingとScanの基本経路は`tests/peer/advertise_scan`、Advertising wire形式と
@@ -81,7 +81,10 @@ CCCD購読、notificationまで確認している。
   1 writeあたり1〜990 byteに対応。ClientはSDPの先頭SPP serviceを利用する。
   queue使用量は`pendingWriteCount()`、拒否・backend送信失敗の累積は
   `droppedWriteCount()`で確認できる。
-  複数session、Security、送信完了callback、高帯域receive bufferは未実装。
+  受信は`onData()`のpacket eventに加え、stack callbackで退避する2048 byteの
+  固定長ringを`available()`、`peek()`、`read()`で読める。満杯時は既存byteを保持し、
+  超過分を`droppedReceiveByteCount()`で確認できる。
+  複数session、Security、送信完了callbackは未実装。
 - BLE ScanとSPP session/dataの同時利用は確認済み。BLE GATT接続・ATT trafficとSPPの
   同時利用、長時間・高負荷時のfairnessは未確認。
 - GATT Server、HIDおよびSPP以外のClassic profileは公開API未実装。
@@ -89,7 +92,7 @@ CCCD購読、notificationまで確認している。
 
 ## 次のテストスライス
 
-1. SPP Securityと高帯域receive buffer。
+1. SPP Security。
 2. BLE GATT/SPP dual-modeと長時間traffic。
 
 各項目は失敗するunitまたはpeerテストを先に追加してから実装する。

@@ -11,4 +11,7 @@ Outgoing and incoming connections use the same `EspBluedroidSppSession`,
 for this Client path.
 
 The current Client uses the first SPP service returned by SDP and supports one
-pending or active session. SPP authentication is not implemented yet.
+pending or active session. Incoming bytes can be consumed either as deferred
+`onData()` packet events or through the shared session-scoped 2048-byte receive
+ring using `available()`, `peek()`, and `read()`. SPP authentication is not
+implemented yet.

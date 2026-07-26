@@ -12,4 +12,7 @@ SPP dataはbinary-safeです。eventはcopyされた`String`を所有するた�
 
 現在はactive SPP session 1つ、8件の送信queue、1 writeあたり1〜990 byteに対応します。
 `pendingWriteCount()`と`droppedWriteCount()`で固定長queueの状態を確認できます。
+別の2048 byte受信ringは`update()`を待たず、session IDを指定した`available()`、
+`peek()`、`read()`で読み出せます。満杯時に拒否したbyte数は
+`droppedReceiveByteCount()`で確認できます。
 SPP Securityは別のテストsliceで追加します。
