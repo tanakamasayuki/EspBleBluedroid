@@ -17,5 +17,6 @@
 | Classic | [Inquiry](Classic/Inquiry/README.md) | Capability check and Classic discovery with name, Class of Device, and RSSI |
 | Classic | [SppServer](Classic/SppServer/README.md) | Binary-safe SPP Server sessions with deferred connect, data, and disconnect callbacks |
 | Classic | [SppClient](Classic/SppClient/README.md) | Asynchronous SDP/RFCOMM connection using the shared SPP session API |
+| Dual mode | [ScanWhileSpp](DualMode/ScanWhileSpp/README.md) | Active BLE Scan while a Classic SPP session remains connected |
 
 Public features are implemented test-first, then documented with an example.

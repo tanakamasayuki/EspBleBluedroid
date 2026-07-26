@@ -27,3 +27,6 @@ remote切断、stack終了を検証します。
 
 `spp_client`はraw ESP-IDF Serverへの公開非同期Client接続、共通session、local切断、
 再接続、失敗eventを検証します。
+
+`dual_mode_scan_spp`は1つのdual-mode stack上でBLE Scanとbinary SPP trafficを
+同時利用できることを検証します。

@@ -53,6 +53,7 @@ uv run --env-file .env pytest
 | `peer/classic_inquiry` | dual-mode初期化、capability、Classic name / Class of Device / RSSI、停止・完了event |
 | `peer/spp_server` | SPP Server、binary-safe双方向data、再接続ID、remote切断、稼働中終了 |
 | `peer/spp_client` | 非同期SPP Client、共通session、binary data、local切断、再接続、失敗/timeout |
+| `peer/dual_mode_scan_spp` | active SPP session中のBLE Scan、Scan callbackからのbinary SPP往復 |
 
 特定のテストだけを実行する場合はパスを追加できます。
 

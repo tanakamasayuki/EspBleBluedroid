@@ -22,3 +22,5 @@
 - (JA) binary-safeなClassic SPP Server sessionと再接続テストを追加。
 - (EN) Add asynchronous Classic SPP Client connections using shared sessions.
 - (JA) 共通sessionを使う非同期Classic SPP Client接続を追加。
+- (EN) Verify active BLE Scan and binary SPP traffic on one dual-mode stack.
+- (JA) 1つのdual-mode stack上のactive BLE Scanとbinary SPP trafficを検証。

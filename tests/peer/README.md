@@ -18,3 +18,5 @@ completion.
 including binary data, reconnect IDs, remote disconnect, and stack shutdown.
 `spp_client` verifies public asynchronous Client connection to a raw ESP-IDF
 server, shared sessions, local disconnect, reconnect, and failure delivery.
+`dual_mode_scan_spp` verifies BLE Scan and binary SPP traffic on one active
+dual-mode stack.

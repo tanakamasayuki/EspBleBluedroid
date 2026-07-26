@@ -55,3 +55,5 @@ disconnection, and bounded shutdown while the server is running.
 `peer/spp_client` verifies asynchronous SDP/RFCOMM connection to a raw ESP-IDF
 server, the shared session API, binary data, public disconnection, reconnect
 IDs, and deferred failure/timeout delivery.
+`peer/dual_mode_scan_spp` verifies active BLE Scan while an SPP session remains
+connected, then starts binary SPP traffic from the deferred Scan callback.

@@ -20,6 +20,7 @@
 | Classic Inquiry | `classic().inquiry()` | name、address、Class of Device、RSSI、明示停止、完了event、`update()`配送 |
 | Classic SPP Server | `classic().spp().startServer()` / session / write / disconnect | binary-safe双方向data、remote切断、再接続ID、稼働中`end()`、`update()`配送 |
 | Classic SPP Client | `classic().spp().connect()` / connection failure / 共通session API | non-blocking SDP/RFCOMM接続、binary data、local切断、再接続ID、timeout |
+| BLE/SPP dual mode | active BLE Scan + active SPP session | Scan callbackからSPP write、binary応答、独立queue、停止・切断 |
 
 AdvertisingとScanの基本経路は`tests/peer/advertise_scan`、Advertising wire形式と
 payload境界は`tests/peer/advertise_payload`で実機確認している。Scanはduration停止、
@@ -34,6 +35,8 @@ SPP Serverは`tests/peer/spp_server`でraw ESP-IDF Clientとの双方向binary d
 2回の接続で異なるsession ID、remote切断、server稼働中の終了まで確認している。
 SPP Clientは`tests/peer/spp_client`でraw ESP-IDF Serverとの非同期接続、双方向data、
 公開APIからの切断、再接続ID、Server停止後の失敗/timeout eventまで確認している。
+dual modeは`tests/peer/dual_mode_scan_spp`でSPP session中のactive BLE Scanと、
+Scan Result callbackから開始するSPP binary往復を確認している。
 `tests/peer/stack_smoke`は、公開API実装前のbackend成立性として接続、GATT read/write、
 CCCD購読、notificationまで確認している。
 
@@ -76,12 +79,14 @@ CCCD購読、notificationまで確認している。
 - SPPはClient/Server、pendingまたはactive session 1つ、pending write 1つ、
   1 writeあたり1〜990 byteに対応。ClientはSDPの先頭SPP serviceを利用する。
   複数session、Security、送信完了callback、高帯域receive bufferは未実装。
+- BLE ScanとSPP session/dataの同時利用は確認済み。BLE GATT接続・ATT trafficとSPPの
+  同時利用、長時間・高負荷時のfairnessは未確認。
 - GATT Server、HIDおよびSPP以外のClassic profileは公開API未実装。
 - Advertisingの時間指定停止は`update()`で処理するため、継続的な`update()`呼出しが必要。
 
 ## 次のテストスライス
 
 1. SPP Securityと送受信queue。
-2. BLE/SPP dual-mode。
+2. BLE GATT/SPP dual-modeと長時間traffic。
 
 各項目は失敗するunitまたはpeerテストを先に追加してから実装する。

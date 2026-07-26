@@ -302,6 +302,7 @@ Classic対応は「buildで有効だから一括公開」せず、profileごと�
    Client/Server session、双方向data、切断、再接続は実装済み。Security、高帯域向け
    receive bufferは未実装。
 3. BLEとSPPのdual-mode同時利用。resource競合とevent starvationを検証する。
+   BLE Scan中のSPP binary trafficは実装・確認済み。GATT/SPP同時trafficは未確認。
 4. Classic HID Host/Device。HOGPと共有できるusage/report codecだけを共通化する。
 5. A2DP/AVRCP。audio data pathとcontrol eventを分離して設計する。
 6. HFP。同期音声linkを含むため、別途resource/latency設計を行う。

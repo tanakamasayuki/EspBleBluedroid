@@ -57,6 +57,7 @@ DEFAULT_EXAMPLES = [
     ("Classic Inquiry", "Classic/Inquiry"),
     ("Classic SPP Server", "Classic/SppServer"),
     ("Classic SPP Client", "Classic/SppClient"),
+    ("Dual Scan/SPP", "DualMode/ScanWhileSpp"),
 ]
 
 # Module/flash/PSRAM variants within the ESP32 family are intentionally not a
