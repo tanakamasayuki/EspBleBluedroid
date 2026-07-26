@@ -31,6 +31,7 @@ void initializeBluetooth()
   });
   bluetooth.classic().spp().onConnected(
     [](const EspBluedroidSppSession &session) {
+      replied = false;
       Stream *stream = &sppSerial;
       Serial.printf(
         "SPP_SERIAL_ATTACHED connected=%u id=%u "
@@ -52,7 +53,7 @@ void initializeBluetooth()
     });
 
   EspBluedroidSppServerConfig config;
-  config.serviceName = "EspBleBluedroid Stream";
+  config.serviceName = "EspBleBluedroid Serial";
   bluetooth.classic().spp().startServer(config);
 }
 

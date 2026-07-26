@@ -69,10 +69,11 @@ that a GATT completion evicts one notification instead of being dropped.
 binary-safe `peek()`/single-byte/bulk reads, deterministic overflow accounting,
 and buffer invalidation on disconnect against a 2300-byte raw ESP-IDF burst.
 `peer/spp_serial` verifies the root-bound `EspBluedroidSppSerial` in the Server
-role, including automatic active-session tracking, `Print` text/number output,
-CRLF, binary writes, automatic 990-byte write chunking, `readBytes()`,
-`availableForWrite()`, `flush()`, and disconnected behavior. `peer/spp_client`
-also verifies automatic tracking across two outgoing Client sessions.
+role, including automatic tracking across two consecutive incoming sessions,
+`Print` text/number output, CRLF, binary writes, automatic 990-byte write
+chunking, `readBytes()`, `availableForWrite()`, `flush()`, and disconnected
+behavior. `peer/spp_client` also verifies automatic tracking across two outgoing
+Client sessions.
 `peer/spp_security` verifies DisplayYesNo SSP against a raw ESP-IDF client:
 matching six-digit values, explicit rejection, authentication failure,
 rediscovery and retry, authenticated/encrypted session state, deferred Classic

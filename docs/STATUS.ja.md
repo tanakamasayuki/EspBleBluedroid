@@ -108,6 +108,7 @@ CCCD購読、notificationまで確認している。
   `EspBluedroidSppSerial sppSerial(bluetooth)`は現在の単一active sessionへ自動追従し、
   Server/Client両roleでArduino `Stream`/`Print` APIを利用できる。writeは990 byte単位へ
   分割し、`availableForWrite()`は固定長送信queueの残り容量をbyteで返す。
+  同じwrapperが切断後の次sessionへ追従して再びI/Oできることを両roleで確認済み。
   ラッパーはstackやsessionを所有せず、rootより長く生存してはならない。
   SPP Security modeは認証のみ、または認証＋暗号化を選べる。Classic側は
   NoInputNoOutput、DisplayOnly、KeyboardOnly、DisplayYesNo SSPに対応し、Passkey入力と
