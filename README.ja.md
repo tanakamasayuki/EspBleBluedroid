@@ -9,9 +9,10 @@ ESP32のBluedroidスタックを利用するArduinoライブラリです。NimBL
 Read / Write / Notification購読の
 公開APIを実装し、
 無印ESP32を2台使ったpeerテストで
-検証しています。LE Secure Connections Just Works、静的passkey MITM、bondの
-保存・列挙・削除も実装済みです。対話型pairingとBluetooth Classicは今後、
-テストファーストで追加します。
+検証しています。LE Secure Connections Just Works、静的・実行時passkey MITM、
+Numeric Comparison、bondの保存・列挙・削除も実装済みです。Bluetooth Classicは
+capability snapshotと`classic().inquiry()`を実装し、profileは今後テストファーストで
+追加します。
 
 ## 現在のテスト範囲
 
@@ -27,6 +28,7 @@ peerテストでは次を確認します。
 - CCCD購読とnotification
 - 2台のSerial出力をpytestから検証
 - 公開APIによるAdvertising/Scanと、`update()` contextからのcallback配送
+- Classic capabilityとInquiry、name / Class of Device / RSSI、停止完了
 
 セットアップと実行方法は[tests/README.ja.md](tests/README.ja.md)を参照してください。
 

@@ -18,3 +18,6 @@ APIだけで接続し、テスト環境と基本GATT data pathを検証します
 
 `connect_disconnect`は公開APIによるCentral接続、再接続ごとのconnection ID、
 到達不能peerの非同期失敗、callbackの`update()`配送、切断、stack再初期化を検証します。
+
+`classic_inquiry`はdiscoverableなClassic-only peerに対するcapability snapshot、
+Inquiry result、結果callbackからの停止、`update()`上の完了eventを検証します。

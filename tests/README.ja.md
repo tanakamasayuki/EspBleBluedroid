@@ -48,6 +48,9 @@ uv run --env-file .env pytest
 | `peer/gatt_client` | Database snapshot、UUID/handle指定Characteristic操作、Descriptor Read/Write、Notification購読/解除、切断時無効化、`update()`配送 |
 | `peer/security_bond` | Just Works、暗号化GATT、bond保存、暗号化再接続、security callback、bond削除 |
 | `peer/security_passkey` | 静的passkey MITM、passkey表示、authenticated GATT、bond保存 |
+| `peer/runtime_passkey` | 実行時passkey入力、入力待ちの切断・終了、未回答timeout、再試行 |
+| `peer/numeric_comparison` | Numeric Comparisonの確認・拒否・未回答timeout・再試行 |
+| `peer/classic_inquiry` | dual-mode初期化、capability、Classic name / Class of Device / RSSI、停止・完了event |
 
 特定のテストだけを実行する場合はパスを追加できます。
 

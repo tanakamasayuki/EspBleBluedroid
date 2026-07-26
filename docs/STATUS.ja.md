@@ -16,6 +16,8 @@
 | Central接続 | `connect()` / `disconnect()` / connection snapshot / lifecycle callback | non-blocking要求、再接続ID、timeout分類、切断、active link終了、再初期化 |
 | GATT Client | Database Discovery / UUID・handle指定Characteristic操作 / Descriptor Read・Write / Notification | connection単位snapshot、binary-safe値、CCCD、専用task、`update()`配送 |
 | BLE Security | Just Works / Static・Runtime Passkey / Numeric Comparison / Bond | 暗号化・認証必須attribute、保存bond再接続、passkey表示・入力・比較確認、bond管理 |
+| Capability | `capabilities()` | BLE、Classic、dual-mode、Classic Inquiry、未実装SPPを初期化前に判定 |
+| Classic Inquiry | `classic().inquiry()` | name、address、Class of Device、RSSI、明示停止、完了event、`update()`配送 |
 
 AdvertisingとScanの基本経路は`tests/peer/advertise_scan`、Advertising wire形式と
 payload境界は`tests/peer/advertise_payload`で実機確認している。Scanはduration停止、
@@ -24,6 +26,8 @@ payload境界は`tests/peer/advertise_payload`で実機確認している。Scan
 Central接続は`tests/peer/connect_disconnect`でlink確立とcallback配送を分離し、切断後の
 再Advertising・再Scan・再接続、新しいID、Advertising停止peerへの厳密なtimeout、
 接続試行中と接続成立後の`end()`、peer切断、再初期化まで確認している。
+Classic Inquiryは`tests/peer/classic_inquiry`でBTDM初期化、discoverableなClassic peer、
+結果callback内からの停止、完了eventまで確認している。
 `tests/peer/stack_smoke`は、公開API実装前のbackend成立性として接続、GATT read/write、
 CCCD購読、notificationまで確認している。
 
@@ -60,13 +64,15 @@ CCCD購読、notificationまで確認している。
 - GATT timeoutの結果配送には`update()`が必要。timeout後の遅いbackend完了は配送しないが、
   Bluedroid wrapperの同期ATT待機自体は応答または切断までworker task内に残るため、
   その間は次のGATT操作を受理しない。
-- GATT Server、HID、Bluetooth Classicは公開API未実装。
+- Classic Inquiry result queueは16件。overflowは`droppedResultCount()`で確認できる。
+  Inquiry時間は1〜61秒、`maxResponses=0`はbackend上限まで探索する。Classic Inquiryは
+  BLE Scanとは別の操作・結果型であり、同時実行の保証はdual-modeテスト追加後に確定する。
+- GATT Server、HID、Classic SPPおよび他のClassic profileは公開API未実装。
 - Advertisingの時間指定停止は`update()`で処理するため、継続的な`update()`呼出しが必要。
 
 ## 次のテストスライス
 
-1. Classic capabilityとInquiry。
-2. SPPのClient/Server、双方向data、切断、再接続、Security。
-3. BLE/SPP dual-mode。
+1. SPPのClient/Server、双方向data、切断、再接続、Security。
+2. BLE/SPP dual-mode。
 
 各項目は失敗するunitまたはpeerテストを先に追加してから実装する。

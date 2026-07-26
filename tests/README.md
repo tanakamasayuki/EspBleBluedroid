@@ -46,3 +46,6 @@ six-digit values on both boards, explicit rejection without implicit link
 disconnection, explicit disconnect and successful retry, confirmation through
 `update()`, deterministic unanswered-confirmation timeout, authenticated and
 bonded state, and bond cleanup.
+`peer/classic_inquiry` verifies dual-mode initialization, the compile-time
+capability snapshot, Classic name/Class of Device/RSSI results, cancellation
+from a result callback, and completion delivery from `update()`.

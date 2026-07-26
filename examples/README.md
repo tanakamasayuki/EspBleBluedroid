@@ -14,5 +14,6 @@
 | Security | [StaticPasskeyClient](Security/StaticPasskeyClient/README.md) | Static passkey MITM pairing and authenticated connection state |
 | Security | [RuntimePasskeyClient](Security/RuntimePasskeyClient/README.md) | KeyboardOnly MITM pairing with a passkey supplied at runtime |
 | Security | [NumericComparisonClient](Security/NumericComparisonClient/README.md) | DisplayYesNo MITM pairing with explicit comparison confirmation |
+| Classic | [Inquiry](Classic/Inquiry/README.md) | Capability check and Classic discovery with name, Class of Device, and RSSI |
 
 Public features are implemented test-first, then documented with an example.

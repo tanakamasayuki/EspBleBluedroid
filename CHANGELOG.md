@@ -15,3 +15,6 @@
 - (JA) 接続timeout分類と接続成立後の終了semanticsを実機確認。
 - (EN) Add deterministic unanswered Passkey and Numeric Comparison timeout coverage.
 - (JA) Passkey・Numeric Comparison未回答timeoutの決定的テストを追加。
+- (EN) Add the Classic capability snapshot and asynchronous Inquiry facade
+  with two-board peer coverage.
+- (JA) Classic capability snapshotと非同期Inquiry facadeを2台peerテスト付きで追加。

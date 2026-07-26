@@ -193,6 +193,11 @@ capability snapshotを用意する。少なくとも次を区別する。
 - SPP、Classic HID、A2DP、AVRCP、HFPなどprofileごとの利用可否
 - buildで決まる接続数、GATT attribute、notification登録などの上限
 
+初期の公開形は`bluetooth.capabilities()`が返す
+`EspBluedroidCapabilities`とする。初期化前にも問い合わせ可能で、現在はBLE、
+Classic、dual-mode、Classic Inquiry、Classic SPPの実装可否をboolで返す。
+compile-timeで利用できても未実装のprofileは`false`とし、利用可能と誤認させない。
+
 Arduino-ESP32 3.3.10の現在の無印ESP32 buildでは、Bluedroid、BLE GATT、SPP、
 A2DP、AVRCP、HFPが有効で、BLE最大接続数、Classic ACL数、GATT attribute数などに
 build-time上限がある。ただし、これらの値をEspBleBluedroidの保証値として固定しない。
@@ -292,7 +297,7 @@ BLEに等価概念がなく、Classic profileとして独立させるもの。
 Classic対応は「buildで有効だから一括公開」せず、profileごとに設計・Peerテストを
 完了して追加する。
 
-1. Classic capabilityとInquiry。BLE Scanとの差を確定する。
+1. Classic capabilityとInquiry。BLE Scanとの差を確定する。（実装済み）
 2. SPP。Client/Server session、双方向data、切断、再接続、Securityを検証する。
 3. BLEとSPPのdual-mode同時利用。resource競合とevent starvationを検証する。
 4. Classic HID Host/Device。HOGPと共有できるusage/report codecだけを共通化する。

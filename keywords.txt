@@ -7,6 +7,12 @@ EspBleConnectionFailure	KEYWORD1
 EspBleConnectionId	KEYWORD1
 EspBleRole	KEYWORD1
 EspBleScanConfig	KEYWORD1
+EspBluedroidCapabilities	KEYWORD1
+EspBluedroidClassic	KEYWORD1
+EspBluedroidClassicInquiry	KEYWORD1
+EspBluedroidClassicInquiryConfig	KEYWORD1
+EspBluedroidClassicInquiryComplete	KEYWORD1
+EspBluedroidClassicInquiryResult	KEYWORD1
 EspBleConfig	KEYWORD1
 EspBleError	KEYWORD1
 begin	KEYWORD2
@@ -14,6 +20,9 @@ end	KEYWORD2
 update	KEYWORD2
 advertising	KEYWORD2
 scanner	KEYWORD2
+capabilities	KEYWORD2
+classic	KEYWORD2
+inquiry	KEYWORD2
 connect	KEYWORD2
 disconnect	KEYWORD2
 onConnected	KEYWORD2

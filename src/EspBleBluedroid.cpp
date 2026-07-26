@@ -9,14 +9,22 @@
 #include <BLERemoteService.h>
 #include <BLEScan.h>
 #include <BLEUtils.h>
+#include <atomic>
 #include <cctype>
+#include <cstring>
 #include <mutex>
 #include <new>
 #include <utility>
 
+#if defined(CONFIG_BT_CLASSIC_ENABLED)
+#include <esp_gap_bt_api.h>
+#include <esp32-hal-alloc-bt-classic-mem.h>
+#endif
+
 namespace
 {
 constexpr size_t ScanQueueCapacity = 16;
+constexpr size_t ClassicInquiryQueueCapacity = 16;
 constexpr size_t LegacyAdvertisingPayloadCapacity = 31;
 
 bool appendAdvertisingData(
@@ -170,6 +178,129 @@ struct EspBleScannerImpl
   size_t dropped = 0;
   BackendCallbacks callbacks;
 };
+
+struct EspBluedroidClassicInquiryImpl
+{
+  bool enqueue(EspBluedroidClassicInquiryResult result)
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (count == ClassicInquiryQueueCapacity)
+    {
+      ++dropped;
+      return false;
+    }
+    const size_t tail = (head + count) % ClassicInquiryQueueCapacity;
+    queue[tail] = std::move(result);
+    ++count;
+    return true;
+  }
+
+  mutable std::mutex mutex;
+  EspBluedroidClassicInquiryResult queue[ClassicInquiryQueueCapacity];
+  size_t head = 0;
+  size_t count = 0;
+  size_t dropped = 0;
+  bool running = false;
+  bool stopRequested = false;
+  bool completionPending = false;
+  bool completionCancelled = false;
+};
+
+#if defined(CONFIG_BT_CLASSIC_ENABLED)
+namespace
+{
+std::atomic<EspBluedroidClassicInquiryImpl *> activeClassicInquiry{nullptr};
+
+String classicAddress(const esp_bd_addr_t address)
+{
+  char value[18];
+  snprintf(
+    value, sizeof(value), "%02x:%02x:%02x:%02x:%02x:%02x",
+    address[0], address[1], address[2], address[3], address[4], address[5]);
+  return String(value);
+}
+
+void classicGapCallback(
+  esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *parameter)
+{
+  EspBluedroidClassicInquiryImpl *impl =
+    activeClassicInquiry.load(std::memory_order_acquire);
+  if (impl == nullptr || parameter == nullptr) return;
+
+  if (event == ESP_BT_GAP_DISC_RES_EVT)
+  {
+    EspBluedroidClassicInquiryResult result;
+    result.address = classicAddress(parameter->disc_res.bda);
+    uint8_t *eir = nullptr;
+    for (int index = 0; index < parameter->disc_res.num_prop; ++index)
+    {
+      const esp_bt_gap_dev_prop_t &property =
+        parameter->disc_res.prop[index];
+      if (property.val == nullptr) continue;
+      if (property.type == ESP_BT_GAP_DEV_PROP_BDNAME)
+      {
+        const size_t length =
+          property.len > 0 && static_cast<const char *>(property.val)
+              [property.len - 1] == '\0'
+          ? property.len - 1
+          : property.len;
+        result.name = String(
+          static_cast<const char *>(property.val), length);
+      }
+      else if (
+        property.type == ESP_BT_GAP_DEV_PROP_COD &&
+        property.len >= sizeof(uint32_t))
+      {
+        memcpy(
+          &result.classOfDevice, property.val,
+          sizeof(result.classOfDevice));
+        result.hasClassOfDevice = true;
+      }
+      else if (
+        property.type == ESP_BT_GAP_DEV_PROP_RSSI &&
+        property.len >= sizeof(int8_t))
+      {
+        int8_t rssi = 0;
+        memcpy(&rssi, property.val, sizeof(rssi));
+        result.rssi = rssi;
+        result.hasRssi = true;
+      }
+      else if (property.type == ESP_BT_GAP_DEV_PROP_EIR)
+      {
+        eir = static_cast<uint8_t *>(property.val);
+      }
+    }
+    if (result.name.isEmpty() && eir != nullptr)
+    {
+      uint8_t length = 0;
+      uint8_t *name = esp_bt_gap_resolve_eir_data(
+        eir, ESP_BT_EIR_TYPE_CMPL_LOCAL_NAME, &length);
+      if (name == nullptr)
+      {
+        name = esp_bt_gap_resolve_eir_data(
+          eir, ESP_BT_EIR_TYPE_SHORT_LOCAL_NAME, &length);
+      }
+      if (name != nullptr && length > 0)
+      {
+        result.name = String(
+          reinterpret_cast<const char *>(name), length);
+      }
+    }
+    impl->enqueue(std::move(result));
+  }
+  else if (
+    event == ESP_BT_GAP_DISC_STATE_CHANGED_EVT &&
+    parameter->disc_st_chg.state == ESP_BT_GAP_DISCOVERY_STOPPED)
+  {
+    std::lock_guard<std::mutex> lock(impl->mutex);
+    impl->running = false;
+    impl->completionCancelled = impl->stopRequested;
+    impl->stopRequested = false;
+    impl->completionPending = true;
+  }
+}
+} // namespace
+#endif
 
 struct EspBleConnectionImpl
 {
@@ -1418,8 +1549,266 @@ void EspBleScanner::dispatchPendingResults()
   }
 }
 
+EspBluedroidClassicInquiry::EspBluedroidClassicInquiry(
+  EspBleBluedroid *owner)
+    : owner_(owner)
+{
+}
+
+EspBluedroidClassicInquiry::~EspBluedroidClassicInquiry()
+{
+  end();
+  delete impl_;
+}
+
+void EspBluedroidClassicInquiry::onResult(ResultCallback callback)
+{
+  resultCallback_ = std::move(callback);
+}
+
+void EspBluedroidClassicInquiry::onComplete(CompleteCallback callback)
+{
+  completeCallback_ = std::move(callback);
+}
+
+bool EspBluedroidClassicInquiry::begin(const char *deviceName)
+{
+#if defined(CONFIG_BT_CLASSIC_ENABLED)
+  if (impl_ == nullptr)
+  {
+    impl_ = new (std::nothrow) EspBluedroidClassicInquiryImpl();
+    if (impl_ == nullptr)
+    {
+      owner_->setError(
+        EspBleError::ResourceExhausted,
+        "failed to allocate Classic Inquiry state");
+      return false;
+    }
+  }
+  activeClassicInquiry.store(impl_, std::memory_order_release);
+  if (esp_bt_gap_register_callback(classicGapCallback) != ESP_OK)
+  {
+    activeClassicInquiry.store(nullptr, std::memory_order_release);
+    owner_->setError(
+      EspBleError::BackendFailure,
+      "failed to register the Classic GAP callback");
+    return false;
+  }
+  if (esp_bt_gap_set_device_name(deviceName) != ESP_OK)
+  {
+    activeClassicInquiry.store(nullptr, std::memory_order_release);
+    owner_->setError(
+      EspBleError::BackendFailure,
+      "failed to set the Classic Bluetooth device name");
+    return false;
+  }
+  return true;
+#else
+  (void)deviceName;
+  return true;
+#endif
+}
+
+void EspBluedroidClassicInquiry::end()
+{
+  if (impl_ == nullptr) return;
+#if defined(CONFIG_BT_CLASSIC_ENABLED)
+  activeClassicInquiry.store(nullptr, std::memory_order_release);
+  bool running = false;
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    running = impl_->running;
+  }
+  if (running)
+  {
+    esp_bt_gap_cancel_discovery();
+  }
+#endif
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  impl_->head = 0;
+  impl_->count = 0;
+  impl_->dropped = 0;
+  impl_->running = false;
+  impl_->stopRequested = false;
+  impl_->completionPending = false;
+  impl_->completionCancelled = false;
+}
+
+bool EspBluedroidClassicInquiry::start(
+  const EspBluedroidClassicInquiryConfig &config)
+{
+  if (!owner_->initialized_)
+  {
+    owner_->setError(
+      EspBleError::InvalidState, "Bluetooth stack is not initialized");
+    return false;
+  }
+#if !defined(CONFIG_BT_CLASSIC_ENABLED)
+  (void)config;
+  owner_->setError(
+    EspBleError::Unsupported,
+    "Classic Bluetooth is not enabled for this target");
+  return false;
+#else
+  if (config.durationSeconds == 0 || config.durationSeconds > 61)
+  {
+    owner_->setError(
+      EspBleError::InvalidArgument,
+      "Classic Inquiry duration must be between 1 and 61 seconds");
+    return false;
+  }
+  if (impl_ == nullptr)
+  {
+    owner_->setError(
+      EspBleError::InvalidState, "Classic Inquiry is not initialized");
+    return false;
+  }
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (impl_->running)
+    {
+      owner_->setError(
+        EspBleError::InvalidState, "Classic Inquiry is already running");
+      return false;
+    }
+    impl_->head = 0;
+    impl_->count = 0;
+    impl_->dropped = 0;
+    impl_->stopRequested = false;
+    impl_->completionPending = false;
+    impl_->completionCancelled = false;
+    impl_->running = true;
+  }
+  const uint8_t durationUnits = static_cast<uint8_t>(
+    (static_cast<uint64_t>(config.durationSeconds) * 100 + 127) / 128);
+  const esp_err_t result = esp_bt_gap_start_discovery(
+    ESP_BT_INQ_MODE_GENERAL_INQUIRY, durationUnits, config.maxResponses);
+  if (result != ESP_OK)
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    impl_->running = false;
+    owner_->setError(
+      EspBleError::BackendFailure, "failed to start Classic Inquiry");
+    return false;
+  }
+  owner_->clearError();
+  return true;
+#endif
+}
+
+bool EspBluedroidClassicInquiry::stop()
+{
+  if (!owner_->initialized_)
+  {
+    owner_->setError(
+      EspBleError::InvalidState, "Bluetooth stack is not initialized");
+    return false;
+  }
+#if !defined(CONFIG_BT_CLASSIC_ENABLED)
+  owner_->setError(
+    EspBleError::Unsupported,
+    "Classic Bluetooth is not enabled for this target");
+  return false;
+#else
+  if (impl_ == nullptr)
+  {
+    owner_->setError(
+      EspBleError::InvalidState, "Classic Inquiry is not initialized");
+    return false;
+  }
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (!impl_->running)
+    {
+      owner_->clearError();
+      return true;
+    }
+    impl_->stopRequested = true;
+  }
+  if (esp_bt_gap_cancel_discovery() != ESP_OK)
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    impl_->stopRequested = false;
+    owner_->setError(
+      EspBleError::BackendFailure, "failed to stop Classic Inquiry");
+    return false;
+  }
+  owner_->clearError();
+  return true;
+#endif
+}
+
+bool EspBluedroidClassicInquiry::isRunning() const
+{
+  if (impl_ == nullptr) return false;
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  return impl_->running;
+}
+
+size_t EspBluedroidClassicInquiry::droppedResultCount() const
+{
+  if (impl_ == nullptr) return 0;
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  return impl_->dropped;
+}
+
+void EspBluedroidClassicInquiry::update()
+{
+  if (impl_ == nullptr) return;
+  while (true)
+  {
+    EspBluedroidClassicInquiryResult result;
+    {
+      std::lock_guard<std::mutex> lock(impl_->mutex);
+      if (impl_->count == 0) break;
+      result = std::move(impl_->queue[impl_->head]);
+      impl_->head = (impl_->head + 1) % ClassicInquiryQueueCapacity;
+      --impl_->count;
+    }
+    if (resultCallback_) resultCallback_(result);
+  }
+
+  EspBluedroidClassicInquiryComplete event;
+  bool dispatchComplete = false;
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (impl_->completionPending)
+    {
+      event.cancelled = impl_->completionCancelled;
+      impl_->completionPending = false;
+      dispatchComplete = true;
+    }
+  }
+  if (dispatchComplete && completeCallback_) completeCallback_(event);
+}
+
+EspBluedroidClassic::EspBluedroidClassic(EspBleBluedroid *owner)
+    : inquiry_(owner)
+{
+}
+
+EspBluedroidClassicInquiry &EspBluedroidClassic::inquiry()
+{
+  return inquiry_;
+}
+
+bool EspBluedroidClassic::begin(const char *deviceName)
+{
+  return inquiry_.begin(deviceName);
+}
+
+void EspBluedroidClassic::end()
+{
+  inquiry_.end();
+}
+
+void EspBluedroidClassic::update()
+{
+  inquiry_.update();
+}
+
 EspBleBluedroid::EspBleBluedroid()
-    : advertising_(this), scanner_(this)
+    : advertising_(this), scanner_(this), classic_(this)
 {
 }
 
@@ -1522,11 +1911,19 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
     setError(EspBleError::BackendFailure, "failed to set preferred MTU");
     return false;
   }
+  if (!classic_.begin(deviceName))
+  {
+    BLEDevice::deinit(false);
+    delete connectionImpl_;
+    connectionImpl_ = nullptr;
+    return false;
+  }
   if (config.security.enabled)
   {
     connectionImpl_->securityBackend = new (std::nothrow) BLESecurity();
     if (connectionImpl_->securityBackend == nullptr)
     {
+      classic_.end();
       BLEDevice::deinit(false);
       delete connectionImpl_;
       connectionImpl_ = nullptr;
@@ -1606,6 +2003,7 @@ void EspBleBluedroid::end()
     BLEDevice::getAdvertising()->stop();
     advertising_.advertising_ = false;
   }
+  classic_.end();
   scanner_.flushPendingResults();
   if (connectionImpl_ != nullptr)
   {
@@ -1646,11 +2044,23 @@ void EspBleBluedroid::update()
   // from a Scan callback can therefore never complete in that same update().
   dispatchConnectionEvents();
   scanner_.dispatchPendingResults();
+  classic_.update();
 }
 
 bool EspBleBluedroid::initialized() const
 {
   return initialized_;
+}
+
+EspBluedroidCapabilities EspBleBluedroid::capabilities() const
+{
+  EspBluedroidCapabilities result;
+#if defined(CONFIG_BT_CLASSIC_ENABLED)
+  result.classic = true;
+  result.dualMode = true;
+  result.classicInquiry = true;
+#endif
+  return result;
 }
 
 EspBleAdvertising &EspBleBluedroid::advertising()
@@ -1661,6 +2071,11 @@ EspBleAdvertising &EspBleBluedroid::advertising()
 EspBleScanner &EspBleBluedroid::scanner()
 {
   return scanner_;
+}
+
+EspBluedroidClassic &EspBleBluedroid::classic()
+{
+  return classic_;
 }
 
 #ifdef ESP_BLE_BLUEDROID_TESTING

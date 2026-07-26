@@ -207,9 +207,40 @@ struct EspBleGattDescriptorInfo
   uint16_t handle = 0;
 };
 
+struct EspBluedroidCapabilities
+{
+  bool ble = true;
+  bool classic = false;
+  bool dualMode = false;
+  bool classicInquiry = false;
+  bool classicSpp = false;
+};
+
+struct EspBluedroidClassicInquiryConfig
+{
+  uint32_t durationSeconds = 10;
+  uint8_t maxResponses = 0;
+};
+
+struct EspBluedroidClassicInquiryResult
+{
+  String address;
+  String name;
+  uint32_t classOfDevice = 0;
+  int rssi = 0;
+  bool hasClassOfDevice = false;
+  bool hasRssi = false;
+};
+
+struct EspBluedroidClassicInquiryComplete
+{
+  bool cancelled = false;
+};
+
 class EspBleBluedroid;
 struct EspBleScannerImpl;
 struct EspBleConnectionImpl;
+struct EspBluedroidClassicInquiryImpl;
 
 class EspBleAdvertising
 {
@@ -278,6 +309,55 @@ private:
   EspBleScannerImpl *impl_ = nullptr;
 };
 
+class EspBluedroidClassicInquiry
+{
+public:
+  using ResultCallback =
+    std::function<void(const EspBluedroidClassicInquiryResult &result)>;
+  using CompleteCallback =
+    std::function<void(const EspBluedroidClassicInquiryComplete &event)>;
+
+  void onResult(ResultCallback callback);
+  void onComplete(CompleteCallback callback);
+  bool start(
+    const EspBluedroidClassicInquiryConfig &config =
+      EspBluedroidClassicInquiryConfig());
+  bool stop();
+  bool isRunning() const;
+  size_t droppedResultCount() const;
+
+private:
+  friend class EspBluedroidClassic;
+  friend struct EspBluedroidClassicInquiryImpl;
+
+  explicit EspBluedroidClassicInquiry(EspBleBluedroid *owner);
+  ~EspBluedroidClassicInquiry();
+  bool begin(const char *deviceName);
+  void end();
+  void update();
+
+  EspBleBluedroid *owner_;
+  ResultCallback resultCallback_;
+  CompleteCallback completeCallback_;
+  EspBluedroidClassicInquiryImpl *impl_ = nullptr;
+};
+
+class EspBluedroidClassic
+{
+public:
+  EspBluedroidClassicInquiry &inquiry();
+
+private:
+  friend class EspBleBluedroid;
+
+  explicit EspBluedroidClassic(EspBleBluedroid *owner);
+  bool begin(const char *deviceName);
+  void end();
+  void update();
+
+  EspBluedroidClassicInquiry inquiry_;
+};
+
 class EspBleBluedroid
 {
 public:
@@ -305,8 +385,10 @@ public:
   void update();
 
   bool initialized() const;
+  EspBluedroidCapabilities capabilities() const;
   EspBleAdvertising &advertising();
   EspBleScanner &scanner();
+  EspBluedroidClassic &classic();
 #ifdef ESP_BLE_BLUEDROID_TESTING
   bool setSecurityResponseTimeoutForTest(uint32_t timeoutMilliseconds);
 #endif
@@ -463,6 +545,7 @@ public:
 private:
   friend class EspBleAdvertising;
   friend class EspBleScanner;
+  friend class EspBluedroidClassicInquiry;
 
   void setError(EspBleError error, const char *detail = nullptr);
   bool startGattOperation(
@@ -481,6 +564,7 @@ private:
 
   EspBleAdvertising advertising_;
   EspBleScanner scanner_;
+  EspBluedroidClassic classic_;
   EspBleConnectionImpl *connectionImpl_ = nullptr;
   ConnectionCallback connectedCallback_;
   ConnectionCallback disconnectedCallback_;

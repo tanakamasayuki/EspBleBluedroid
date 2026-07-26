@@ -11,3 +11,6 @@ payload limit, scanning, and deferred result delivery through `update()`.
 `connect_disconnect` verifies the public Central connection lifecycle, reconnect
 IDs, unreachable-peer failures, deferred callbacks, disconnection, and stack
 reinitialization.
+`classic_inquiry` verifies the public Classic capability snapshot and Inquiry
+against a discoverable Classic-only peer, including deferred cancellation
+completion.

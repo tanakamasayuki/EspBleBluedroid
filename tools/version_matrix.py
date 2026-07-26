@@ -54,6 +54,7 @@ DEFAULT_EXAMPLES = [
     ("GAP Advertise", "Gap/Advertise"),
     ("GAP Scan", "Gap/Scan"),
     ("GAP Connect", "Gap/Connect"),
+    ("Classic Inquiry", "Classic/Inquiry"),
 ]
 
 # Module/flash/PSRAM variants within the ESP32 family are intentionally not a
