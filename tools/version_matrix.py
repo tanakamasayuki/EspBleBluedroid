@@ -59,6 +59,7 @@ DEFAULT_EXAMPLES = [
     ("Classic SPP Client", "Classic/SppClient"),
     ("Classic SPP Stream", "Classic/SppStream"),
     ("Classic SPP Security", "Classic/SppSecurity"),
+    ("Classic SPP Passkey", "Classic/SppPasskey"),
     ("Dual Scan/SPP", "DualMode/ScanWhileSpp"),
 ]
 

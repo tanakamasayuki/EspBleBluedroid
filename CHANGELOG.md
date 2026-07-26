@@ -40,8 +40,9 @@
   SPP Client peer coverage.
 - (JA) BLEとは分離したClassic bond管理、bond再接続、secure SPP Client実機テストを追加。
 - (EN) Add address-scoped Classic DisplayOnly/KeyboardOnly Passkey Entry with
-  two-way peer coverage.
+  two-way peer, unanswered-timeout, late-input rejection, bounded shutdown,
+  and retry coverage.
 - (JA) peer address付きClassic DisplayOnly/KeyboardOnly Passkey Entryと
-  双方向実機テストを追加。
+  双方向・未回答timeout・遅延入力拒否・入力待ち終了・retry実機テストを追加。
 - (EN) Move the primary build and hardware-test baseline to Arduino-ESP32 3.3.11.
 - (JA) 主build・実機テスト基準をArduino-ESP32 3.3.11へ更新。

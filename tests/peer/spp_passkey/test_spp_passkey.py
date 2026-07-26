@@ -31,9 +31,77 @@ def test_classic_display_and_keyboard_passkey_pairing(dut, peers):
     )
     assert requested.group(1)
     passkey = displayed.group(1).decode()
+    dut.write("e")
+    ended = dut.expect(
+        re.compile(
+            rb"SPP_PASSKEY_PENDING_END elapsed=(\d+) initialized=0"
+        ),
+        timeout=30,
+    )
+    assert int(ended.group(1)) < 2000
+    client.expect(
+        re.compile(rb"SPP_PASSKEY_RAW_SECURITY success=0 status=\d+"),
+        timeout=30,
+    )
+    client.expect_exact("SPP_PASSKEY_RAW_DISCONNECTED", timeout=30)
+
+    dut.write("j")
+    dut.expect_exact(
+        "SPP_PASSKEY_KEYBOARD_RESTART restarted=1", timeout=30
+    )
+    ready = dut.expect(
+        re.compile(rb"SPP_PASSKEY_READY address=([0-9a-f:]{17})"),
+        timeout=30,
+    )
+    address = ready.group(1).decode().replace(":", "")
+    client.write(f"c{address}\n")
+    displayed = client.expect(
+        re.compile(rb"SPP_PASSKEY_RAW_DISPLAYED passkey=(\d{6})"),
+        timeout=30,
+    )
+    dut.expect(
+        re.compile(
+            rb"SPP_PASSKEY_REQUESTED address=[0-9a-f:]{17} "
+            rb"context=loop"
+        ),
+        timeout=30,
+    )
+    passkey = displayed.group(1).decode()
+    dut.expect(
+        re.compile(
+            rb"SPP_PASSKEY_SECURITY address=[0-9a-f:]{17} "
+            rb"success=0 status=\d+ context=loop"
+        ),
+        timeout=30,
+    )
+    client.expect(
+        re.compile(rb"SPP_PASSKEY_RAW_SECURITY success=0 status=\d+"),
+        timeout=30,
+    )
+    client.expect_exact("SPP_PASSKEY_RAW_DISCONNECTED", timeout=30)
     dut.write(f"k{passkey}\n")
     dut.expect_exact(
-        f"SPP_PASSKEY_PROVIDED accepted=1 passkey={passkey}",
+        f"SPP_PASSKEY_PROVIDED accepted=0 passkey={passkey} "
+        "error=NotFound",
+        timeout=30,
+    )
+
+    client.write(f"c{address}\n")
+    displayed = client.expect(
+        re.compile(rb"SPP_PASSKEY_RAW_DISPLAYED passkey=(\d{6})"),
+        timeout=30,
+    )
+    dut.expect(
+        re.compile(
+            rb"SPP_PASSKEY_REQUESTED address=[0-9a-f:]{17} "
+            rb"context=loop"
+        ),
+        timeout=30,
+    )
+    passkey = displayed.group(1).decode()
+    dut.write(f"k{passkey}\n")
+    dut.expect_exact(
+        f"SPP_PASSKEY_PROVIDED accepted=1 passkey={passkey} error=None",
         timeout=30,
     )
     dut.expect(

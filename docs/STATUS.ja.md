@@ -46,7 +46,9 @@ BLE bondとは別の公開APIで列挙・削除し、保存link keyによる確�
 Classic Passkeyは`tests/peer/spp_passkey`でpublic KeyboardOnlyとraw DisplayOnly、
 およびpublic DisplayOnlyとraw KeyboardOnlyの両方向を確認している。表示・入力要求は
 `update()`からpeer address付きで配送し、`providePasskey(address, value)`で回答する。
-同一bootで`end()`後にI/O capabilityを反転して再初期化できることも確認している。
+未回答timeout、期限後入力の拒否、直後のretry、同一bootで`end()`後にI/O capabilityを
+反転して再初期化できることに加え、入力待ち中の`end()`が2秒未満で完了して再初期化
+できることも確認している。
 dual modeは`tests/peer/dual_mode_scan_spp`でSPP session中のactive BLE Scan、
 BLE Central接続、GATT Discovery / Characteristic Read・Write / Notificationと、
 NotificationごとのSPP binary往復を16サイクル継続できることを確認している。
@@ -113,7 +115,7 @@ CCCD購読、notificationまで確認している。
 
 ## 次のテストスライス
 
-1. Classic Passkey未回答timeout・拒否後retry。
-2. BLE GATT/SPP dual-modeの長時間・飽和負荷traffic。
+1. BLE GATT/SPP dual-modeの長時間・飽和負荷traffic。
+2. SPP送信完了通知と複数sessionの設計。
 
 各項目は失敗するunitまたはpeerテストを先に追加してから実装する。

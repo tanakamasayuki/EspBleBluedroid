@@ -75,5 +75,7 @@ stored link key without another confirmation, and binary data in both public
 SPP Server and Client roles.
 `peer/spp_passkey` verifies Classic DisplayOnly/KeyboardOnly Passkey Entry in
 both public-library roles, deferred address-scoped display/request callbacks,
-runtime passkey submission, authenticated/encrypted SPP data, and
-reinitialization with the opposite I/O capability in the same boot.
+runtime passkey submission, unanswered-input timeout, rejection of late input,
+successful retry, bounded shutdown while input is pending,
+authenticated/encrypted SPP data, and reinitialization with the opposite I/O
+capability in the same boot.

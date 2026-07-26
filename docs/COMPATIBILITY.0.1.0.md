@@ -18,5 +18,6 @@ Legend: ✅ builds · ❌ fails · — example absent in this version · · not 
 | Classic SPP Client (`Classic/SppClient`) | ✅ |
 | Classic SPP Stream (`Classic/SppStream`) | ✅ |
 | Classic SPP Security (`Classic/SppSecurity`) | ✅ |
+| Classic SPP Passkey (`Classic/SppPasskey`) | ✅ |
 | Dual Scan/SPP (`DualMode/ScanWhileSpp`) | ✅ |
 

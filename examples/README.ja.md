@@ -19,6 +19,7 @@
 | Classic | [SppClient](Classic/SppClient/README.ja.md) | 共通SPP session APIによる非同期SDP/RFCOMM接続 |
 | Classic | [SppStream](Classic/SppStream/README.ja.md) | 確立済みSPP session用Arduino `Stream`/`Print`ラッパー |
 | Classic | [SppSecurity](Classic/SppSecurity/README.ja.md) | SSP Numeric Comparisonによる認証・暗号化SPP |
+| Classic | [SppPasskey](Classic/SppPasskey/README.ja.md) | DisplayOnly/KeyboardOnly Passkey Entryによるsecure SPP |
 | Dual mode | [ScanWhileSpp](DualMode/ScanWhileSpp/README.ja.md) | Classic SPP sessionを維持したactive BLE Scan |
 
 公開機能を追加するときは、先に対応するunitまたはpeerテストを追加し、その後に

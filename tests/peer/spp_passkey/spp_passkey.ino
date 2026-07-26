@@ -29,6 +29,7 @@ bool startSecureServer(
   config.deviceName = "EspBleBluedroid Passkey";
   config.classicSecurity.enabled = true;
   config.classicSecurity.ioCapability = capability;
+  config.classicSecurity.responseTimeoutMilliseconds = 1000;
   if (!bluetooth.begin(config))
   {
     Serial.printf("SPP_PASSKEY_INIT_FAILED %s %s\n",
@@ -126,8 +127,10 @@ void loop()
         static_cast<uint32_t>(Serial.parseInt());
       const bool accepted = bluetooth.classic().providePasskey(
         passkeyAddress.c_str(), passkey);
-      Serial.printf("SPP_PASSKEY_PROVIDED accepted=%u passkey=%06u\n",
-        accepted ? 1 : 0, static_cast<unsigned>(passkey));
+      Serial.printf(
+        "SPP_PASSKEY_PROVIDED accepted=%u passkey=%06u error=%s\n",
+        accepted ? 1 : 0, static_cast<unsigned>(passkey),
+        bluetooth.lastErrorName());
       passkeyAddress = "";
     }
     else if (command == 'r' && bluetooth.initialized())
@@ -139,6 +142,23 @@ void loop()
       Serial.printf(
         "SPP_PASSKEY_DISPLAY_RESTART cleared=%u restarted=%u\n",
         cleared ? 1 : 0, restarted ? 1 : 0);
+    }
+    else if (command == 'e' && bluetooth.initialized())
+    {
+      const uint32_t startedAt = millis();
+      bluetooth.end();
+      Serial.printf(
+        "SPP_PASSKEY_PENDING_END elapsed=%u initialized=%u\n",
+        static_cast<unsigned>(millis() - startedAt),
+        bluetooth.initialized() ? 1 : 0);
+      passkeyAddress = "";
+    }
+    else if (command == 'j' && !bluetooth.initialized())
+    {
+      const bool restarted = startSecureServer(
+        EspBluedroidClassicSecurityIoCapability::KeyboardOnly);
+      Serial.printf("SPP_PASSKEY_KEYBOARD_RESTART restarted=%u\n",
+        restarted ? 1 : 0);
     }
   }
   bluetooth.update();
