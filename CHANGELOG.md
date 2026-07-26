@@ -18,3 +18,5 @@
 - (EN) Add the Classic capability snapshot and asynchronous Inquiry facade
   with two-board peer coverage.
 - (JA) Classic capability snapshotと非同期Inquiry facadeを2台peerテスト付きで追加。
+- (EN) Add binary-safe Classic SPP Server sessions and reconnect coverage.
+- (JA) binary-safeなClassic SPP Server sessionと再接続テストを追加。

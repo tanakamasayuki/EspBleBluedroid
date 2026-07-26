@@ -13,6 +13,11 @@ EspBluedroidClassicInquiry	KEYWORD1
 EspBluedroidClassicInquiryConfig	KEYWORD1
 EspBluedroidClassicInquiryComplete	KEYWORD1
 EspBluedroidClassicInquiryResult	KEYWORD1
+EspBluedroidSpp	KEYWORD1
+EspBluedroidSppData	KEYWORD1
+EspBluedroidSppServerConfig	KEYWORD1
+EspBluedroidSppSession	KEYWORD1
+EspBluedroidSppSessionId	KEYWORD1
 EspBleConfig	KEYWORD1
 EspBleError	KEYWORD1
 begin	KEYWORD2
@@ -23,6 +28,9 @@ scanner	KEYWORD2
 capabilities	KEYWORD2
 classic	KEYWORD2
 inquiry	KEYWORD2
+spp	KEYWORD2
+startServer	KEYWORD2
+stopServer	KEYWORD2
 connect	KEYWORD2
 disconnect	KEYWORD2
 onConnected	KEYWORD2

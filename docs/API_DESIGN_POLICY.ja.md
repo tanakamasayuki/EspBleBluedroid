@@ -299,6 +299,8 @@ Classic対応は「buildで有効だから一括公開」せず、profileごと�
 
 1. Classic capabilityとInquiry。BLE Scanとの差を確定する。（実装済み）
 2. SPP。Client/Server session、双方向data、切断、再接続、Securityを検証する。
+   Server session、双方向data、切断、再接続は実装済み。Client、Security、高帯域向け
+   receive bufferは未実装。
 3. BLEとSPPのdual-mode同時利用。resource競合とevent starvationを検証する。
 4. Classic HID Host/Device。HOGPと共有できるusage/report codecだけを共通化する。
 5. A2DP/AVRCP。audio data pathとcontrol eventを分離して設計する。

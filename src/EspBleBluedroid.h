@@ -237,10 +237,32 @@ struct EspBluedroidClassicInquiryComplete
   bool cancelled = false;
 };
 
+using EspBluedroidSppSessionId = uint32_t;
+
+struct EspBluedroidSppServerConfig
+{
+  const char *serviceName = "EspBleBluedroid SPP";
+  uint8_t channel = 0;
+};
+
+struct EspBluedroidSppSession
+{
+  EspBluedroidSppSessionId id = 0;
+  String peerAddress;
+  bool incoming = false;
+};
+
+struct EspBluedroidSppData
+{
+  EspBluedroidSppSessionId sessionId = 0;
+  String value;
+};
+
 class EspBleBluedroid;
 struct EspBleScannerImpl;
 struct EspBleConnectionImpl;
 struct EspBluedroidClassicInquiryImpl;
+struct EspBluedroidSppImpl;
 
 class EspBleAdvertising
 {
@@ -342,10 +364,60 @@ private:
   EspBluedroidClassicInquiryImpl *impl_ = nullptr;
 };
 
+class EspBluedroidSpp
+{
+public:
+  using ServerStartedCallback = std::function<void()>;
+  using SessionCallback =
+    std::function<void(const EspBluedroidSppSession &session)>;
+  using DataCallback = std::function<void(const EspBluedroidSppData &event)>;
+
+  void onServerStarted(ServerStartedCallback callback);
+  void onConnected(SessionCallback callback);
+  void onDisconnected(SessionCallback callback);
+  void onData(DataCallback callback);
+  bool startServer(
+    const EspBluedroidSppServerConfig &config =
+      EspBluedroidSppServerConfig());
+  bool stopServer();
+  bool serverRunning() const;
+  size_t sessionCount() const;
+  bool session(
+    EspBluedroidSppSessionId sessionId,
+    EspBluedroidSppSession &session) const;
+  bool write(
+    EspBluedroidSppSessionId sessionId,
+    const uint8_t *data,
+    size_t length);
+  bool write(
+    EspBluedroidSppSessionId sessionId,
+    const String &value);
+  bool disconnect(EspBluedroidSppSessionId sessionId);
+  size_t droppedEventCount() const;
+
+private:
+  friend class EspBluedroidClassic;
+  friend struct EspBluedroidSppImpl;
+
+  explicit EspBluedroidSpp(EspBleBluedroid *owner);
+  ~EspBluedroidSpp();
+  bool begin();
+  void end();
+  void update();
+
+  EspBleBluedroid *owner_;
+  ServerStartedCallback serverStartedCallback_;
+  SessionCallback connectedCallback_;
+  SessionCallback disconnectedCallback_;
+  DataCallback dataCallback_;
+  EspBluedroidSppImpl *impl_ = nullptr;
+};
+
 class EspBluedroidClassic
 {
 public:
   EspBluedroidClassicInquiry &inquiry();
+  EspBluedroidSpp &spp();
 
 private:
   friend class EspBleBluedroid;
@@ -356,6 +428,7 @@ private:
   void update();
 
   EspBluedroidClassicInquiry inquiry_;
+  EspBluedroidSpp spp_;
 };
 
 class EspBleBluedroid
@@ -546,6 +619,7 @@ private:
   friend class EspBleAdvertising;
   friend class EspBleScanner;
   friend class EspBluedroidClassicInquiry;
+  friend class EspBluedroidSpp;
 
   void setError(EspBleError error, const char *detail = nullptr);
   bool startGattOperation(

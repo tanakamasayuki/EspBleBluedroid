@@ -15,6 +15,7 @@
 | Security | [RuntimePasskeyClient](Security/RuntimePasskeyClient/README.ja.md) | 実行時入力passkeyによるKeyboardOnlyのMITM pairing |
 | Security | [NumericComparisonClient](Security/NumericComparisonClient/README.ja.md) | DisplayYesNoの比較確認によるMITM pairing |
 | Classic | [Inquiry](Classic/Inquiry/README.ja.md) | capability確認とname、Class of Device、RSSIを含むClassic機器探索 |
+| Classic | [SppServer](Classic/SppServer/README.ja.md) | binary-safe SPP Server sessionと接続・data・切断callback |
 
 公開機能を追加するときは、先に対応するunitまたはpeerテストを追加し、その後に
 exampleを追加します。

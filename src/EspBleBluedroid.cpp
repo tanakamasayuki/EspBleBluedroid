@@ -20,11 +20,15 @@
 #include <esp_gap_bt_api.h>
 #include <esp32-hal-alloc-bt-classic-mem.h>
 #endif
+#if defined(CONFIG_BT_SPP_ENABLED)
+#include <esp_spp_api.h>
+#endif
 
 namespace
 {
 constexpr size_t ScanQueueCapacity = 16;
 constexpr size_t ClassicInquiryQueueCapacity = 16;
+constexpr size_t SppEventQueueCapacity = 8;
 constexpr size_t LegacyAdvertisingPayloadCapacity = 31;
 
 bool appendAdvertisingData(
@@ -297,6 +301,203 @@ void classicGapCallback(
     impl->completionCancelled = impl->stopRequested;
     impl->stopRequested = false;
     impl->completionPending = true;
+  }
+}
+} // namespace
+#endif
+
+struct EspBluedroidSppImpl
+{
+  enum class EventType : uint8_t
+  {
+    ServerStarted,
+    Connected,
+    Disconnected,
+    Data,
+  };
+
+  struct Event
+  {
+    EventType type = EventType::ServerStarted;
+    EspBluedroidSppSession session;
+    EspBluedroidSppData data;
+  };
+
+  bool enqueue(Event event)
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (eventCount == SppEventQueueCapacity)
+    {
+      ++dropped;
+      return false;
+    }
+    const size_t tail = (eventHead + eventCount) % SppEventQueueCapacity;
+    events[tail] = std::move(event);
+    ++eventCount;
+    return true;
+  }
+
+  mutable std::mutex mutex;
+  Event events[SppEventQueueCapacity];
+  size_t eventHead = 0;
+  size_t eventCount = 0;
+  size_t dropped = 0;
+  bool initialized = false;
+  bool initializationCompleted = false;
+  bool ending = false;
+  bool serverStartPending = false;
+  bool serverRunning = false;
+  String serverName;
+  uint8_t serverChannel = 0;
+  uint32_t backendHandle = 0;
+  EspBluedroidSppSession activeSession;
+  EspBluedroidSppSessionId nextSessionId = 1;
+  bool txPending = false;
+  String txValue;
+};
+
+#if defined(CONFIG_BT_SPP_ENABLED)
+namespace
+{
+std::atomic<EspBluedroidSppImpl *> activeSpp{nullptr};
+
+void startPendingSppServer(EspBluedroidSppImpl *impl)
+{
+  const char *name = nullptr;
+  uint8_t channel = 0;
+  {
+    std::lock_guard<std::mutex> lock(impl->mutex);
+    if (!impl->initialized || !impl->serverStartPending || impl->ending)
+    {
+      return;
+    }
+    name = impl->serverName.c_str();
+    channel = impl->serverChannel;
+  }
+  if (
+    esp_bt_gap_set_scan_mode(
+      ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE) != ESP_OK ||
+    esp_spp_start_srv(
+        ESP_SPP_SEC_NONE, ESP_SPP_ROLE_SLAVE, channel, name) != ESP_OK)
+  {
+    std::lock_guard<std::mutex> lock(impl->mutex);
+    impl->serverStartPending = false;
+  }
+}
+
+void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
+{
+  EspBluedroidSppImpl *impl = activeSpp.load(std::memory_order_acquire);
+  if (impl == nullptr || parameter == nullptr) return;
+
+  if (event == ESP_SPP_INIT_EVT)
+  {
+    {
+      std::lock_guard<std::mutex> lock(impl->mutex);
+      impl->initialized = parameter->init.status == ESP_SPP_SUCCESS;
+      impl->initializationCompleted = true;
+    }
+    if (parameter->init.status == ESP_SPP_SUCCESS)
+    {
+      startPendingSppServer(impl);
+    }
+  }
+  else if (event == ESP_SPP_UNINIT_EVT)
+  {
+    std::lock_guard<std::mutex> lock(impl->mutex);
+    impl->initialized = false;
+  }
+  else if (event == ESP_SPP_START_EVT)
+  {
+    if (parameter->start.status != ESP_SPP_SUCCESS)
+    {
+      std::lock_guard<std::mutex> lock(impl->mutex);
+      impl->serverStartPending = false;
+      impl->serverRunning = false;
+      return;
+    }
+    {
+      std::lock_guard<std::mutex> lock(impl->mutex);
+      impl->serverStartPending = false;
+      impl->serverRunning = true;
+      impl->serverChannel = parameter->start.scn;
+    }
+    EspBluedroidSppImpl::Event queued;
+    queued.type = EspBluedroidSppImpl::EventType::ServerStarted;
+    impl->enqueue(std::move(queued));
+  }
+  else if (
+    event == ESP_SPP_SRV_OPEN_EVT &&
+    parameter->srv_open.status == ESP_SPP_SUCCESS)
+  {
+    EspBluedroidSppSession session;
+    {
+      std::lock_guard<std::mutex> lock(impl->mutex);
+      if (impl->backendHandle != 0)
+      {
+        esp_spp_disconnect(parameter->srv_open.handle);
+        return;
+      }
+      session.id = impl->nextSessionId++;
+      if (impl->nextSessionId == 0) impl->nextSessionId = 1;
+      session.peerAddress = classicAddress(parameter->srv_open.rem_bda);
+      session.incoming = true;
+      impl->backendHandle = parameter->srv_open.handle;
+      impl->activeSession = session;
+    }
+    EspBluedroidSppImpl::Event queued;
+    queued.type = EspBluedroidSppImpl::EventType::Connected;
+    queued.session = std::move(session);
+    impl->enqueue(std::move(queued));
+  }
+  else if (
+    event == ESP_SPP_DATA_IND_EVT &&
+    parameter->data_ind.status == ESP_SPP_SUCCESS)
+  {
+    EspBluedroidSppSessionId sessionId = 0;
+    {
+      std::lock_guard<std::mutex> lock(impl->mutex);
+      if (parameter->data_ind.handle != impl->backendHandle) return;
+      sessionId = impl->activeSession.id;
+    }
+    EspBluedroidSppImpl::Event queued;
+    queued.type = EspBluedroidSppImpl::EventType::Data;
+    queued.data.sessionId = sessionId;
+    queued.data.value = String(
+      reinterpret_cast<const char *>(parameter->data_ind.data),
+      parameter->data_ind.len);
+    impl->enqueue(std::move(queued));
+  }
+  else if (event == ESP_SPP_WRITE_EVT)
+  {
+    std::lock_guard<std::mutex> lock(impl->mutex);
+    if (parameter->write.handle == impl->backendHandle)
+    {
+      impl->txPending = false;
+      impl->txValue = "";
+    }
+  }
+  else if (event == ESP_SPP_CLOSE_EVT)
+  {
+    EspBluedroidSppSession session;
+    {
+      std::lock_guard<std::mutex> lock(impl->mutex);
+      if (parameter->close.handle != impl->backendHandle) return;
+      session = impl->activeSession;
+      impl->backendHandle = 0;
+      impl->activeSession = EspBluedroidSppSession();
+      impl->txPending = false;
+      impl->txValue = "";
+    }
+    EspBluedroidSppImpl::Event queued;
+    queued.type = EspBluedroidSppImpl::EventType::Disconnected;
+    queued.session = std::move(session);
+    impl->enqueue(std::move(queued));
+  }
+  else if (event == ESP_SPP_SRV_STOP_EVT)
+  {
+    std::lock_guard<std::mutex> lock(impl->mutex);
+    impl->serverRunning = false;
   }
 }
 } // namespace
@@ -1782,8 +1983,434 @@ void EspBluedroidClassicInquiry::update()
   if (dispatchComplete && completeCallback_) completeCallback_(event);
 }
 
+EspBluedroidSpp::EspBluedroidSpp(EspBleBluedroid *owner)
+    : owner_(owner)
+{
+}
+
+EspBluedroidSpp::~EspBluedroidSpp()
+{
+  end();
+  delete impl_;
+}
+
+bool EspBluedroidSpp::begin()
+{
+#if !defined(CONFIG_BT_SPP_ENABLED)
+  return true;
+#else
+  if (impl_ == nullptr)
+  {
+    impl_ = new (std::nothrow) EspBluedroidSppImpl();
+    if (impl_ == nullptr)
+    {
+      owner_->setError(
+        EspBleError::ResourceExhausted, "failed to allocate SPP state");
+      return false;
+    }
+  }
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    impl_->ending = false;
+    impl_->initialized = false;
+    impl_->initializationCompleted = false;
+  }
+  activeSpp.store(impl_, std::memory_order_release);
+  if (esp_spp_register_callback(sppCallback) != ESP_OK)
+  {
+    activeSpp.store(nullptr, std::memory_order_release);
+    owner_->setError(
+      EspBleError::BackendFailure, "failed to register the SPP callback");
+    return false;
+  }
+  esp_spp_cfg_t config = BT_SPP_DEFAULT_CONFIG();
+  config.mode = ESP_SPP_MODE_CB;
+  if (esp_spp_enhanced_init(&config) != ESP_OK)
+  {
+    activeSpp.store(nullptr, std::memory_order_release);
+    owner_->setError(EspBleError::BackendFailure, "failed to initialize SPP");
+    return false;
+  }
+  const uint32_t startedAt = millis();
+  while (true)
+  {
+    bool completed = false;
+    bool initialized = false;
+    {
+      std::lock_guard<std::mutex> lock(impl_->mutex);
+      completed = impl_->initializationCompleted;
+      initialized = impl_->initialized;
+    }
+    if (completed)
+    {
+      if (initialized) return true;
+      activeSpp.store(nullptr, std::memory_order_release);
+      owner_->setError(
+        EspBleError::BackendFailure, "SPP profile initialization failed");
+      return false;
+    }
+    if (millis() - startedAt >= 1000)
+    {
+      activeSpp.store(nullptr, std::memory_order_release);
+      owner_->setError(
+        EspBleError::Timeout, "SPP profile initialization timed out");
+      return false;
+    }
+    delay(1);
+  }
+#endif
+}
+
+void EspBluedroidSpp::end()
+{
+  if (impl_ == nullptr) return;
+#if defined(CONFIG_BT_SPP_ENABLED)
+  bool initialized = false;
+  bool running = false;
+  uint32_t handle = 0;
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    impl_->ending = true;
+    initialized = impl_->initialized;
+    running = impl_->serverRunning;
+    handle = impl_->backendHandle;
+  }
+  if (handle != 0) esp_spp_disconnect(handle);
+  if (running) esp_spp_stop_srv();
+  if (initialized)
+  {
+    esp_spp_deinit();
+    const uint32_t startedAt = millis();
+    while (true)
+    {
+      {
+        std::lock_guard<std::mutex> lock(impl_->mutex);
+        if (!impl_->initialized) break;
+      }
+      if (millis() - startedAt >= 1000) break;
+      delay(1);
+    }
+  }
+  activeSpp.store(nullptr, std::memory_order_release);
+#endif
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  impl_->eventHead = 0;
+  impl_->eventCount = 0;
+  impl_->dropped = 0;
+  impl_->initialized = false;
+  impl_->initializationCompleted = false;
+  impl_->ending = false;
+  impl_->serverStartPending = false;
+  impl_->serverRunning = false;
+  impl_->serverName = "";
+  impl_->serverChannel = 0;
+  impl_->backendHandle = 0;
+  impl_->activeSession = EspBluedroidSppSession();
+  impl_->nextSessionId = 1;
+  impl_->txPending = false;
+  impl_->txValue = "";
+}
+
+void EspBluedroidSpp::onServerStarted(ServerStartedCallback callback)
+{
+  serverStartedCallback_ = std::move(callback);
+}
+
+void EspBluedroidSpp::onConnected(SessionCallback callback)
+{
+  connectedCallback_ = std::move(callback);
+}
+
+void EspBluedroidSpp::onDisconnected(SessionCallback callback)
+{
+  disconnectedCallback_ = std::move(callback);
+}
+
+void EspBluedroidSpp::onData(DataCallback callback)
+{
+  dataCallback_ = std::move(callback);
+}
+
+bool EspBluedroidSpp::startServer(
+  const EspBluedroidSppServerConfig &config)
+{
+  if (!owner_->initialized_)
+  {
+    owner_->setError(
+      EspBleError::InvalidState, "Bluetooth stack is not initialized");
+    return false;
+  }
+#if !defined(CONFIG_BT_SPP_ENABLED)
+  (void)config;
+  owner_->setError(EspBleError::Unsupported, "SPP is not enabled");
+  return false;
+#else
+  if (
+    config.serviceName == nullptr || config.serviceName[0] == '\0' ||
+    config.channel > ESP_SPP_MAX_SCN)
+  {
+    owner_->setError(
+      EspBleError::InvalidArgument,
+      "invalid SPP service name or channel");
+    return false;
+  }
+  if (impl_ == nullptr)
+  {
+    owner_->setError(EspBleError::InvalidState, "SPP is not initialized");
+    return false;
+  }
+  bool initialized = false;
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (impl_->serverStartPending || impl_->serverRunning)
+    {
+      owner_->setError(
+        EspBleError::InvalidState, "SPP server is already starting or running");
+      return false;
+    }
+    impl_->serverName = config.serviceName;
+    impl_->serverChannel = config.channel;
+    impl_->serverStartPending = true;
+    initialized = impl_->initialized;
+  }
+  if (initialized) startPendingSppServer(impl_);
+  owner_->clearError();
+  return true;
+#endif
+}
+
+bool EspBluedroidSpp::stopServer()
+{
+  if (!owner_->initialized_)
+  {
+    owner_->setError(
+      EspBleError::InvalidState, "Bluetooth stack is not initialized");
+    return false;
+  }
+#if !defined(CONFIG_BT_SPP_ENABLED)
+  owner_->setError(EspBleError::Unsupported, "SPP is not enabled");
+  return false;
+#else
+  bool running = false;
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (impl_->serverStartPending)
+    {
+      impl_->serverStartPending = false;
+      owner_->clearError();
+      return true;
+    }
+    running = impl_->serverRunning;
+  }
+  if (!running)
+  {
+    owner_->clearError();
+    return true;
+  }
+  if (esp_spp_stop_srv() != ESP_OK)
+  {
+    owner_->setError(EspBleError::BackendFailure, "failed to stop SPP server");
+    return false;
+  }
+  owner_->clearError();
+  return true;
+#endif
+}
+
+bool EspBluedroidSpp::serverRunning() const
+{
+  if (impl_ == nullptr) return false;
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  return impl_->serverRunning;
+}
+
+size_t EspBluedroidSpp::sessionCount() const
+{
+  if (impl_ == nullptr) return 0;
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  return impl_->backendHandle == 0 ? 0 : 1;
+}
+
+bool EspBluedroidSpp::session(
+  EspBluedroidSppSessionId sessionId,
+  EspBluedroidSppSession &session) const
+{
+  if (impl_ == nullptr || sessionId == 0) return false;
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  if (
+    impl_->backendHandle == 0 || impl_->activeSession.id != sessionId)
+  {
+    return false;
+  }
+  session = impl_->activeSession;
+  return true;
+}
+
+bool EspBluedroidSpp::write(
+  EspBluedroidSppSessionId sessionId,
+  const uint8_t *data,
+  size_t length)
+{
+  if (!owner_->initialized_)
+  {
+    owner_->setError(
+      EspBleError::InvalidState, "Bluetooth stack is not initialized");
+    return false;
+  }
+  if (data == nullptr || length == 0 || length > 990)
+  {
+    owner_->setError(
+      EspBleError::InvalidArgument,
+      "SPP write data must contain between 1 and 990 bytes");
+    return false;
+  }
+#if !defined(CONFIG_BT_SPP_ENABLED)
+  (void)sessionId;
+  owner_->setError(EspBleError::Unsupported, "SPP is not enabled");
+  return false;
+#else
+  uint32_t handle = 0;
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (
+      impl_->backendHandle == 0 ||
+      impl_->activeSession.id != sessionId)
+    {
+      owner_->setError(EspBleError::NotFound, "SPP session was not found");
+      return false;
+    }
+    if (impl_->txPending)
+    {
+      owner_->setError(
+        EspBleError::InvalidState, "an SPP write is already pending");
+      return false;
+    }
+    impl_->txValue = String(
+      reinterpret_cast<const char *>(data), length);
+    if (impl_->txValue.length() != length)
+    {
+      impl_->txValue = "";
+      owner_->setError(
+        EspBleError::ResourceExhausted, "failed to copy SPP write data");
+      return false;
+    }
+    impl_->txPending = true;
+    handle = impl_->backendHandle;
+  }
+  uint8_t *buffer = nullptr;
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    buffer = reinterpret_cast<uint8_t *>(
+      const_cast<char *>(impl_->txValue.c_str()));
+  }
+  if (esp_spp_write(handle, length, buffer) != ESP_OK)
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    impl_->txPending = false;
+    impl_->txValue = "";
+    owner_->setError(EspBleError::BackendFailure, "failed to write SPP data");
+    return false;
+  }
+  owner_->clearError();
+  return true;
+#endif
+}
+
+bool EspBluedroidSpp::write(
+  EspBluedroidSppSessionId sessionId,
+  const String &value)
+{
+  return write(
+    sessionId,
+    reinterpret_cast<const uint8_t *>(value.c_str()),
+    value.length());
+}
+
+bool EspBluedroidSpp::disconnect(EspBluedroidSppSessionId sessionId)
+{
+  if (!owner_->initialized_)
+  {
+    owner_->setError(
+      EspBleError::InvalidState, "Bluetooth stack is not initialized");
+    return false;
+  }
+#if !defined(CONFIG_BT_SPP_ENABLED)
+  (void)sessionId;
+  owner_->setError(EspBleError::Unsupported, "SPP is not enabled");
+  return false;
+#else
+  uint32_t handle = 0;
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (
+      impl_->backendHandle == 0 ||
+      impl_->activeSession.id != sessionId)
+    {
+      owner_->setError(EspBleError::NotFound, "SPP session was not found");
+      return false;
+    }
+    handle = impl_->backendHandle;
+  }
+  if (esp_spp_disconnect(handle) != ESP_OK)
+  {
+    owner_->setError(
+      EspBleError::BackendFailure, "failed to disconnect SPP session");
+    return false;
+  }
+  owner_->clearError();
+  return true;
+#endif
+}
+
+size_t EspBluedroidSpp::droppedEventCount() const
+{
+  if (impl_ == nullptr) return 0;
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  return impl_->dropped;
+}
+
+void EspBluedroidSpp::update()
+{
+  if (impl_ == nullptr) return;
+  while (true)
+  {
+    EspBluedroidSppImpl::Event event;
+    {
+      std::lock_guard<std::mutex> lock(impl_->mutex);
+      if (impl_->eventCount == 0) break;
+      event = std::move(impl_->events[impl_->eventHead]);
+      impl_->eventHead =
+        (impl_->eventHead + 1) % SppEventQueueCapacity;
+      --impl_->eventCount;
+    }
+    if (
+      event.type == EspBluedroidSppImpl::EventType::ServerStarted &&
+      serverStartedCallback_)
+    {
+      serverStartedCallback_();
+    }
+    else if (
+      event.type == EspBluedroidSppImpl::EventType::Connected &&
+      connectedCallback_)
+    {
+      connectedCallback_(event.session);
+    }
+    else if (
+      event.type == EspBluedroidSppImpl::EventType::Disconnected &&
+      disconnectedCallback_)
+    {
+      disconnectedCallback_(event.session);
+    }
+    else if (
+      event.type == EspBluedroidSppImpl::EventType::Data && dataCallback_)
+    {
+      dataCallback_(event.data);
+    }
+  }
+}
+
 EspBluedroidClassic::EspBluedroidClassic(EspBleBluedroid *owner)
-    : inquiry_(owner)
+    : inquiry_(owner), spp_(owner)
 {
 }
 
@@ -1792,19 +2419,32 @@ EspBluedroidClassicInquiry &EspBluedroidClassic::inquiry()
   return inquiry_;
 }
 
+EspBluedroidSpp &EspBluedroidClassic::spp()
+{
+  return spp_;
+}
+
 bool EspBluedroidClassic::begin(const char *deviceName)
 {
-  return inquiry_.begin(deviceName);
+  if (!inquiry_.begin(deviceName)) return false;
+  if (!spp_.begin())
+  {
+    inquiry_.end();
+    return false;
+  }
+  return true;
 }
 
 void EspBluedroidClassic::end()
 {
+  spp_.end();
   inquiry_.end();
 }
 
 void EspBluedroidClassic::update()
 {
   inquiry_.update();
+  spp_.update();
 }
 
 EspBleBluedroid::EspBleBluedroid()
@@ -2059,6 +2699,9 @@ EspBluedroidCapabilities EspBleBluedroid::capabilities() const
   result.classic = true;
   result.dualMode = true;
   result.classicInquiry = true;
+#endif
+#if defined(CONFIG_BT_SPP_ENABLED)
+  result.classicSpp = true;
 #endif
   return result;
 }

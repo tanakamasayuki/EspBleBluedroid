@@ -12,8 +12,9 @@ Descriptor Read/Write, and Notification subscription,
 verified by automated two-board peer tests on original ESP32 boards. Just Works
 security, static-passkey and runtime-passkey MITM, Numeric Comparison, and BLE
 bond management are also available. The first Bluetooth Classic API provides a
-capability snapshot and asynchronous Inquiry under `classic()`. Additional
-Classic profiles will continue to be added test-first.
+capability snapshot, asynchronous Inquiry, and a binary-safe SPP Server under
+`classic()`. Additional Classic profile behavior will continue to be added
+test-first.
 
 See [tests/README.md](tests/README.md) for setup and usage.
 

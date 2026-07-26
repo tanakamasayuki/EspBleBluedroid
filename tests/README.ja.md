@@ -51,6 +51,7 @@ uv run --env-file .env pytest
 | `peer/runtime_passkey` | 実行時passkey入力、入力待ちの切断・終了、未回答timeout、再試行 |
 | `peer/numeric_comparison` | Numeric Comparisonの確認・拒否・未回答timeout・再試行 |
 | `peer/classic_inquiry` | dual-mode初期化、capability、Classic name / Class of Device / RSSI、停止・完了event |
+| `peer/spp_server` | SPP Server、binary-safe双方向data、再接続ID、remote切断、稼働中終了 |
 
 特定のテストだけを実行する場合はパスを追加できます。
 

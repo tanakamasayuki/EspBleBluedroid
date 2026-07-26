@@ -6,7 +6,7 @@ def test_classic_capabilities_and_inquiry(dut, peers):
     peripheral.expect_exact("CLASSIC_PEER_READY", timeout=20)
     dut.write("i")
     dut.expect_exact(
-        "CLASSIC_CAPABILITIES ble=1 classic=1 dual=1 inquiry=1 spp=0",
+        "CLASSIC_CAPABILITIES ble=1 classic=1 dual=1 inquiry=1 spp=1",
         timeout=20,
     )
     dut.expect_exact(

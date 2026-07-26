@@ -14,3 +14,5 @@ reinitialization.
 `classic_inquiry` verifies the public Classic capability snapshot and Inquiry
 against a discoverable Classic-only peer, including deferred cancellation
 completion.
+`spp_server` verifies the public SPP Server against a raw ESP-IDF client,
+including binary data, reconnect IDs, remote disconnect, and stack shutdown.

@@ -21,3 +21,6 @@ APIだけで接続し、テスト環境と基本GATT data pathを検証します
 
 `classic_inquiry`はdiscoverableなClassic-only peerに対するcapability snapshot、
 Inquiry result、結果callbackからの停止、`update()`上の完了eventを検証します。
+
+`spp_server`はraw ESP-IDF Clientに対する公開SPP Server、binary data、再接続ID、
+remote切断、stack終了を検証します。
