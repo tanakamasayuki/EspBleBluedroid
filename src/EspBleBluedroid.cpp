@@ -277,13 +277,18 @@ struct EspBleConnectionImpl
 
   uint32_t requestPasskey()
   {
+    uint32_t responseTimeoutMilliseconds;
     {
       std::lock_guard<std::mutex> lock(passkeyMutex);
       if (staticPasskeyEnabled) return staticPasskey;
     }
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      responseTimeoutMilliseconds = securityResponseTimeoutMilliseconds;
+    }
 
     const uint32_t startedAt = millis();
-    while (millis() - startedAt < 30000)
+    while (millis() - startedAt < responseTimeoutMilliseconds)
     {
       {
         std::lock_guard<std::mutex> lock(passkeyMutex);
@@ -304,9 +309,11 @@ struct EspBleConnectionImpl
 
   bool requestNumericComparison(uint32_t pin)
   {
+    uint32_t responseTimeoutMilliseconds;
     {
       std::lock_guard<std::mutex> lock(mutex);
       if (ending || !active) return false;
+      responseTimeoutMilliseconds = securityResponseTimeoutMilliseconds;
       Event event;
       event.type = EventType::NumericComparison;
       event.passkeyDisplayed.connection = connection;
@@ -315,7 +322,7 @@ struct EspBleConnectionImpl
     }
 
     const uint32_t startedAt = millis();
-    while (millis() - startedAt < 30000)
+    while (millis() - startedAt < responseTimeoutMilliseconds)
     {
       {
         std::lock_guard<std::mutex> lock(passkeyMutex);
@@ -936,6 +943,7 @@ struct EspBleConnectionImpl
   bool ending = false;
   bool active = false;
   bool securityInputCancelled = false;
+  uint32_t securityResponseTimeoutMilliseconds = 30000;
   TaskHandle_t connectTask = nullptr;
   bool gattOperating = false;
   TaskHandle_t gattTask = nullptr;
@@ -1654,6 +1662,32 @@ EspBleScanner &EspBleBluedroid::scanner()
 {
   return scanner_;
 }
+
+#ifdef ESP_BLE_BLUEDROID_TESTING
+bool EspBleBluedroid::setSecurityResponseTimeoutForTest(
+  uint32_t timeoutMilliseconds)
+{
+  if (!initialized_ || connectionImpl_ == nullptr)
+  {
+    setError(EspBleError::InvalidState,
+      "Bluetooth stack is not initialized");
+    return false;
+  }
+  if (timeoutMilliseconds == 0)
+  {
+    setError(EspBleError::InvalidArgument,
+      "Security timeout must be nonzero");
+    return false;
+  }
+  {
+    std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+    connectionImpl_->securityResponseTimeoutMilliseconds =
+      timeoutMilliseconds;
+  }
+  clearError();
+  return true;
+}
+#endif
 
 bool EspBleBluedroid::connect(
   const EspBleScanResult &scanResult, uint32_t timeoutMilliseconds)

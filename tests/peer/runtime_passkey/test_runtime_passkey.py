@@ -15,6 +15,8 @@ def test_runtime_passkey_entry(dut, peers):
 
     peripheral.write("a")
     peripheral.expect_exact("RUNTIME_PASSKEY_PEER_ADVERTISING", timeout=20)
+    dut.write("o")
+    dut.expect_exact("RUNTIME_PASSKEY_TIMEOUT_SET 1", timeout=20)
     dut.write("s")
     dut.expect_exact("RUNTIME_PASSKEY_SCAN_STARTED 1", timeout=20)
     dut.expect_exact("RUNTIME_PASSKEY_CONNECT_REQUESTED 1", timeout=30)
@@ -23,6 +25,11 @@ def test_runtime_passkey_entry(dut, peers):
     peripheral.expect(
         re.compile(rb"RUNTIME_PASSKEY_DISPLAYED passkey=(\d{6})"), timeout=30
     )
+    timeout_result = dut.expect(
+        re.compile(rb"RUNTIME_PASSKEY_TIMEOUT_RESULT success=0 elapsed=(\d+)"),
+        timeout=10,
+    )
+    assert 200 <= int(timeout_result.group(1)) < 3000
     dut.write("d")
     dut.expect_exact("RUNTIME_PASSKEY_DISCONNECT_REQUESTED 1", timeout=20)
     dut.expect_exact(
@@ -39,6 +46,25 @@ def test_runtime_passkey_entry(dut, peers):
     dut.expect_exact("RUNTIME_PASSKEY_CONNECT_REQUESTED 1", timeout=30)
     peripheral.expect_exact("RUNTIME_PASSKEY_PEER_CONNECTED", timeout=20)
     dut.expect_exact("RUNTIME_PASSKEY_CONNECTED id=2", timeout=20)
+    peripheral.expect(
+        re.compile(rb"RUNTIME_PASSKEY_DISPLAYED passkey=(\d{6})"), timeout=30
+    )
+    dut.write("d")
+    dut.expect_exact("RUNTIME_PASSKEY_DISCONNECT_REQUESTED 1", timeout=20)
+    dut.expect_exact(
+        "RUNTIME_PASSKEY_DISCONNECTED id=2 authenticated=0", timeout=20
+    )
+    peripheral.expect_exact(
+        "RUNTIME_PASSKEY_PEER_DISCONNECTED authenticated=0", timeout=20
+    )
+
+    peripheral.write("a")
+    peripheral.expect_exact("RUNTIME_PASSKEY_PEER_ADVERTISING", timeout=20)
+    dut.write("s")
+    dut.expect_exact("RUNTIME_PASSKEY_SCAN_STARTED 1", timeout=20)
+    dut.expect_exact("RUNTIME_PASSKEY_CONNECT_REQUESTED 1", timeout=30)
+    peripheral.expect_exact("RUNTIME_PASSKEY_PEER_CONNECTED", timeout=20)
+    dut.expect_exact("RUNTIME_PASSKEY_CONNECTED id=3", timeout=20)
     peripheral.expect(
         re.compile(rb"RUNTIME_PASSKEY_DISPLAYED passkey=(\d{6})"), timeout=30
     )

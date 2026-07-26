@@ -13,3 +13,5 @@
 - (JA) Scan queue容量・overflow・flushの決定的テストを追加。
 - (EN) Verify exact connection timeout and established-link shutdown semantics.
 - (JA) 接続timeout分類と接続成立後の終了semanticsを実機確認。
+- (EN) Add deterministic unanswered Passkey and Numeric Comparison timeout coverage.
+- (JA) Passkey・Numeric Comparison未回答timeoutの決定的テストを追加。

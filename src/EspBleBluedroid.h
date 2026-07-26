@@ -307,6 +307,9 @@ public:
   bool initialized() const;
   EspBleAdvertising &advertising();
   EspBleScanner &scanner();
+#ifdef ESP_BLE_BLUEDROID_TESTING
+  bool setSecurityResponseTimeoutForTest(uint32_t timeoutMilliseconds);
+#endif
 
   bool connect(
     const EspBleScanResult &scanResult,

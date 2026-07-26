@@ -8,6 +8,8 @@ EspBleBluedroid bluetooth;
 TaskHandle_t loopTask = nullptr;
 EspBleConnectionId connectionId = 0;
 bool connectionRequested = false;
+bool timeoutTestActive = false;
+uint32_t timeoutStartedAt = 0;
 
 const char *contextName()
 {
@@ -40,6 +42,7 @@ void setup()
       static_cast<unsigned>(connection.id));
   });
   bluetooth.onNumericComparison([](const EspBlePasskeyDisplayed &event) {
+    if (timeoutTestActive) timeoutStartedAt = millis();
     Serial.printf("NUMCMP_CENTRAL_VALUE id=%u value=%06u context=%s\n",
       static_cast<unsigned>(event.connection.id),
       static_cast<unsigned>(event.passkey), contextName());
@@ -51,6 +54,13 @@ void setup()
       event.connection.authenticated ? 1 : 0,
       event.connection.bonded ? 1 : 0, event.connection.encryptionKeySize,
       contextName());
+    if (timeoutTestActive)
+    {
+      Serial.printf("NUMCMP_CENTRAL_TIMEOUT success=%u elapsed=%u\n",
+        event.success ? 1 : 0,
+        static_cast<unsigned>(millis() - timeoutStartedAt));
+      timeoutTestActive = false;
+    }
   });
   bluetooth.onDisconnected([](const EspBleConnection &connection) {
     Serial.printf("NUMCMP_CENTRAL_DISCONNECTED id=%u context=%s\n",
@@ -95,6 +105,14 @@ void loop()
       Serial.printf("NUMCMP_DISCONNECT_REQUESTED %u\n",
         bluetooth.disconnect(connectionId) ? 1 : 0);
     }
+#ifdef ESP_BLE_BLUEDROID_TESTING
+    else if (command == 'o')
+    {
+      timeoutTestActive = true;
+      Serial.printf("NUMCMP_CENTRAL_TIMEOUT_SET %u\n",
+        bluetooth.setSecurityResponseTimeoutForTest(250) ? 1 : 0);
+    }
+#endif
   }
   bluetooth.update();
   delay(1);

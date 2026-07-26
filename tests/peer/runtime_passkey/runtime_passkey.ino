@@ -5,6 +5,8 @@ static constexpr const char *MARKER_SERVICE_UUID = "1815";
 EspBleBluedroid bluetooth;
 EspBleConnectionId connectionId = 0;
 bool connectionRequested = false;
+bool timeoutTestActive = false;
+uint32_t timeoutStartedAt = 0;
 
 EspBleConfig runtimePasskeyConfig()
 {
@@ -34,6 +36,7 @@ void setup()
     invalidPasskeyAccepted ? 0 : 1, bluetooth.lastErrorName());
   bluetooth.onConnected([](const EspBleConnection &connection) {
     connectionId = connection.id;
+    if (timeoutTestActive) timeoutStartedAt = millis();
     Serial.printf("RUNTIME_PASSKEY_CONNECTED id=%u\n",
       static_cast<unsigned>(connection.id));
   });
@@ -43,6 +46,14 @@ void setup()
       event.success ? 1 : 0, event.connection.encrypted ? 1 : 0,
       event.connection.authenticated ? 1 : 0,
       event.connection.bonded ? 1 : 0, event.connection.encryptionKeySize);
+    if (timeoutTestActive)
+    {
+      Serial.printf(
+        "RUNTIME_PASSKEY_TIMEOUT_RESULT success=%u elapsed=%u\n",
+        event.success ? 1 : 0,
+        static_cast<unsigned>(millis() - timeoutStartedAt));
+      timeoutTestActive = false;
+    }
   });
   bluetooth.onDisconnected([](const EspBleConnection &connection) {
     Serial.printf("RUNTIME_PASSKEY_DISCONNECTED id=%u authenticated=%u\n",
@@ -102,6 +113,14 @@ void loop()
         initialized ? 1 : 0,
         static_cast<unsigned>(millis() - startedAt));
     }
+#ifdef ESP_BLE_BLUEDROID_TESTING
+    else if (command == 'o')
+    {
+      timeoutTestActive = true;
+      Serial.printf("RUNTIME_PASSKEY_TIMEOUT_SET %u\n",
+        bluetooth.setSecurityResponseTimeoutForTest(250) ? 1 : 0);
+    }
+#endif
   }
   bluetooth.update();
   delay(1);

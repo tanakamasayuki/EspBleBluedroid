@@ -39,7 +39,8 @@ CCCD購読、notificationまで確認している。
 - LE Secure Connections Just Works、DisplayOnly/KeyboardOnlyの静的passkey MITM、
   KeyboardOnlyの実行時Passkey Entry、DisplayYesNoのNumeric Comparisonに対応。
   実行時入力は`providePasskey()`、比較確認は`confirmNumericComparison()`で行い、
-  Bluedroid callbackの待機上限はいずれも30秒。
+  Bluedroid callbackの待機上限はいずれも30秒。test-only seamで短縮し、両方の
+  未回答timeoutが認証失敗として配送されることを実機確認している。
 - Passkey Entry待機中の`disconnect()`と`end()`は入力待ちをcancelして即時終了する。
   Numeric Comparisonの明示拒否は認証を失敗させるが、BluedroidはBLE linkを自動では
   切断しないため、applicationが必要に応じて`disconnect()`する。
@@ -64,7 +65,8 @@ CCCD購読、notificationまで確認している。
 
 ## 次のテストスライス
 
-1. Security入力・比較確認の30秒timeoutを、実機時間へ依存しすぎないtest seamで確定。
-2. Classic capability、Inquiry、SPP、BLE/SPP dual-modeの順に追加。
+1. Classic capabilityとInquiry。
+2. SPPのClient/Server、双方向data、切断、再接続、Security。
+3. BLE/SPP dual-mode。
 
 各項目は失敗するunitまたはpeerテストを先に追加してから実装する。

@@ -94,3 +94,43 @@ def test_numeric_comparison(dut, peers):
     peripheral.expect_exact(
         "NUMCMP_PEER_BONDS_CLEARED success=1 count=0", timeout=20
     )
+
+
+def test_numeric_comparison_timeout(dut, peers):
+    peripheral = peers["device"]
+    dut.write("o")
+    peripheral.write("o")
+    dut.expect_exact("NUMCMP_CENTRAL_TIMEOUT_SET 1", timeout=20)
+    peripheral.expect_exact("NUMCMP_PEER_TIMEOUT_SET 1", timeout=20)
+    peripheral.write("a")
+    peripheral.expect_exact("NUMCMP_PEER_ADVERTISING", timeout=20)
+    dut.write("s")
+    dut.expect_exact("NUMCMP_SCAN_STARTED 1", timeout=20)
+    dut.expect_exact("NUMCMP_CONNECT_REQUESTED 1", timeout=30)
+    peripheral.expect_exact("NUMCMP_PEER_CONNECTED", timeout=20)
+    dut.expect_exact("NUMCMP_CENTRAL_CONNECTED id=3", timeout=20)
+    central_value = dut.expect(
+        re.compile(rb"NUMCMP_CENTRAL_VALUE id=3 value=(\d{6}) context=loop"),
+        timeout=30,
+    ).group(1)
+    peripheral_value = peripheral.expect(
+        re.compile(rb"NUMCMP_PEER_VALUE value=(\d{6})"), timeout=30
+    ).group(1)
+    assert central_value == peripheral_value
+    timeout_result = dut.expect(
+        re.compile(rb"NUMCMP_CENTRAL_TIMEOUT success=0 elapsed=(\d+)"),
+        timeout=10,
+    )
+    assert 200 <= int(timeout_result.group(1)) < 3000
+    peripheral.expect_exact(
+        "NUMCMP_PEER_SECURITY success=0 encrypted=0 authenticated=0 bonded=0 key=16",
+        timeout=10,
+    )
+    dut.write("d")
+    dut.expect_exact("NUMCMP_DISCONNECT_REQUESTED 1", timeout=20)
+    dut.expect_exact(
+        "NUMCMP_CENTRAL_DISCONNECTED id=3 context=loop", timeout=20
+    )
+    peripheral.expect_exact(
+        "NUMCMP_PEER_DISCONNECTED authenticated=0", timeout=20
+    )

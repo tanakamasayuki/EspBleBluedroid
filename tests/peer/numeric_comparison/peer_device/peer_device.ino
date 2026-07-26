@@ -10,6 +10,7 @@ std::mutex confirmationMutex;
 bool confirmationReady = false;
 bool confirmationAccept = false;
 bool authenticated = false;
+uint32_t confirmationTimeoutMilliseconds = 30000;
 
 bool clearBonds()
 {
@@ -36,7 +37,8 @@ class SecurityCallbacks : public BLESecurityCallbacks
     Serial.printf("NUMCMP_PEER_VALUE value=%06u\n",
       static_cast<unsigned>(pin));
     const uint32_t startedAt = millis();
-    while (static_cast<uint32_t>(millis() - startedAt) < 30000)
+    while (static_cast<uint32_t>(millis() - startedAt) <
+           confirmationTimeoutMilliseconds)
     {
       {
         std::lock_guard<std::mutex> lock(confirmationMutex);
@@ -129,6 +131,11 @@ void loop()
     {
       BLEDevice::startAdvertising();
       Serial.println("NUMCMP_PEER_ADVERTISING");
+    }
+    else if (command == 'o')
+    {
+      confirmationTimeoutMilliseconds = 250;
+      Serial.println("NUMCMP_PEER_TIMEOUT_SET 1");
     }
   }
   delay(1);
