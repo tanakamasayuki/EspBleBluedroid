@@ -16,6 +16,8 @@ size_t notificationCount = 0;
 size_t trafficSppCallbackCount = 0;
 size_t pendingTrafficWrites = 0;
 size_t trafficBleDroppedBaseline = 0;
+size_t trafficSppDroppedBaseline = 0;
+size_t trafficRound = 0;
 size_t priorityNotificationCount = 0;
 bool trafficActive = false;
 bool priorityTestActive = false;
@@ -41,6 +43,63 @@ void pumpTrafficWrites()
       return;
     }
     --pendingTrafficWrites;
+  }
+}
+
+void reportTrafficRound(bool complete)
+{
+  size_t byteCount = 0;
+  size_t validPacketCount = 0;
+  uint8_t packet[3] = {};
+  while (
+    bluetooth.classic().spp().available(sppSessionId) >=
+    sizeof(packet))
+  {
+    const size_t read = bluetooth.classic().spp().read(
+      sppSessionId, packet, sizeof(packet));
+    byteCount += read;
+    if (
+      read == sizeof(packet) &&
+      packet[0] == 0xd1 && packet[1] == 0x00 &&
+      packet[2] == 'P')
+    {
+      ++validPacketCount;
+    }
+  }
+  const size_t bleEventDropped =
+    bluetooth.droppedEventCount();
+  const size_t sppEventDropped =
+    bluetooth.classic().spp().droppedEventCount();
+  ++trafficRound;
+  Serial.printf(
+    "DUAL_TRAFFIC_%s round=%u notifications=%u ring_packets=%u "
+    "ring_bytes=%u spp_callbacks=%u ble_event_dropped=%u "
+    "spp_event_dropped=%u spp_rx_dropped=%u "
+    "spp_write_dropped=%u app_pending=%u\n",
+    complete ? "COMPLETE" : "ROUND",
+    static_cast<unsigned>(trafficRound),
+    static_cast<unsigned>(notificationCount),
+    static_cast<unsigned>(validPacketCount),
+    static_cast<unsigned>(byteCount),
+    static_cast<unsigned>(trafficSppCallbackCount),
+    static_cast<unsigned>(
+      bleEventDropped - trafficBleDroppedBaseline),
+    static_cast<unsigned>(
+      sppEventDropped - trafficSppDroppedBaseline),
+    static_cast<unsigned>(
+      bluetooth.classic().spp().droppedReceiveByteCount()),
+    static_cast<unsigned>(
+      bluetooth.classic().spp().droppedWriteCount()),
+    static_cast<unsigned>(pendingTrafficWrites));
+  notificationCount = 0;
+  trafficSppCallbackCount = 0;
+  trafficBleDroppedBaseline = bleEventDropped;
+  trafficSppDroppedBaseline = sppEventDropped;
+  if (complete)
+  {
+    Serial.printf("DUAL_GATT_UNSUBSCRIBE_ACCEPTED %u\n",
+      bluetooth.unsubscribe(
+        bleConnectionId, characteristicHandle, 5000) ? 1 : 0);
   }
 }
 
@@ -184,6 +243,8 @@ void initializeBluetooth()
   });
   bluetooth.onSubscribed([](const EspBleGattResult &result) {
     trafficBleDroppedBaseline = bluetooth.droppedEventCount();
+    trafficSppDroppedBaseline =
+      bluetooth.classic().spp().droppedEventCount();
     trafficActive = true;
     Serial.printf(
       "DUAL_GATT_SUBSCRIBED success=%u spp_sessions=%u context=%s\n",
@@ -295,48 +356,11 @@ void loop()
         controlAccepted ? 1 : 0);
     }
 #endif
-    else if (command == 'q' && sppSessionId != 0)
+    else if (
+      (command == 'q' || command == 'r') &&
+      sppSessionId != 0)
     {
-      size_t byteCount = 0;
-      size_t validPacketCount = 0;
-      uint8_t packet[3] = {};
-      while (
-        bluetooth.classic().spp().available(sppSessionId) >=
-        sizeof(packet))
-      {
-        const size_t read = bluetooth.classic().spp().read(
-          sppSessionId, packet, sizeof(packet));
-        byteCount += read;
-        if (
-          read == sizeof(packet) &&
-          packet[0] == 0xd1 && packet[1] == 0x00 &&
-          packet[2] == 'P')
-        {
-          ++validPacketCount;
-        }
-      }
-      const size_t sppEventDropped =
-        bluetooth.classic().spp().droppedEventCount();
-      Serial.printf(
-        "DUAL_TRAFFIC_COMPLETE notifications=%u ring_packets=%u "
-        "ring_bytes=%u spp_callbacks=%u ble_event_dropped=%u "
-        "spp_event_dropped=%u spp_rx_dropped=%u "
-        "spp_write_dropped=%u app_pending=%u\n",
-        static_cast<unsigned>(notificationCount),
-        static_cast<unsigned>(validPacketCount),
-        static_cast<unsigned>(byteCount),
-        static_cast<unsigned>(trafficSppCallbackCount),
-        static_cast<unsigned>(
-          bluetooth.droppedEventCount() - trafficBleDroppedBaseline),
-        static_cast<unsigned>(sppEventDropped),
-        static_cast<unsigned>(
-          bluetooth.classic().spp().droppedReceiveByteCount()),
-        static_cast<unsigned>(
-          bluetooth.classic().spp().droppedWriteCount()),
-        static_cast<unsigned>(pendingTrafficWrites));
-      Serial.printf("DUAL_GATT_UNSUBSCRIBE_ACCEPTED %u\n",
-        bluetooth.unsubscribe(
-          bleConnectionId, characteristicHandle, 5000) ? 1 : 0);
+      reportTrafficRound(command == 'q');
     }
   }
   bluetooth.update();

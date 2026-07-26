@@ -59,10 +59,11 @@ server, the shared session API, binary data, public disconnection, reconnect
 IDs, deferred write completion, and deferred failure/timeout delivery.
 `peer/dual_mode_scan_spp` verifies active BLE Scan and a BLE Central/GATT
 connection while an SPP session remains connected. It covers service discovery,
-Characteristic Read/Write, subscription/notification, and a bounded
-64-notification burst bridged to SPP. The test accounts for BLE event-queue
-drops explicitly and verifies that every delivered notification completes its
-SPP round trip and reaches the receive ring without SPP write or receive loss.
+Characteristic Read/Write, subscription/notification, and three consecutive
+bounded 64-notification rounds bridged to SPP without reconnecting or
+resubscribing. Each round accounts for BLE event-queue drops explicitly and
+verifies that every delivered notification completes its SPP round trip and
+reaches the receive ring without SPP write or receive loss.
 It also fills the BLE connection-event queue deterministically and verifies
 that a GATT completion evicts one notification instead of being dropped.
 `peer/spp_receive_buffer` verifies the session-scoped 2048-byte receive ring,

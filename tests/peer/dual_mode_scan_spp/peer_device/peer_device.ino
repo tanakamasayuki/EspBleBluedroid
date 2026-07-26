@@ -20,6 +20,7 @@ size_t pendingSppResponses = 0;
 bool sppResponseInFlight = false;
 size_t sppResponsesCompleted = 0;
 size_t trafficSppRequestsReceived = 0;
+size_t trafficSppResponsesCompletedBaseline = 0;
 uint32_t lastTrafficSppDataAt = 0;
 bool trafficStarted = false;
 bool trafficSummaryPrinted = false;
@@ -120,6 +121,7 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
     sppResponseInFlight = false;
     sppResponsesCompleted = 0;
     trafficSppRequestsReceived = 0;
+    trafficSppResponsesCompletedBaseline = 0;
     trafficStarted = false;
     trafficSummaryPrinted = false;
     Serial.println("DUAL_PEER_SPP_DISCONNECTED");
@@ -192,6 +194,8 @@ void loop()
       trafficStarted = true;
       trafficSummaryPrinted = false;
       trafficSppRequestsReceived = 0;
+      trafficSppResponsesCompletedBaseline =
+        sppResponsesCompleted;
       lastTrafficSppDataAt = millis();
       nextNotificationAt = millis();
       Serial.printf("DUAL_PEER_TRAFFIC_STARTED count=%u\n",
@@ -223,7 +227,8 @@ void loop()
       "DUAL_PEER_RESPONSES_IDLE received=%u completed=%u\n",
       static_cast<unsigned>(trafficSppRequestsReceived),
       static_cast<unsigned>(
-        sppResponsesCompleted > 0 ? sppResponsesCompleted - 1 : 0));
+        sppResponsesCompleted -
+        trafficSppResponsesCompletedBaseline));
   }
   delay(1);
 }

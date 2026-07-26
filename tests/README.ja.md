@@ -57,7 +57,7 @@ uv run --env-file .env pytest
 | `peer/spp_serial` | root bindの`EspBluedroidSppSerial`、2つの連続Server sessionへの自動追従、Stream/Print、1000 byte分割write、flush、切断後の無効化 |
 | `peer/spp_security` | Client/Server両roleのDisplayYesNo SSP、明示拒否、認証失敗後retry、Classic bond列挙・再接続・削除、認証・暗号化data |
 | `peer/spp_passkey` | Classic DisplayOnly/KeyboardOnlyの両方向Passkey表示・入力、未回答timeout・遅延入力拒否・retry・入力待ち終了、認証・暗号化SPP、I/O capability変更再初期化 |
-| `peer/dual_mode_scan_spp` | active SPP session中のBLE Scan・GATT接続、Discovery、Read/Write、64通知のbounded burst、BLE event drop集計、配送済み通知のSPP往復・RX ring保持、満杯時のGATT完了優先配送 |
+| `peer/dual_mode_scan_spp` | active SPP session中のBLE Scan・GATT接続、Discovery、Read/Write、同一接続で64通知×3 round、round別BLE event drop集計、配送済み通知のSPP往復・RX ring保持、満杯時のGATT完了優先配送 |
 
 特定のテストだけを実行する場合はパスを追加できます。
 
