@@ -28,6 +28,7 @@ namespace
 {
 constexpr size_t ScanQueueCapacity = 16;
 constexpr size_t ClassicInquiryQueueCapacity = 16;
+constexpr size_t ClassicSecurityEventQueueCapacity = 8;
 constexpr size_t SppEventQueueCapacity = 8;
 constexpr size_t LegacyAdvertisingPayloadCapacity = 31;
 
@@ -94,6 +95,16 @@ bool sameSecurityConfig(
     left.ioCapability == right.ioCapability &&
     left.staticPasskeyEnabled == right.staticPasskeyEnabled &&
     left.staticPasskey == right.staticPasskey;
+}
+
+bool sameClassicSecurityConfig(
+  const EspBluedroidClassicSecurityConfig &left,
+  const EspBluedroidClassicSecurityConfig &right)
+{
+  return left.enabled == right.enabled &&
+    left.ioCapability == right.ioCapability &&
+    left.responseTimeoutMilliseconds ==
+      right.responseTimeoutMilliseconds;
 }
 
 bool isValidBleAddress(const char *address)
@@ -210,10 +221,54 @@ struct EspBluedroidClassicInquiryImpl
   bool completionCancelled = false;
 };
 
+struct EspBluedroidClassicImpl
+{
+  enum class EventType : uint8_t
+  {
+    SecurityChanged,
+    NumericComparison,
+  };
+
+  struct Event
+  {
+    EventType type = EventType::SecurityChanged;
+    EspBluedroidClassicSecurityChanged securityChanged;
+    EspBluedroidClassicNumericComparison numericComparison;
+  };
+
+  bool enqueue(Event event)
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (eventCount == ClassicSecurityEventQueueCapacity)
+    {
+      ++dropped;
+      return false;
+    }
+    const size_t tail =
+      (eventHead + eventCount) % ClassicSecurityEventQueueCapacity;
+    events[tail] = std::move(event);
+    ++eventCount;
+    return true;
+  }
+
+  mutable std::mutex mutex;
+  Event events[ClassicSecurityEventQueueCapacity];
+  size_t eventHead = 0;
+  size_t eventCount = 0;
+  size_t dropped = 0;
+  EspBluedroidClassicSecurityConfig security;
+  bool numericComparisonCallbackConfigured = false;
+  bool numericComparisonPending = false;
+  String numericComparisonAddress;
+  esp_bd_addr_t numericComparisonBackendAddress = {};
+  uint32_t numericComparisonDeadlineMs = 0;
+};
+
 #if defined(CONFIG_BT_CLASSIC_ENABLED)
 namespace
 {
 std::atomic<EspBluedroidClassicInquiryImpl *> activeClassicInquiry{nullptr};
+std::atomic<EspBluedroidClassicImpl *> activeClassic{nullptr};
 
 String classicAddress(const esp_bd_addr_t address)
 {
@@ -227,11 +282,11 @@ String classicAddress(const esp_bd_addr_t address)
 void classicGapCallback(
   esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *parameter)
 {
-  EspBluedroidClassicInquiryImpl *impl =
+  if (parameter == nullptr) return;
+  EspBluedroidClassicInquiryImpl *inquiry =
     activeClassicInquiry.load(std::memory_order_acquire);
-  if (impl == nullptr || parameter == nullptr) return;
 
-  if (event == ESP_BT_GAP_DISC_RES_EVT)
+  if (inquiry != nullptr && event == ESP_BT_GAP_DISC_RES_EVT)
   {
     EspBluedroidClassicInquiryResult result;
     result.address = classicAddress(parameter->disc_res.bda);
@@ -290,17 +345,107 @@ void classicGapCallback(
           reinterpret_cast<const char *>(name), length);
       }
     }
-    impl->enqueue(std::move(result));
+    inquiry->enqueue(std::move(result));
   }
   else if (
+    inquiry != nullptr &&
     event == ESP_BT_GAP_DISC_STATE_CHANGED_EVT &&
     parameter->disc_st_chg.state == ESP_BT_GAP_DISCOVERY_STOPPED)
   {
-    std::lock_guard<std::mutex> lock(impl->mutex);
-    impl->running = false;
-    impl->completionCancelled = impl->stopRequested;
-    impl->stopRequested = false;
-    impl->completionPending = true;
+    std::lock_guard<std::mutex> lock(inquiry->mutex);
+    inquiry->running = false;
+    inquiry->completionCancelled = inquiry->stopRequested;
+    inquiry->stopRequested = false;
+    inquiry->completionPending = true;
+  }
+
+  EspBluedroidClassicImpl *classic =
+    activeClassic.load(std::memory_order_acquire);
+  if (classic == nullptr) return;
+  if (event == ESP_BT_GAP_AUTH_CMPL_EVT)
+  {
+    {
+      std::lock_guard<std::mutex> lock(classic->mutex);
+      if (
+        classic->numericComparisonPending &&
+        memcmp(
+          classic->numericComparisonBackendAddress,
+          parameter->auth_cmpl.bda, ESP_BD_ADDR_LEN) == 0)
+      {
+        classic->numericComparisonPending = false;
+        classic->numericComparisonAddress = "";
+        memset(
+          classic->numericComparisonBackendAddress, 0,
+          sizeof(classic->numericComparisonBackendAddress));
+        classic->numericComparisonDeadlineMs = 0;
+      }
+    }
+    EspBluedroidClassicImpl::Event queued;
+    queued.type =
+      EspBluedroidClassicImpl::EventType::SecurityChanged;
+    queued.securityChanged.peerAddress =
+      classicAddress(parameter->auth_cmpl.bda);
+    queued.securityChanged.success =
+      parameter->auth_cmpl.stat == ESP_BT_STATUS_SUCCESS;
+    queued.securityChanged.status = parameter->auth_cmpl.stat;
+    classic->enqueue(std::move(queued));
+  }
+  else if (event == ESP_BT_GAP_CFM_REQ_EVT)
+  {
+    bool canRequest = false;
+    {
+      std::lock_guard<std::mutex> lock(classic->mutex);
+      canRequest =
+        classic->security.enabled &&
+        classic->security.ioCapability ==
+          EspBluedroidClassicSecurityIoCapability::DisplayYesNo &&
+        classic->numericComparisonCallbackConfigured &&
+        !classic->numericComparisonPending;
+      if (canRequest)
+      {
+        classic->numericComparisonPending = true;
+        classic->numericComparisonAddress =
+          classicAddress(parameter->cfm_req.bda);
+        memcpy(
+          classic->numericComparisonBackendAddress,
+          parameter->cfm_req.bda, ESP_BD_ADDR_LEN);
+        classic->numericComparisonDeadlineMs =
+          millis() + classic->security.responseTimeoutMilliseconds;
+      }
+    }
+    if (!canRequest)
+    {
+      esp_bt_gap_ssp_confirm_reply(parameter->cfm_req.bda, false);
+      return;
+    }
+    EspBluedroidClassicImpl::Event queued;
+    queued.type =
+      EspBluedroidClassicImpl::EventType::NumericComparison;
+    queued.numericComparison.peerAddress =
+      classicAddress(parameter->cfm_req.bda);
+    queued.numericComparison.value = parameter->cfm_req.num_val;
+    if (!classic->enqueue(std::move(queued)))
+    {
+      {
+        std::lock_guard<std::mutex> lock(classic->mutex);
+        classic->numericComparisonPending = false;
+        classic->numericComparisonAddress = "";
+        memset(
+          classic->numericComparisonBackendAddress, 0,
+          sizeof(classic->numericComparisonBackendAddress));
+        classic->numericComparisonDeadlineMs = 0;
+      }
+      esp_bt_gap_ssp_confirm_reply(parameter->cfm_req.bda, false);
+    }
+  }
+  else if (event == ESP_BT_GAP_KEY_REQ_EVT)
+  {
+    esp_bt_gap_ssp_passkey_reply(parameter->key_req.bda, false, 0);
+  }
+  else if (event == ESP_BT_GAP_PIN_REQ_EVT)
+  {
+    esp_bt_pin_code_t pin = {};
+    esp_bt_gap_pin_reply(parameter->pin_req.bda, false, 0, pin);
   }
 }
 } // namespace
@@ -351,6 +496,8 @@ struct EspBluedroidSppImpl
   bool serverRunning = false;
   String serverName;
   uint8_t serverChannel = 0;
+  EspBluedroidSppSecurity serverSecurity =
+    EspBluedroidSppSecurity::None;
   uint32_t backendHandle = 0;
   EspBluedroidSppSession activeSession;
   EspBluedroidSppSessionId nextSessionId = 1;
@@ -368,12 +515,28 @@ struct EspBluedroidSppImpl
   String connectAddress;
   esp_bd_addr_t connectBackendAddress = {};
   uint32_t connectDeadlineMs = 0;
+  EspBluedroidSppSecurity connectSecurity =
+    EspBluedroidSppSecurity::None;
 };
 
 #if defined(CONFIG_BT_SPP_ENABLED)
 namespace
 {
 std::atomic<EspBluedroidSppImpl *> activeSpp{nullptr};
+
+esp_spp_sec_t sppSecurityMask(EspBluedroidSppSecurity security)
+{
+  if (security == EspBluedroidSppSecurity::Authenticate)
+  {
+    return ESP_SPP_SEC_AUTHENTICATE;
+  }
+  if (security == EspBluedroidSppSecurity::AuthenticatedEncrypted)
+  {
+    return static_cast<esp_spp_sec_t>(
+      ESP_SPP_SEC_AUTHENTICATE | ESP_SPP_SEC_ENCRYPT);
+  }
+  return ESP_SPP_SEC_NONE;
+}
 
 void startNextSppWrite(EspBluedroidSppImpl *impl)
 {
@@ -425,6 +588,7 @@ void failSppConnection(
     impl->connecting = false;
     impl->connectAddress = "";
     impl->connectDeadlineMs = 0;
+    impl->connectSecurity = EspBluedroidSppSecurity::None;
   }
   EspBluedroidSppImpl::Event queued;
   queued.type = EspBluedroidSppImpl::EventType::ConnectionFailed;
@@ -436,6 +600,7 @@ void startPendingSppServer(EspBluedroidSppImpl *impl)
 {
   const char *name = nullptr;
   uint8_t channel = 0;
+  EspBluedroidSppSecurity security = EspBluedroidSppSecurity::None;
   {
     std::lock_guard<std::mutex> lock(impl->mutex);
     if (!impl->initialized || !impl->serverStartPending || impl->ending)
@@ -444,12 +609,14 @@ void startPendingSppServer(EspBluedroidSppImpl *impl)
     }
     name = impl->serverName.c_str();
     channel = impl->serverChannel;
+    security = impl->serverSecurity;
   }
   if (
     esp_bt_gap_set_scan_mode(
       ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE) != ESP_OK ||
     esp_spp_start_srv(
-        ESP_SPP_SEC_NONE, ESP_SPP_ROLE_SLAVE, channel, name) != ESP_OK)
+        sppSecurityMask(security),
+        ESP_SPP_ROLE_SLAVE, channel, name) != ESP_OK)
   {
     std::lock_guard<std::mutex> lock(impl->mutex);
     impl->serverStartPending = false;
@@ -501,10 +668,12 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
   {
     bool connecting = false;
     esp_bd_addr_t address = {};
+    EspBluedroidSppSecurity security = EspBluedroidSppSecurity::None;
     {
       std::lock_guard<std::mutex> lock(impl->mutex);
       connecting = impl->connecting;
       memcpy(address, impl->connectBackendAddress, sizeof(address));
+      security = impl->connectSecurity;
     }
     if (!connecting) return;
     if (
@@ -516,7 +685,7 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
       return;
     }
     if (esp_spp_connect(
-          ESP_SPP_SEC_NONE, ESP_SPP_ROLE_MASTER,
+          sppSecurityMask(security), ESP_SPP_ROLE_MASTER,
           parameter->disc_comp.scn[0], address) != ESP_OK)
     {
       failSppConnection(
@@ -550,6 +719,11 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
         if (impl->nextSessionId == 0) impl->nextSessionId = 1;
         session.peerAddress = classicAddress(parameter->open.rem_bda);
         session.incoming = false;
+        session.authenticated =
+          impl->connectSecurity != EspBluedroidSppSecurity::None;
+        session.encrypted =
+          impl->connectSecurity ==
+            EspBluedroidSppSecurity::AuthenticatedEncrypted;
         impl->backendHandle = parameter->open.handle;
         impl->activeSession = session;
         impl->rxHead = 0;
@@ -571,10 +745,22 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
     queued.session = std::move(session);
     impl->enqueue(std::move(queued));
   }
-  else if (
-    event == ESP_SPP_SRV_OPEN_EVT &&
-    parameter->srv_open.status == ESP_SPP_SUCCESS)
+  else if (event == ESP_SPP_SRV_OPEN_EVT)
   {
+    if (parameter->srv_open.status != ESP_SPP_SUCCESS)
+    {
+      bool running = false;
+      {
+        std::lock_guard<std::mutex> lock(impl->mutex);
+        running = impl->serverRunning && !impl->ending;
+      }
+      if (running)
+      {
+        esp_bt_gap_set_scan_mode(
+          ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
+      }
+      return;
+    }
     EspBluedroidSppSession session;
     {
       std::lock_guard<std::mutex> lock(impl->mutex);
@@ -587,6 +773,11 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
       if (impl->nextSessionId == 0) impl->nextSessionId = 1;
       session.peerAddress = classicAddress(parameter->srv_open.rem_bda);
       session.incoming = true;
+      session.authenticated =
+        impl->serverSecurity != EspBluedroidSppSecurity::None;
+      session.encrypted =
+        impl->serverSecurity ==
+          EspBluedroidSppSecurity::AuthenticatedEncrypted;
       impl->backendHandle = parameter->srv_open.handle;
       impl->activeSession = session;
       impl->rxHead = 0;
@@ -664,19 +855,37 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
   else if (event == ESP_SPP_CLOSE_EVT)
   {
     EspBluedroidSppSession session;
+    bool connectionAttemptClosed = false;
     {
       std::lock_guard<std::mutex> lock(impl->mutex);
-      if (parameter->close.handle != impl->backendHandle) return;
-      session = impl->activeSession;
-      impl->backendHandle = 0;
-      impl->activeSession = EspBluedroidSppSession();
-      for (String &value : impl->txQueue) value = "";
-      impl->txHead = 0;
-      impl->txCount = 0;
-      impl->txInFlight = false;
-      impl->txCongested = false;
-      impl->rxHead = 0;
-      impl->rxCount = 0;
+      connectionAttemptClosed =
+        impl->backendHandle == 0 && impl->connecting;
+      if (
+        !connectionAttemptClosed &&
+        parameter->close.handle != impl->backendHandle)
+      {
+        return;
+      }
+      if (!connectionAttemptClosed)
+      {
+        session = impl->activeSession;
+        impl->backendHandle = 0;
+        impl->activeSession = EspBluedroidSppSession();
+        for (String &value : impl->txQueue) value = "";
+        impl->txHead = 0;
+        impl->txCount = 0;
+        impl->txInFlight = false;
+        impl->txCongested = false;
+        impl->rxHead = 0;
+        impl->rxCount = 0;
+      }
+    }
+    if (connectionAttemptClosed)
+    {
+      failSppConnection(
+        impl, EspBleError::BackendFailure,
+        "SPP connection closed during authentication");
+      return;
     }
     EspBluedroidSppImpl::Event queued;
     queued.type = EspBluedroidSppImpl::EventType::Disconnected;
@@ -2293,6 +2502,7 @@ void EspBluedroidSpp::end()
   impl_->serverRunning = false;
   impl_->serverName = "";
   impl_->serverChannel = 0;
+  impl_->serverSecurity = EspBluedroidSppSecurity::None;
   impl_->backendHandle = 0;
   impl_->activeSession = EspBluedroidSppSession();
   impl_->nextSessionId = 1;
@@ -2309,6 +2519,7 @@ void EspBluedroidSpp::end()
   impl_->connectAddress = "";
   memset(impl_->connectBackendAddress, 0, sizeof(impl_->connectBackendAddress));
   impl_->connectDeadlineMs = 0;
+  impl_->connectSecurity = EspBluedroidSppSecurity::None;
 }
 
 void EspBluedroidSpp::onServerStarted(ServerStartedCallback callback)
@@ -2339,7 +2550,8 @@ void EspBluedroidSpp::onConnectionFailed(
 
 bool EspBluedroidSpp::connect(
   const char *address,
-  uint32_t timeoutMilliseconds)
+  uint32_t timeoutMilliseconds,
+  EspBluedroidSppSecurity security)
 {
   if (!owner_->initialized_)
   {
@@ -2347,17 +2559,31 @@ bool EspBluedroidSpp::connect(
       EspBleError::InvalidState, "Bluetooth stack is not initialized");
     return false;
   }
+  if (
+    security != EspBluedroidSppSecurity::None &&
+    !owner_->activeClassicSecurity_.enabled)
+  {
+    owner_->setError(
+      EspBleError::InvalidState,
+      "enable Classic Security before requesting secure SPP");
+    return false;
+  }
 #if !defined(CONFIG_BT_SPP_ENABLED)
   (void)address;
   (void)timeoutMilliseconds;
+  (void)security;
   owner_->setError(EspBleError::Unsupported, "SPP is not enabled");
   return false;
 #else
-  if (!isValidBleAddress(address) || timeoutMilliseconds == 0)
+  if (
+    !isValidBleAddress(address) || timeoutMilliseconds == 0 ||
+    static_cast<uint8_t>(security) >
+      static_cast<uint8_t>(
+        EspBluedroidSppSecurity::AuthenticatedEncrypted))
   {
     owner_->setError(
       EspBleError::InvalidArgument,
-      "SPP peer address must be canonical and timeout must be nonzero");
+      "SPP address, timeout, or Security mode is invalid");
     return false;
   }
   unsigned bytes[ESP_BD_ADDR_LEN] = {};
@@ -2387,6 +2613,7 @@ bool EspBluedroidSpp::connect(
         static_cast<uint8_t>(bytes[index]);
     }
     impl_->connectDeadlineMs = millis() + timeoutMilliseconds;
+    impl_->connectSecurity = security;
   }
   if (esp_spp_start_discovery(impl_->connectBackendAddress) != ESP_OK)
   {
@@ -2394,6 +2621,7 @@ bool EspBluedroidSpp::connect(
     impl_->connecting = false;
     impl_->connectAddress = "";
     impl_->connectDeadlineMs = 0;
+    impl_->connectSecurity = EspBluedroidSppSecurity::None;
     owner_->setError(
       EspBleError::BackendFailure, "failed to start SPP service discovery");
     return false;
@@ -2412,6 +2640,15 @@ bool EspBluedroidSpp::startServer(
       EspBleError::InvalidState, "Bluetooth stack is not initialized");
     return false;
   }
+  if (
+    config.security != EspBluedroidSppSecurity::None &&
+    !owner_->activeClassicSecurity_.enabled)
+  {
+    owner_->setError(
+      EspBleError::InvalidState,
+      "enable Classic Security before starting a secure SPP server");
+    return false;
+  }
 #if !defined(CONFIG_BT_SPP_ENABLED)
   (void)config;
   owner_->setError(EspBleError::Unsupported, "SPP is not enabled");
@@ -2419,11 +2656,14 @@ bool EspBluedroidSpp::startServer(
 #else
   if (
     config.serviceName == nullptr || config.serviceName[0] == '\0' ||
-    config.channel > ESP_SPP_MAX_SCN)
+    config.channel > ESP_SPP_MAX_SCN ||
+    static_cast<uint8_t>(config.security) >
+      static_cast<uint8_t>(
+        EspBluedroidSppSecurity::AuthenticatedEncrypted))
   {
     owner_->setError(
       EspBleError::InvalidArgument,
-      "invalid SPP service name or channel");
+      "invalid SPP service name, channel, or Security mode");
     return false;
   }
   if (impl_ == nullptr)
@@ -2442,6 +2682,7 @@ bool EspBluedroidSpp::startServer(
     }
     impl_->serverName = config.serviceName;
     impl_->serverChannel = config.channel;
+    impl_->serverSecurity = config.security;
     impl_->serverStartPending = true;
     initialized = impl_->initialized;
   }
@@ -2913,8 +3154,14 @@ void EspBluedroidSpp::update()
 }
 
 EspBluedroidClassic::EspBluedroidClassic(EspBleBluedroid *owner)
-    : inquiry_(owner), spp_(owner)
+    : owner_(owner), inquiry_(owner), spp_(owner)
 {
+}
+
+EspBluedroidClassic::~EspBluedroidClassic()
+{
+  end();
+  delete impl_;
 }
 
 EspBluedroidClassicInquiry &EspBluedroidClassic::inquiry()
@@ -2927,11 +3174,145 @@ EspBluedroidSpp &EspBluedroidClassic::spp()
   return spp_;
 }
 
-bool EspBluedroidClassic::begin(const char *deviceName)
+void EspBluedroidClassic::onSecurityChanged(
+  SecurityChangedCallback callback)
 {
-  if (!inquiry_.begin(deviceName)) return false;
+  securityChangedCallback_ = std::move(callback);
+}
+
+void EspBluedroidClassic::onNumericComparisonRequested(
+  NumericComparisonCallback callback)
+{
+  numericComparisonCallback_ = std::move(callback);
+  if (impl_ != nullptr)
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    impl_->numericComparisonCallbackConfigured =
+      static_cast<bool>(numericComparisonCallback_);
+  }
+}
+
+bool EspBluedroidClassic::confirmNumericComparison(
+  const char *peerAddress,
+  bool accept)
+{
+#if !defined(CONFIG_BT_CLASSIC_ENABLED)
+  (void)peerAddress;
+  (void)accept;
+  owner_->setError(
+    EspBleError::Unsupported, "Classic Bluetooth is not enabled");
+  return false;
+#else
+  if (
+    impl_ == nullptr || !isValidBleAddress(peerAddress))
+  {
+    owner_->setError(
+      EspBleError::InvalidArgument,
+      "a canonical Classic peer address is required");
+    return false;
+  }
+  esp_bd_addr_t address = {};
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (
+      !impl_->numericComparisonPending ||
+      !impl_->numericComparisonAddress.equalsIgnoreCase(peerAddress))
+    {
+      owner_->setError(
+        EspBleError::NotFound,
+        "Classic Numeric Comparison request was not found");
+      return false;
+    }
+    memcpy(
+      address, impl_->numericComparisonBackendAddress,
+      sizeof(address));
+  }
+  if (esp_bt_gap_ssp_confirm_reply(address, accept) != ESP_OK)
+  {
+    owner_->setError(
+      EspBleError::BackendFailure,
+      "failed to reply to Classic Numeric Comparison");
+    return false;
+  }
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    impl_->numericComparisonPending = false;
+    impl_->numericComparisonAddress = "";
+    memset(
+      impl_->numericComparisonBackendAddress, 0,
+      sizeof(impl_->numericComparisonBackendAddress));
+    impl_->numericComparisonDeadlineMs = 0;
+  }
+  owner_->clearError();
+  return true;
+#endif
+}
+
+bool EspBluedroidClassic::begin(
+  const char *deviceName,
+  const EspBluedroidClassicSecurityConfig &security)
+{
+  if (impl_ == nullptr)
+  {
+    impl_ = new (std::nothrow) EspBluedroidClassicImpl();
+    if (impl_ == nullptr)
+    {
+      owner_->setError(
+        EspBleError::ResourceExhausted,
+        "failed to allocate Classic Security state");
+      return false;
+    }
+  }
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    impl_->security = security;
+    impl_->numericComparisonCallbackConfigured =
+      static_cast<bool>(numericComparisonCallback_);
+    impl_->eventHead = 0;
+    impl_->eventCount = 0;
+    impl_->dropped = 0;
+    impl_->numericComparisonPending = false;
+    impl_->numericComparisonAddress = "";
+    memset(
+      impl_->numericComparisonBackendAddress, 0,
+      sizeof(impl_->numericComparisonBackendAddress));
+    impl_->numericComparisonDeadlineMs = 0;
+  }
+#if defined(CONFIG_BT_CLASSIC_ENABLED)
+  activeClassic.store(impl_, std::memory_order_release);
+#endif
+  if (!inquiry_.begin(deviceName))
+  {
+#if defined(CONFIG_BT_CLASSIC_ENABLED)
+    activeClassic.store(nullptr, std::memory_order_release);
+#endif
+    return false;
+  }
+#if defined(CONFIG_BT_CLASSIC_ENABLED)
+  esp_bt_io_cap_t capability = ESP_BT_IO_CAP_NONE;
+  if (
+    security.ioCapability ==
+    EspBluedroidClassicSecurityIoCapability::DisplayYesNo)
+  {
+    capability = ESP_BT_IO_CAP_IO;
+  }
+  if (esp_bt_gap_set_security_param(
+        ESP_BT_SP_IOCAP_MODE,
+        &capability, sizeof(capability)) != ESP_OK)
+  {
+    activeClassic.store(nullptr, std::memory_order_release);
+    inquiry_.end();
+    owner_->setError(
+      EspBleError::BackendFailure,
+      "failed to configure Classic Security I/O capability");
+    return false;
+  }
+#endif
   if (!spp_.begin())
   {
+#if defined(CONFIG_BT_CLASSIC_ENABLED)
+    activeClassic.store(nullptr, std::memory_order_release);
+#endif
     inquiry_.end();
     return false;
   }
@@ -2940,12 +3321,101 @@ bool EspBluedroidClassic::begin(const char *deviceName)
 
 void EspBluedroidClassic::end()
 {
+#if defined(CONFIG_BT_CLASSIC_ENABLED)
+  activeClassic.store(nullptr, std::memory_order_release);
+  esp_bd_addr_t pendingAddress = {};
+  bool pending = false;
+  if (impl_ != nullptr)
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    pending = impl_->numericComparisonPending;
+    memcpy(
+      pendingAddress, impl_->numericComparisonBackendAddress,
+      sizeof(pendingAddress));
+  }
+  if (pending)
+  {
+    esp_bt_gap_ssp_confirm_reply(pendingAddress, false);
+  }
+#endif
   spp_.end();
   inquiry_.end();
+  if (impl_ != nullptr)
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    impl_->eventHead = 0;
+    impl_->eventCount = 0;
+    impl_->dropped = 0;
+    impl_->security = EspBluedroidClassicSecurityConfig();
+    impl_->numericComparisonCallbackConfigured = false;
+    impl_->numericComparisonPending = false;
+    impl_->numericComparisonAddress = "";
+    memset(
+      impl_->numericComparisonBackendAddress, 0,
+      sizeof(impl_->numericComparisonBackendAddress));
+    impl_->numericComparisonDeadlineMs = 0;
+  }
 }
 
 void EspBluedroidClassic::update()
 {
+  if (impl_ != nullptr)
+  {
+#if defined(CONFIG_BT_CLASSIC_ENABLED)
+    esp_bd_addr_t timedOutAddress = {};
+    bool timedOut = false;
+    {
+      std::lock_guard<std::mutex> lock(impl_->mutex);
+      timedOut =
+        impl_->numericComparisonPending &&
+        static_cast<int32_t>(
+          millis() - impl_->numericComparisonDeadlineMs) >= 0;
+      if (timedOut)
+      {
+        memcpy(
+          timedOutAddress, impl_->numericComparisonBackendAddress,
+          sizeof(timedOutAddress));
+        impl_->numericComparisonPending = false;
+        impl_->numericComparisonAddress = "";
+        memset(
+          impl_->numericComparisonBackendAddress, 0,
+          sizeof(impl_->numericComparisonBackendAddress));
+        impl_->numericComparisonDeadlineMs = 0;
+      }
+    }
+    if (timedOut)
+    {
+      esp_bt_gap_ssp_confirm_reply(timedOutAddress, false);
+    }
+#endif
+    while (true)
+    {
+      EspBluedroidClassicImpl::Event event;
+      {
+        std::lock_guard<std::mutex> lock(impl_->mutex);
+        if (impl_->eventCount == 0) break;
+        event = std::move(impl_->events[impl_->eventHead]);
+        impl_->eventHead =
+          (impl_->eventHead + 1) %
+          ClassicSecurityEventQueueCapacity;
+        --impl_->eventCount;
+      }
+      if (
+        event.type ==
+          EspBluedroidClassicImpl::EventType::SecurityChanged &&
+        securityChangedCallback_)
+      {
+        securityChangedCallback_(event.securityChanged);
+      }
+      else if (
+        event.type ==
+          EspBluedroidClassicImpl::EventType::NumericComparison &&
+        numericComparisonCallback_)
+      {
+        numericComparisonCallback_(event.numericComparison);
+      }
+    }
+  }
   inquiry_.update();
   spp_.update();
 }
@@ -2967,7 +3437,9 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
   {
     if (activeDeviceName_ != deviceName ||
         activePreferredMtu_ != config.preferredMtu ||
-        !sameSecurityConfig(activeSecurity_, config.security))
+        !sameSecurityConfig(activeSecurity_, config.security) ||
+        !sameClassicSecurityConfig(
+          activeClassicSecurity_, config.classicSecurity))
     {
       setError(
         EspBleError::InvalidState,
@@ -2997,6 +3469,33 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
     setError(
       EspBleError::InvalidArgument,
       "enable BLE security before configuring MITM or a passkey");
+    return false;
+  }
+  if (
+    !config.classicSecurity.enabled &&
+    config.classicSecurity.ioCapability !=
+      EspBluedroidClassicSecurityIoCapability::None)
+  {
+    setError(
+      EspBleError::InvalidArgument,
+      "enable Classic Security before configuring its I/O capability");
+    return false;
+  }
+  if (
+    static_cast<uint8_t>(config.classicSecurity.ioCapability) >
+      static_cast<uint8_t>(
+        EspBluedroidClassicSecurityIoCapability::DisplayYesNo))
+  {
+    setError(
+      EspBleError::InvalidArgument,
+      "unsupported Classic Security I/O capability");
+    return false;
+  }
+  if (config.classicSecurity.responseTimeoutMilliseconds == 0)
+  {
+    setError(
+      EspBleError::InvalidArgument,
+      "Classic Security response timeout must be nonzero");
     return false;
   }
   if (static_cast<uint8_t>(config.security.ioCapability) >
@@ -3054,7 +3553,7 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
     setError(EspBleError::BackendFailure, "failed to set preferred MTU");
     return false;
   }
-  if (!classic_.begin(deviceName))
+  if (!classic_.begin(deviceName, config.classicSecurity))
   {
     BLEDevice::deinit(false);
     delete connectionImpl_;
@@ -3126,6 +3625,7 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
   activeDeviceName_ = deviceName;
   activePreferredMtu_ = config.preferredMtu;
   activeSecurity_ = config.security;
+  activeClassicSecurity_ = config.classicSecurity;
   initialized_ = true;
   clearError();
   return true;
@@ -3175,6 +3675,7 @@ void EspBleBluedroid::end()
   BLESecurity::setForceAuthentication(false);
   BLEDevice::deinit(false);
   initialized_ = false;
+  activeClassicSecurity_ = EspBluedroidClassicSecurityConfig();
   delete connectionImpl_;
   connectionImpl_ = nullptr;
 }

@@ -12,8 +12,9 @@ Read / Write / Notification購読の
 検証しています。LE Secure Connections Just Works、静的・実行時passkey MITM、
 Numeric Comparison、bondの保存・列挙・削除も実装済みです。Bluetooth Classicは
 capability snapshotと`classic().inquiry()`を実装しています。SPPはClient/Server共通の
-session、binary-safeな双方向data、切断・再接続まで利用でき、Securityや他profileは
-今後テストファーストで追加します。
+session、binary-safeな双方向data、Arduino `Stream`ラッパー、切断・再接続、
+SSP Numeric Comparisonによる認証・暗号化まで利用できます。他profileは今後も
+テストファーストで追加します。
 
 ## 現在のテスト範囲
 
@@ -30,6 +31,7 @@ peerテストでは次を確認します。
 - 2台のSerial出力をpytestから検証
 - 公開APIによるAdvertising/Scanと、`update()` contextからのcallback配送
 - Classic capabilityとInquiry、name / Class of Device / RSSI、停止完了
+- Classic SPP Client/Server、Stream API、SSP拒否・retry・認証暗号化data
 
 セットアップと実行方法は[tests/README.ja.md](tests/README.ja.md)を参照してください。
 
@@ -49,5 +51,5 @@ arduino-cli compile --profile esp32 examples/CompileSmoke
 ## 対象
 
 - SoC: Classic Bluetoothを搭載する無印ESP32
-- Arduino-ESP32: 3.3.10
+- Arduino-ESP32: 3.3.11
 - BLE backend: Bluedroid（NimBLE buildはテスト内で拒否します）

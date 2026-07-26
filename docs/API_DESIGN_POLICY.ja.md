@@ -11,7 +11,7 @@ Bluetoothライブラリとする。BLE接続後の使い勝手は兄弟ライ�
 避けることを、表面的な一致より優先する。
 
 この方針は2026-07-22時点のEspBle公開ヘッダーと設計文書、および
-Arduino-ESP32 3.3.10同梱のBLE/BluetoothSerial APIと無印ESP32 build設定を
+Arduino-ESP32 3.3.11同梱のBLE/BluetoothSerial APIと無印ESP32 build設定を
 確認して作成した。具体的なsignatureは実装とPeerテストを追加する段階で確定する。
 
 ## EspBleから引き継ぐ設計
@@ -202,7 +202,7 @@ capability snapshotを用意する。少なくとも次を区別する。
 Classic、dual-mode、Classic Inquiry、Classic SPPの実装可否をboolで返す。
 compile-timeで利用できても未実装のprofileは`false`とし、利用可能と誤認させない。
 
-Arduino-ESP32 3.3.10の現在の無印ESP32 buildでは、Bluedroid、BLE GATT、SPP、
+Arduino-ESP32 3.3.11の現在の無印ESP32 buildでは、Bluedroid、BLE GATT、SPP、
 A2DP、AVRCP、HFPが有効で、BLE最大接続数、Classic ACL数、GATT attribute数などに
 build-time上限がある。ただし、これらの値をEspBleBluedroidの保証値として固定しない。
 Core更新、同時利用profile、heap残量で実用上限が変わるため、capability/diagnosticと
@@ -210,7 +210,7 @@ Core更新、同時利用profile、heap残量で実用上限が変わるため�
 
 ## BluedroidによるBLE差分の扱い
 
-Arduino-ESP32 3.3.10の同梱BLE APIはBluedroid/NimBLEで共通化されているが、完全に
+Arduino-ESP32 3.3.11の同梱BLE APIはBluedroid/NimBLEで共通化されているが、完全に
 同一ではない。少なくとも次をbackend adapterで吸収または明示する。
 
 | 領域 | 方針 |
@@ -247,6 +247,15 @@ callbackの待機上限は同じく30秒で、時間切れは拒否として扱�
 mailboxへ受理したことを意味し、pairing結果は`onSecurityChanged()`で確定する。
 明示拒否後もBluedroidはBLE linkを維持するため、認証失敗と切断は別イベントとして
 扱い、link終了が必要なapplicationは`disconnect()`を明示的に要求する。
+
+Classic SSPはLE Securityとは別のevent型を使う。I/O capabilityと比較UIは
+`EspBleConfig::classicSecurity`でClassic profile間に共有し、認証・暗号化を必須に
+するかはSPPなど各profileのconfigで指定する。DisplayYesNoの比較requestは
+`classic().onNumericComparisonRequested()`へ`update()`から配送し、
+`classic().confirmNumericComparison()`で回答する。未回答は設定timeout後に拒否する。
+認証結果はsession成立前にも発生するため、profile session eventへ埋め込まず
+`EspBluedroidClassicSecurityChanged`でpeer address単位に通知する。成立したSPP session
+には、要求を満たしたことを示す`authenticated`と`encrypted`をsnapshotする。
 
 Passkey EntryまたはNumeric Comparisonの同期callback待機中に`disconnect()`や`end()`が
 要求された場合は、mailbox待機をcancelしてbackendへ拒否を返す。これにより30秒timeout
@@ -303,8 +312,9 @@ Classic対応は「buildで有効だから一括公開」せず、profileごと�
 
 1. Classic capabilityとInquiry。BLE Scanとの差を確定する。（実装済み）
 2. SPP。Client/Server session、双方向data、切断、再接続、Securityを検証する。
-   Client/Server session、双方向data、切断、再接続、固定長receive bufferは実装済み。
-   Securityは未実装。
+   Client/Server session、双方向data、切断、再接続、固定長receive buffer、
+   DisplayYesNo SSP Serverの拒否・retry・認証暗号化dataは実装済み。
+   Classic bond管理とsecure Clientの独立peerテストは未実装。
 3. BLEとSPPのdual-mode同時利用。resource競合とevent starvationを検証する。
    BLE Scan中のSPP binary trafficは実装・確認済み。GATT/SPP同時trafficは未確認。
 4. Classic HID Host/Device。HOGPと共有できるusage/report codecだけを共通化する。

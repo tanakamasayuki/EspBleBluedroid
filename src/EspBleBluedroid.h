@@ -42,11 +42,26 @@ struct EspBleSecurityConfig
   uint32_t staticPasskey = 0;
 };
 
+enum class EspBluedroidClassicSecurityIoCapability : uint8_t
+{
+  None = 0,
+  DisplayYesNo,
+};
+
+struct EspBluedroidClassicSecurityConfig
+{
+  bool enabled = false;
+  EspBluedroidClassicSecurityIoCapability ioCapability =
+    EspBluedroidClassicSecurityIoCapability::None;
+  uint32_t responseTimeoutMilliseconds = 30000;
+};
+
 struct EspBleConfig
 {
   const char *deviceName = "EspBleBluedroid";
   uint16_t preferredMtu = 23;
   EspBleSecurityConfig security;
+  EspBluedroidClassicSecurityConfig classicSecurity;
 };
 
 struct EspBleScanConfig
@@ -239,10 +254,18 @@ struct EspBluedroidClassicInquiryComplete
 
 using EspBluedroidSppSessionId = uint32_t;
 
+enum class EspBluedroidSppSecurity : uint8_t
+{
+  None = 0,
+  Authenticate,
+  AuthenticatedEncrypted,
+};
+
 struct EspBluedroidSppServerConfig
 {
   const char *serviceName = "EspBleBluedroid SPP";
   uint8_t channel = 0;
+  EspBluedroidSppSecurity security = EspBluedroidSppSecurity::None;
 };
 
 struct EspBluedroidSppSession
@@ -250,6 +273,21 @@ struct EspBluedroidSppSession
   EspBluedroidSppSessionId id = 0;
   String peerAddress;
   bool incoming = false;
+  bool authenticated = false;
+  bool encrypted = false;
+};
+
+struct EspBluedroidClassicSecurityChanged
+{
+  String peerAddress;
+  bool success = false;
+  int status = 0;
+};
+
+struct EspBluedroidClassicNumericComparison
+{
+  String peerAddress;
+  uint32_t value = 0;
 };
 
 struct EspBluedroidSppData
@@ -270,6 +308,7 @@ struct EspBleScannerImpl;
 struct EspBleConnectionImpl;
 struct EspBluedroidClassicInquiryImpl;
 struct EspBluedroidSppImpl;
+struct EspBluedroidClassicImpl;
 
 class EspBleAdvertising
 {
@@ -391,7 +430,8 @@ public:
   void onConnectionFailed(ConnectionFailureCallback callback);
   bool connect(
     const char *address,
-    uint32_t timeoutMilliseconds = 10000);
+    uint32_t timeoutMilliseconds = 10000,
+    EspBluedroidSppSecurity security = EspBluedroidSppSecurity::None);
   bool startServer(
     const EspBluedroidSppServerConfig &config =
       EspBluedroidSppServerConfig());
@@ -474,19 +514,35 @@ private:
 class EspBluedroidClassic
 {
 public:
+  using SecurityChangedCallback =
+    std::function<void(const EspBluedroidClassicSecurityChanged &event)>;
+  using NumericComparisonCallback =
+    std::function<void(const EspBluedroidClassicNumericComparison &event)>;
+
   EspBluedroidClassicInquiry &inquiry();
   EspBluedroidSpp &spp();
+  void onSecurityChanged(SecurityChangedCallback callback);
+  void onNumericComparisonRequested(NumericComparisonCallback callback);
+  bool confirmNumericComparison(const char *peerAddress, bool accept);
 
 private:
   friend class EspBleBluedroid;
+  friend struct EspBluedroidClassicImpl;
 
   explicit EspBluedroidClassic(EspBleBluedroid *owner);
-  bool begin(const char *deviceName);
+  ~EspBluedroidClassic();
+  bool begin(
+    const char *deviceName,
+    const EspBluedroidClassicSecurityConfig &security);
   void end();
   void update();
 
+  EspBleBluedroid *owner_;
   EspBluedroidClassicInquiry inquiry_;
   EspBluedroidSpp spp_;
+  SecurityChangedCallback securityChangedCallback_;
+  NumericComparisonCallback numericComparisonCallback_;
+  EspBluedroidClassicImpl *impl_ = nullptr;
 };
 
 class EspBleBluedroid
@@ -676,6 +732,7 @@ public:
 private:
   friend class EspBleAdvertising;
   friend class EspBleScanner;
+  friend class EspBluedroidClassic;
   friend class EspBluedroidClassicInquiry;
   friend class EspBluedroidSpp;
 
@@ -717,6 +774,7 @@ private:
   String activeDeviceName_;
   uint16_t activePreferredMtu_ = 23;
   EspBleSecurityConfig activeSecurity_;
+  EspBluedroidClassicSecurityConfig activeClassicSecurity_;
   EspBleError lastError_ = EspBleError::None;
   String lastErrorDetail_;
 };

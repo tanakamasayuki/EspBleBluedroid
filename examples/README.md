@@ -18,6 +18,7 @@
 | Classic | [SppServer](Classic/SppServer/README.md) | Binary-safe SPP Server sessions with deferred connect, data, and disconnect callbacks |
 | Classic | [SppClient](Classic/SppClient/README.md) | Asynchronous SDP/RFCOMM connection using the shared SPP session API |
 | Classic | [SppStream](Classic/SppStream/README.md) | Arduino `Stream`/`Print` wrapper for an established SPP session |
+| Classic | [SppSecurity](Classic/SppSecurity/README.md) | SSP Numeric Comparison with authenticated and encrypted SPP |
 | Dual mode | [ScanWhileSpp](DualMode/ScanWhileSpp/README.md) | Active BLE Scan while a Classic SPP session remains connected |
 
 Public features are implemented test-first, then documented with an example.

@@ -65,3 +65,7 @@ and buffer invalidation on disconnect against a 2300-byte raw ESP-IDF burst.
 Arduino `Stream`, including `Print` text/number output, CRLF, binary writes,
 automatic 990-byte write chunking, `readBytes()`, `availableForWrite()`,
 `flush()`, invalid attachment, and automatic disconnected behavior.
+`peer/spp_security` verifies DisplayYesNo SSP against a raw ESP-IDF client:
+matching six-digit values, explicit rejection, authentication failure,
+rediscovery and retry, authenticated/encrypted session state, deferred Classic
+Security callbacks, and binary data after successful pairing.

@@ -30,3 +30,7 @@
 - (JA) Stream風readとoverflow診断を備えた2048 byte固定長SPP受信ringを追加。
 - (EN) Add an Arduino Stream/Print wrapper for established SPP sessions.
 - (JA) 確立済みSPP session用Arduino Stream/Printラッパーを追加。
+- (EN) Add Classic SSP Numeric Comparison and authenticated/encrypted SPP.
+- (JA) Classic SSP Numeric Comparisonと認証・暗号化SPPを追加。
+- (EN) Move the primary build and hardware-test baseline to Arduino-ESP32 3.3.11.
+- (JA) 主build・実機テスト基準をArduino-ESP32 3.3.11へ更新。

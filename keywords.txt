@@ -15,6 +15,11 @@ EspBluedroidClassicInquiryComplete	KEYWORD1
 EspBluedroidClassicInquiryResult	KEYWORD1
 EspBluedroidSpp	KEYWORD1
 EspBluedroidSppStream	KEYWORD1
+EspBluedroidSppSecurity	KEYWORD1
+EspBluedroidClassicSecurityConfig	KEYWORD1
+EspBluedroidClassicSecurityIoCapability	KEYWORD1
+EspBluedroidClassicSecurityChanged	KEYWORD1
+EspBluedroidClassicNumericComparison	KEYWORD1
 EspBluedroidSppData	KEYWORD1
 EspBluedroidSppConnectionFailure	KEYWORD1
 EspBluedroidSppServerConfig	KEYWORD1
@@ -44,6 +49,9 @@ detach	KEYWORD2
 connected	KEYWORD2
 availableForWrite	KEYWORD2
 flush	KEYWORD2
+onSecurityChanged	KEYWORD2
+onNumericComparisonRequested	KEYWORD2
+confirmNumericComparison	KEYWORD2
 connect	KEYWORD2
 disconnect	KEYWORD2
 onConnected	KEYWORD2
