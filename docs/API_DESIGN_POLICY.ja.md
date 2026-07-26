@@ -199,6 +199,49 @@ byte数、成否、共通error/detailを保持する。同期的に受付拒否�
 `EspBluedroidSppSerial::flush()`はbackend完了まで待つが、利用者callbackの配送までは
 待たず、callback配送には引き続き`update()`が必要である。
 
+### SPP複数session拡張境界
+
+初期版はpendingまたはactiveなSPP sessionを1つに制限する。この制限を将来緩和しても、
+session IDを引数に取る`write()`、`available()`、`peek()`、`read()`、`disconnect()`を
+SPP data pathの正本とし、Server/Clientで別のsession型へ分岐させない。
+`EspBluedroidSppSession::incoming`は接続方向を示すsnapshotであり、接続後のI/O APIを
+分ける条件にはしない。
+
+複数session対応時は次の規則を守る。
+
+- active session間でsession IDを重複させず、切断後のIDを同じlifecycle内で意図的に
+  再利用しない。ID counterがwrapした場合はactive IDとの衝突を検査し、一意なIDを
+  発行できなければ新規sessionを拒否する。すべてのdata、write完了、切断eventは
+  session IDを保持する。
+- RX ringと送信queueはsession単位に分離する。1 sessionの受信overflowや大量writeが
+  他sessionのbufferを破棄しない。session IDなしのdrop/pending取得APIは全sessionの
+  集計値として残し、必要になった時点でsession指定overloadを追加する。
+- 最大session数とsessionごとのring/queue容量はcompile-time上限またはcapabilityとして
+  明示する。PSRAMなしで保証できる既定値を持ち、満杯時は既存sessionを追い出さず
+  新規接続またはwriteを明示的に拒否する。
+- backendへの送信開始はactive session間でround-robin等のbounded fairnessを持たせる。
+  1 sessionが送信queueを埋め続けても、別sessionの受理済みwriteと切断などの制御eventを
+  starvationさせない。
+
+rootだけを受け取る`EspBluedroidSppSerial`は、複数session対応後も単一Stream用の
+automatic sticky adapterとする。未選択時にactive sessionがちょうど1つならそれを選び、
+選択sessionが接続中は新しいsessionが成立しても切り替えない。選択sessionの切断後は
+選択を解除し、active sessionが再び1つに確定した時だけ自動追従する。active sessionが
+複数あって選択を一意に決められない間は、`connected()`をfalse、`sessionId()`を0、
+read/writeを未接続時と同じ結果にする。これにより1回の`readBytes()`や分割writeの途中で
+別peerのdata pathへ切り替わることを防ぐ。
+
+複数sessionを同時にArduino `Stream`として扱う必要が確認できた場合は、session IDへ
+明示bindする別adapter型を追加する。automatic adapterへ`attach()` / `detach()`を追加して
+2つの選択規則を混在させない。別adapterもsessionやstackを所有せず、対象session切断後は
+無効になる。型名と生成方法はpeerテスト用例が成立してから確定し、初期版へ予約APIだけを
+追加しない。
+
+実装開始条件は、同一Serverへの2接続またはServer/Client同時sessionを再現できるpeer
+fixtureを用意し、session別RX分離、write完了、片側切断、送信fairness、`end()`時cleanupを
+先に失敗するテストとして記述できることである。Arduino-ESP32/Bluedroid側の実用上限が
+再現できない場合は公開上限を増やさず、単一session制限を維持する。
+
 ## Errorとcapability
 
 BLE共通面のerror分類はEspBleの`None`、`InvalidState`、`InvalidArgument`、

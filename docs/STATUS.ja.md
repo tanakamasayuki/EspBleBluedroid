@@ -116,7 +116,9 @@ CCCD購読、notificationまで確認している。
   比較確認の未回答は既定30秒で拒否する。
   Classic bondは`EspBluedroidClassicBond`としてBLE bond storeから分離し、
   `classic().bondCount()` / `bond()` / `deleteBond()` / `deleteAllBonds()`で管理する。
-  複数sessionは未実装。
+  複数sessionは未実装。将来拡張時のsession別resource、fairness、自動Serialのsticky選択、
+  明示session adapterとの分離は
+  [API設計方針](API_DESIGN_POLICY.ja.md#spp複数session拡張境界)で定義している。
 - BLE ScanおよびBLE GATT接続・ATT trafficとSPP session/dataの同時利用は確認済み。
   64→128→256 Notificationのbounded burstを同じ接続・購読上で段階的に実行し、
   roundごとにBLE event queueのdropを含む全件を集計して配送済み通知のSPP往復と
@@ -129,6 +131,7 @@ CCCD購読、notificationまで確認している。
 ## 次のテストスライス
 
 1. BLE GATT/SPP dual-modeの長時間soakとround境界なしの連続飽和時fairness。
-2. SPP複数sessionの設計。
+2. SPP複数sessionを再現できるbackend成立性とpeer fixtureの調査。公開実装は、session別
+   RX/write/fairness/cleanupを失敗するテストとして先に固定できた場合だけ開始する。
 
 各項目は失敗するunitまたはpeerテストを先に追加してから実装する。

@@ -61,3 +61,8 @@
   双方向・未回答timeout・遅延入力拒否・入力待ち終了・retry実機テストを追加。
 - (EN) Move the primary build and hardware-test baseline to Arduino-ESP32 3.3.11.
 - (JA) 主build・実機テスト基準をArduino-ESP32 3.3.11へ更新。
+- (EN) Define the future multi-session SPP boundary: per-session resources and
+  fairness, sticky automatic Serial selection, and a separate explicit-session
+  Stream adapter.
+- (JA) 将来のSPP複数session拡張について、session別resourceとfairness、stickyな
+  自動Serial選択、明示session用Stream adapterの分離方針を定義。
