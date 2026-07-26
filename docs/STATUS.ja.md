@@ -22,7 +22,7 @@
 | Classic SPP Client | `classic().spp().connect()` / connection failure / 共通session API | non-blocking SDP/RFCOMM接続、共通RX ring、送信完了、local切断、再接続ID、timeout |
 | Classic SPP Serial | `EspBluedroidSppSerial` | rootへbindしてServer/Clientのactive sessionへ自動追従、`Stream`/`Print`、`readBytes()`、`flush()` |
 | Classic Security | Numeric Comparison / Passkey Entry / SPP security mode / `classic().bond*()` | DisplayOnly/KeyboardOnly、比較値、明示回答、Client/Server認証失敗後retry、bond再接続・列挙・削除、認証・暗号化SPP data |
-| BLE/SPP dual mode | active BLE Scan・GATT Client + active SPP session | Discovery、Read/Write、Notification、64通知×3連続bounded burst、round別drop集計、配送済み通知のSPP往復、GATT完了優先配送、停止・切断 |
+| BLE/SPP dual mode | active BLE Scan・GATT Client + active SPP session | Discovery、Read/Write、Notification、64→128→256通知の段階的bounded burst、round別drop集計、配送済み通知のSPP往復、GATT完了優先配送、停止・切断 |
 
 AdvertisingとScanの基本経路は`tests/peer/advertise_scan`、Advertising wire形式と
 payload境界は`tests/peer/advertise_payload`で実機確認している。Scanはduration停止、
@@ -51,11 +51,11 @@ Classic Passkeyは`tests/peer/spp_passkey`でpublic KeyboardOnlyとraw DisplayOn
 できることも確認している。
 dual modeは`tests/peer/dual_mode_scan_spp`でSPP session中のactive BLE Scan、
 BLE Central接続、GATT Discovery / Characteristic Read・Write / Notificationと、
-64件のNotification burstを同じ接続・購読上で3回連続してSPP binary往復へ接続している。
-各roundでBLE event queueから配送された通知はすべてSPP peerの受信・応答と公開RX ringの
-packet数・byte数まで一致し、SPP write/RX dropとapplication pendingは0になる。burst中に
-BLE event queueが飽和した場合も、各roundの配送数と`droppedEventCount()`増分の合計が
-送信64件に一致し、欠落を明示的に観測する。
+64、128、256件のNotification burstを同じ接続・購読上で段階的にSPP binary往復へ
+接続している。各roundでBLE event queueから配送された通知はすべてSPP peerの受信・
+応答と公開RX ringのpacket数・byte数まで一致し、SPP write/RX dropとapplication
+pendingは0になる。burst中にBLE event queueが飽和した場合も、各roundの配送数と
+`droppedEventCount()`増分の合計が送信数に一致し、欠落を明示的に観測する。
 加えて8件のBLE connection event queueをNotificationで満杯にした状態へGATT完了を
 決定的に注入し、最古のNotification 1件をdropしてGATT完了を保持・配送することを確認した。
 `tests/peer/stack_smoke`は、公開API実装前のbackend成立性として接続、GATT read/write、
@@ -118,11 +118,11 @@ CCCD購読、notificationまで確認している。
   `classic().bondCount()` / `bond()` / `deleteBond()` / `deleteAllBonds()`で管理する。
   複数sessionは未実装。
 - BLE ScanおよびBLE GATT接続・ATT trafficとSPP session/dataの同時利用は確認済み。
-  64 Notificationのbounded burstを同じ接続・購読上で3回連続実行し、roundごとに
-  BLE event queueのdropを含む全件を集計して配送済み通知のSPP往復とRX ring保持を
-  確認している。BLE connection event queue満杯時はNotificationより接続・Security・
-  GATT完了などの制御eventを優先する。長時間soakとround境界なしの連続飽和状態での
-  fairnessは未確認。
+  64→128→256 Notificationのbounded burstを同じ接続・購読上で段階的に実行し、
+  roundごとにBLE event queueのdropを含む全件を集計して配送済み通知のSPP往復と
+  RX ring保持を確認している。BLE connection event queue満杯時はNotificationより
+  接続・Security・GATT完了などの制御eventを優先する。長時間soakとround境界なしの
+  連続飽和状態でのfairnessは未確認。
 - GATT Server、HIDおよびSPP以外のClassic profileは公開API未実装。
 - Advertisingの時間指定停止は`update()`で処理するため、継続的な`update()`呼出しが必要。
 

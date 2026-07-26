@@ -28,11 +28,11 @@
   sustained SPP round trips on one dual-mode stack.
 - (JA) 1つのdual-mode stack上でGATT Discovery・Characteristic通信・Notificationと
   継続的なSPP往復を検証。
-- (EN) Add three consecutive bounded 64-notification dual-mode saturation
-  rounds with per-round BLE event-drop accounting and lossless SPP receive-ring
-  checks for delivered data.
-- (JA) 同一接続上の64通知×3 roundのbounded dual-mode飽和試験を追加し、round別の
-  BLE event drop集計と配送済みdataのSPP受信ring保持を検証。
+- (EN) Add consecutive 64/128/256-notification dual-mode saturation rounds
+  with per-round BLE event-drop accounting and lossless SPP receive-ring checks
+  for delivered data.
+- (JA) 同一接続上の64/128/256通知による段階的なdual-mode飽和試験を追加し、
+  round別BLE event drop集計と配送済みdataのSPP受信ring保持を検証。
 - (EN) Preserve BLE connection-control and GATT-completion events by evicting
   the oldest notification when the shared bounded queue is full.
 - (JA) BLE connection event queue満杯時は最古のNotificationを退避し、接続制御・

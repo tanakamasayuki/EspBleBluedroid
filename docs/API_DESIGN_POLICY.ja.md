@@ -343,10 +343,10 @@ Classic対応は「buildで有効だから一括公開」せず、profileごと�
    保存link keyによるsecure再接続は実装・実機確認済み。
 3. BLEとSPPのdual-mode同時利用。resource競合とevent starvationを検証する。
    BLE ScanとGATT Discovery / Read / Write / Notification中のSPP binary trafficを
-   実装・確認済み。64 Notificationのbounded burstを同じ接続・購読上で3回連続実行し、
-   各roundのBLE event dropを明示集計して配送済み通知のSPP往復とRX ring保持を確認済み。
-   満杯時のGATT完了優先配送も決定的に確認済み。長時間soakとround境界なしの
-   連続飽和時fairnessは未確認。
+   実装・確認済み。同じ接続・購読上で64、128、256 Notificationのbounded burstを
+   段階的に実行し、各roundのBLE event dropを明示集計して配送済み通知のSPP往復と
+   RX ring保持を確認済み。満杯時のGATT完了優先配送も決定的に確認済み。
+   長時間soakとround境界なしの連続飽和時fairnessは未確認。
 4. Classic HID Host/Device。HOGPと共有できるusage/report codecだけを共通化する。
 5. A2DP/AVRCP。audio data pathとcontrol eventを分離して設計する。
 6. HFP。同期音声linkを含むため、別途resource/latency設計を行う。

@@ -79,9 +79,13 @@ def test_ble_gatt_and_spp_data_share_dual_mode_stack(dut, peers):
         timeout=30,
     )
 
-    for round_index in range(3):
-        peer.write("t64\n")
-        peer.expect_exact("DUAL_PEER_TRAFFIC_STARTED count=64", timeout=30)
+    traffic_counts = (64, 128, 256)
+    for round_index, traffic_count in enumerate(traffic_counts):
+        peer.write(f"t{traffic_count}\n")
+        peer.expect_exact(
+            f"DUAL_PEER_TRAFFIC_STARTED count={traffic_count}",
+            timeout=30,
+        )
         peer.expect_exact("DUAL_PEER_TRAFFIC_SENT", timeout=30)
         peer_responses = peer.expect(
             re.compile(
@@ -91,9 +95,9 @@ def test_ble_gatt_and_spp_data_share_dual_mode_stack(dut, peers):
         )
         peer_received = int(peer_responses.group(1))
         assert peer_received == int(peer_responses.group(2))
-        assert 0 < peer_received <= 64
+        assert 0 < peer_received <= traffic_count
 
-        final_round = round_index == 2
+        final_round = round_index == len(traffic_counts) - 1
         dut.write("q" if final_round else "r")
         traffic = dut.expect(
             re.compile(
@@ -112,7 +116,7 @@ def test_ble_gatt_and_spp_data_share_dual_mode_stack(dut, peers):
         callback_count = int(traffic.group(5))
         dropped_ble_event_count = int(traffic.group(6))
         dropped_spp_event_count = int(traffic.group(7))
-        assert notification_count + dropped_ble_event_count == 64
+        assert notification_count + dropped_ble_event_count == traffic_count
         assert notification_count == peer_received
         assert ring_packet_count == peer_received
         assert ring_byte_count == peer_received * 3
