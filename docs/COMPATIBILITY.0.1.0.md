@@ -16,8 +16,8 @@ Legend: ✅ builds · ❌ fails · — example absent in this version · · not 
 | Classic Inquiry (`Classic/Inquiry`) | ✅ |
 | Classic SPP Server (`Classic/SppServer`) | ✅ |
 | Classic SPP Client (`Classic/SppClient`) | ✅ |
-| Classic SPP Stream (`Classic/SppStream`) | ✅ |
+| Classic SPP Serial Server (`Classic/SppSerialServer`) | ✅ |
+| Classic SPP Serial Client (`Classic/SppSerialClient`) | ✅ |
 | Classic SPP Security (`Classic/SppSecurity`) | ✅ |
 | Classic SPP Passkey (`Classic/SppPasskey`) | ✅ |
 | Dual Scan/SPP (`DualMode/ScanWhileSpp`) | ✅ |
-

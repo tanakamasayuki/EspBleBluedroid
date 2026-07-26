@@ -28,12 +28,20 @@ def test_public_spp_client_uses_shared_session_api(dut, peers):
         connected = dut.expect(
             re.compile(
                 rb"SPP_CLIENT_CONNECTED id=(\d+) "
-                rb"address=([0-9a-f:]{17}) incoming=0 context=loop"
+                rb"address=([0-9a-f:]{17}) incoming=0 "
+                rb"stream=1 stream_id=(\d+) context=loop"
             ),
             timeout=30,
         )
-        session_ids.append(int(connected.group(1)))
+        session_id = int(connected.group(1))
+        assert int(connected.group(3)) == session_id
+        session_ids.append(session_id)
         dut.expect_exact("SPP_CLIENT_WRITE_ACCEPTED 1", timeout=30)
+        dut.expect_exact(
+            f"SPP_CLIENT_WRITE_COMPLETED id={session_ids[-1]} length=3 "
+            "success=1 error=0 context=loop",
+            timeout=30,
+        )
         dut.expect(
             re.compile(
                 rb"SPP_CLIENT_RX id=(\d+) length=3 hex=010052 "
@@ -50,7 +58,7 @@ def test_public_spp_client_uses_shared_session_api(dut, peers):
         dut.expect(
             re.compile(
                 rb"SPP_CLIENT_DISCONNECTED id=(\d+) remaining=0 "
-                rb"context=loop"
+                rb"stream=0 stream_id=0 context=loop"
             ),
             timeout=30,
         )

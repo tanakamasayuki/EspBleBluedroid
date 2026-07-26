@@ -314,6 +314,15 @@ struct EspBluedroidSppData
   String value;
 };
 
+struct EspBluedroidSppWriteResult
+{
+  EspBluedroidSppSessionId sessionId = 0;
+  size_t length = 0;
+  bool success = false;
+  EspBleError error = EspBleError::None;
+  String detail;
+};
+
 struct EspBluedroidSppConnectionFailure
 {
   String peerAddress;
@@ -438,6 +447,8 @@ public:
   using SessionCallback =
     std::function<void(const EspBluedroidSppSession &session)>;
   using DataCallback = std::function<void(const EspBluedroidSppData &event)>;
+  using WriteCompletedCallback =
+    std::function<void(const EspBluedroidSppWriteResult &result)>;
   using ConnectionFailureCallback =
     std::function<void(const EspBluedroidSppConnectionFailure &failure)>;
 
@@ -445,6 +456,7 @@ public:
   void onConnected(SessionCallback callback);
   void onDisconnected(SessionCallback callback);
   void onData(DataCallback callback);
+  void onWriteCompleted(WriteCompletedCallback callback);
   void onConnectionFailed(ConnectionFailureCallback callback);
   bool connect(
     const char *address,
@@ -482,6 +494,7 @@ public:
 
 private:
   friend class EspBluedroidClassic;
+  friend class EspBluedroidSppSerial;
   friend struct EspBluedroidSppImpl;
 
   explicit EspBluedroidSpp(EspBleBluedroid *owner);
@@ -495,22 +508,16 @@ private:
   SessionCallback connectedCallback_;
   SessionCallback disconnectedCallback_;
   DataCallback dataCallback_;
+  WriteCompletedCallback writeCompletedCallback_;
   ConnectionFailureCallback connectionFailedCallback_;
   EspBluedroidSppImpl *impl_ = nullptr;
 };
 
-class EspBluedroidSppStream : public Stream
+class EspBluedroidSppSerial : public Stream
 {
 public:
-  EspBluedroidSppStream() = default;
-  EspBluedroidSppStream(
-    EspBluedroidSpp &spp,
-    EspBluedroidSppSessionId sessionId);
+  explicit EspBluedroidSppSerial(EspBleBluedroid &bluetooth);
 
-  bool attach(
-    EspBluedroidSpp &spp,
-    EspBluedroidSppSessionId sessionId);
-  void detach();
   bool connected() const;
   explicit operator bool() const;
   EspBluedroidSppSessionId sessionId() const;
@@ -525,8 +532,9 @@ public:
   using Print::write;
 
 private:
-  EspBluedroidSpp *spp_ = nullptr;
-  EspBluedroidSppSessionId sessionId_ = 0;
+  EspBluedroidSppSessionId resolvedSessionId() const;
+
+  EspBluedroidSpp &spp_;
 };
 
 class EspBluedroidClassic

@@ -14,7 +14,7 @@ EspBluedroidClassicInquiryConfig	KEYWORD1
 EspBluedroidClassicInquiryComplete	KEYWORD1
 EspBluedroidClassicInquiryResult	KEYWORD1
 EspBluedroidSpp	KEYWORD1
-EspBluedroidSppStream	KEYWORD1
+EspBluedroidSppSerial	KEYWORD1
 EspBluedroidSppSecurity	KEYWORD1
 EspBluedroidClassicSecurityConfig	KEYWORD1
 EspBluedroidClassicSecurityIoCapability	KEYWORD1
@@ -24,6 +24,7 @@ EspBluedroidClassicBond	KEYWORD1
 EspBluedroidClassicPasskeyDisplayed	KEYWORD1
 EspBluedroidClassicPasskeyRequested	KEYWORD1
 EspBluedroidSppData	KEYWORD1
+EspBluedroidSppWriteResult	KEYWORD1
 EspBluedroidSppConnectionFailure	KEYWORD1
 EspBluedroidSppServerConfig	KEYWORD1
 EspBluedroidSppSession	KEYWORD1
@@ -43,13 +44,13 @@ startServer	KEYWORD2
 stopServer	KEYWORD2
 pendingWriteCount	KEYWORD2
 droppedWriteCount	KEYWORD2
+onWriteCompleted	KEYWORD2
 available	KEYWORD2
 peek	KEYWORD2
 read	KEYWORD2
 droppedReceiveByteCount	KEYWORD2
-attach	KEYWORD2
-detach	KEYWORD2
 connected	KEYWORD2
+sessionId	KEYWORD2
 availableForWrite	KEYWORD2
 flush	KEYWORD2
 onSecurityChanged	KEYWORD2

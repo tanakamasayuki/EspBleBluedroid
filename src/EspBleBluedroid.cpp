@@ -534,6 +534,7 @@ struct EspBluedroidSppImpl
     Connected,
     Disconnected,
     Data,
+    WriteCompleted,
     ConnectionFailed,
   };
 
@@ -542,6 +543,7 @@ struct EspBluedroidSppImpl
     EventType type = EventType::ServerStarted;
     EspBluedroidSppSession session;
     EspBluedroidSppData data;
+    EspBluedroidSppWriteResult writeResult;
     EspBluedroidSppConnectionFailure failure;
   };
 
@@ -582,6 +584,7 @@ struct EspBluedroidSppImpl
   size_t droppedWrites = 0;
   bool txInFlight = false;
   bool txCongested = false;
+  std::atomic<bool> writeCompletionEventsEnabled{false};
   uint8_t rxBuffer[EspBluedroidSpp::ReceiveBufferCapacity] = {};
   size_t rxHead = 0;
   size_t rxCount = 0;
@@ -633,16 +636,30 @@ void startNextSppWrite(EspBluedroidSppImpl *impl)
     length = value.length();
     impl->txInFlight = true;
   }
-  if (esp_spp_write(handle, length, data) != ESP_OK)
+  const esp_err_t status = esp_spp_write(handle, length, data);
+  if (status != ESP_OK)
   {
+    EspBluedroidSppWriteResult result;
     {
       std::lock_guard<std::mutex> lock(impl->mutex);
+      result.sessionId = impl->activeSession.id;
+      result.length = length;
+      result.error = EspBleError::BackendFailure;
+      result.detail =
+        String("SPP write start failed: ") + String(status);
       impl->txQueue[impl->txHead] = "";
       impl->txHead =
         (impl->txHead + 1) % EspBluedroidSpp::WriteQueueCapacity;
       --impl->txCount;
       ++impl->droppedWrites;
       impl->txInFlight = false;
+    }
+    if (impl->writeCompletionEventsEnabled.load(std::memory_order_acquire))
+    {
+      EspBluedroidSppImpl::Event queued;
+      queued.type = EspBluedroidSppImpl::EventType::WriteCompleted;
+      queued.writeResult = std::move(result);
+      impl->enqueue(std::move(queued));
     }
     startNextSppWrite(impl);
   }
@@ -897,6 +914,7 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
   }
   else if (event == ESP_SPP_WRITE_EVT)
   {
+    EspBluedroidSppWriteResult result;
     {
       std::lock_guard<std::mutex> lock(impl->mutex);
       if (
@@ -905,8 +923,15 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
       {
         return;
       }
-      if (parameter->write.status != ESP_SPP_SUCCESS)
+      result.sessionId = impl->activeSession.id;
+      result.length = impl->txQueue[impl->txHead].length();
+      result.success = parameter->write.status == ESP_SPP_SUCCESS;
+      if (!result.success)
       {
+        result.error = EspBleError::BackendFailure;
+        result.detail =
+          String("SPP write failed: ") +
+          String(static_cast<int>(parameter->write.status));
         ++impl->droppedWrites;
       }
       impl->txQueue[impl->txHead] = "";
@@ -915,6 +940,13 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
       --impl->txCount;
       impl->txInFlight = false;
       impl->txCongested = parameter->write.cong;
+    }
+    if (impl->writeCompletionEventsEnabled.load(std::memory_order_acquire))
+    {
+      EspBluedroidSppImpl::Event queued;
+      queued.type = EspBluedroidSppImpl::EventType::WriteCompleted;
+      queued.writeResult = std::move(result);
+      impl->enqueue(std::move(queued));
     }
     startNextSppWrite(impl);
   }
@@ -2646,6 +2678,17 @@ void EspBluedroidSpp::onData(DataCallback callback)
   dataCallback_ = std::move(callback);
 }
 
+void EspBluedroidSpp::onWriteCompleted(WriteCompletedCallback callback)
+{
+  const bool enabled = static_cast<bool>(callback);
+  writeCompletedCallback_ = std::move(callback);
+  if (impl_ != nullptr)
+  {
+    impl_->writeCompletionEventsEnabled.store(
+      enabled, std::memory_order_release);
+  }
+}
+
 void EspBluedroidSpp::onConnectionFailed(
   ConnectionFailureCallback callback)
 {
@@ -3087,98 +3130,104 @@ size_t EspBluedroidSpp::droppedEventCount() const
   return impl_->dropped;
 }
 
-EspBluedroidSppStream::EspBluedroidSppStream(
-  EspBluedroidSpp &spp,
-  EspBluedroidSppSessionId sessionId)
+EspBluedroidSppSerial::EspBluedroidSppSerial(
+  EspBleBluedroid &bluetooth)
+    : spp_(bluetooth.classic().spp())
 {
-  attach(spp, sessionId);
 }
 
-bool EspBluedroidSppStream::attach(
-  EspBluedroidSpp &spp,
-  EspBluedroidSppSessionId sessionId)
+EspBluedroidSppSessionId
+EspBluedroidSppSerial::resolvedSessionId() const
 {
+  if (spp_.impl_ == nullptr) return 0;
+  std::lock_guard<std::mutex> lock(spp_.impl_->mutex);
+  if (spp_.impl_->backendHandle == 0) return 0;
+  return spp_.impl_->activeSession.id;
+}
+
+bool EspBluedroidSppSerial::connected() const
+{
+  const EspBluedroidSppSessionId sessionId = resolvedSessionId();
+  if (sessionId == 0) return false;
   EspBluedroidSppSession session;
-  if (!spp.session(sessionId, session)) return false;
-  spp_ = &spp;
-  sessionId_ = sessionId;
-  return true;
+  return spp_.session(sessionId, session);
 }
 
-void EspBluedroidSppStream::detach()
-{
-  spp_ = nullptr;
-  sessionId_ = 0;
-}
-
-bool EspBluedroidSppStream::connected() const
-{
-  if (spp_ == nullptr || sessionId_ == 0) return false;
-  EspBluedroidSppSession session;
-  return spp_->session(sessionId_, session);
-}
-
-EspBluedroidSppStream::operator bool() const
+EspBluedroidSppSerial::operator bool() const
 {
   return connected();
 }
 
-EspBluedroidSppSessionId EspBluedroidSppStream::sessionId() const
+EspBluedroidSppSessionId EspBluedroidSppSerial::sessionId() const
 {
-  return sessionId_;
+  return resolvedSessionId();
 }
 
-int EspBluedroidSppStream::available()
+int EspBluedroidSppSerial::available()
 {
-  if (spp_ == nullptr) return 0;
-  return static_cast<int>(spp_->available(sessionId_));
+  const EspBluedroidSppSessionId sessionId = resolvedSessionId();
+  if (sessionId == 0) return 0;
+  return static_cast<int>(spp_.available(sessionId));
 }
 
-int EspBluedroidSppStream::peek()
+int EspBluedroidSppSerial::peek()
 {
-  if (spp_ == nullptr) return -1;
-  return spp_->peek(sessionId_);
+  const EspBluedroidSppSessionId sessionId = resolvedSessionId();
+  if (sessionId == 0) return -1;
+  return spp_.peek(sessionId);
 }
 
-int EspBluedroidSppStream::read()
+int EspBluedroidSppSerial::read()
 {
-  if (spp_ == nullptr) return -1;
-  return spp_->read(sessionId_);
+  const EspBluedroidSppSessionId sessionId = resolvedSessionId();
+  if (sessionId == 0) return -1;
+  return spp_.read(sessionId);
 }
 
-int EspBluedroidSppStream::availableForWrite()
+int EspBluedroidSppSerial::availableForWrite()
 {
-  if (!connected()) return 0;
-  const size_t pending = spp_->pendingWriteCount(sessionId_);
+  const EspBluedroidSppSessionId sessionId = resolvedSessionId();
+  if (sessionId == 0) return 0;
+  EspBluedroidSppSession session;
+  if (!spp_.session(sessionId, session)) return 0;
+  const size_t pending = spp_.pendingWriteCount(sessionId);
   if (pending >= EspBluedroidSpp::WriteQueueCapacity) return 0;
   return static_cast<int>(
     (EspBluedroidSpp::WriteQueueCapacity - pending) *
     EspBluedroidSpp::MaximumWriteSize);
 }
 
-void EspBluedroidSppStream::flush()
+void EspBluedroidSppSerial::flush()
 {
-  if (spp_ == nullptr) return;
-  while (connected() && spp_->pendingWriteCount(sessionId_) != 0)
+  const EspBluedroidSppSessionId sessionId = resolvedSessionId();
+  if (sessionId == 0) return;
+  while (
+    resolvedSessionId() == sessionId &&
+    spp_.pendingWriteCount(sessionId) != 0)
   {
     delay(1);
   }
 }
 
-size_t EspBluedroidSppStream::write(uint8_t value)
+size_t EspBluedroidSppSerial::write(uint8_t value)
 {
   return write(&value, 1);
 }
 
-size_t EspBluedroidSppStream::write(
+size_t EspBluedroidSppSerial::write(
   const uint8_t *data,
   size_t length)
 {
-  if (
-    spp_ == nullptr || !connected() ||
-    data == nullptr || length == 0)
+  if (data == nullptr || length == 0)
   {
     if (length != 0) setWriteError();
+    return 0;
+  }
+  const EspBluedroidSppSessionId sessionId = resolvedSessionId();
+  EspBluedroidSppSession session;
+  if (sessionId == 0 || !spp_.session(sessionId, session))
+  {
+    setWriteError();
     return 0;
   }
   size_t written = 0;
@@ -3187,7 +3236,7 @@ size_t EspBluedroidSppStream::write(
     const size_t remaining = length - written;
     const size_t chunk =
       std::min(remaining, EspBluedroidSpp::MaximumWriteSize);
-    if (!spp_->write(sessionId_, data + written, chunk))
+    if (!spp_.write(sessionId, data + written, chunk))
     {
       setWriteError();
       break;
@@ -3247,6 +3296,12 @@ void EspBluedroidSpp::update()
       event.type == EspBluedroidSppImpl::EventType::Data && dataCallback_)
     {
       dataCallback_(event.data);
+    }
+    else if (
+      event.type == EspBluedroidSppImpl::EventType::WriteCompleted &&
+      writeCompletedCallback_)
+    {
+      writeCompletedCallback_(event.writeResult);
     }
     else if (
       event.type == EspBluedroidSppImpl::EventType::ConnectionFailed &&

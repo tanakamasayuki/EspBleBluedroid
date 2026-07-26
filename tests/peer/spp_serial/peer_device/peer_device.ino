@@ -15,14 +15,14 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
   if (event == ESP_SPP_INIT_EVT &&
       parameter->init.status == ESP_SPP_SUCCESS)
   {
-    Serial.println("SPP_STREAM_RAW_READY");
+    Serial.println("SPP_SERIAL_RAW_READY");
   }
   else if (event == ESP_SPP_DISCOVERY_COMP_EVT)
   {
     if (parameter->disc_comp.status != ESP_SPP_SUCCESS ||
         parameter->disc_comp.scn_num == 0)
     {
-      Serial.println("SPP_STREAM_RAW_DISCOVERY_FAILED");
+      Serial.println("SPP_SERIAL_RAW_DISCOVERY_FAILED");
       return;
     }
     esp_spp_connect(ESP_SPP_SEC_NONE, ESP_SPP_ROLE_MASTER,
@@ -33,7 +33,7 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
   {
     receivedLength = 0;
     static uint8_t request[] = {0x00, 'A', '\n'};
-    Serial.println("SPP_STREAM_RAW_CONNECTED");
+    Serial.println("SPP_SERIAL_RAW_CONNECTED");
     esp_spp_write(parameter->open.handle, sizeof(request), request);
   }
   else if (event == ESP_SPP_DATA_IND_EVT)
@@ -57,14 +57,14 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
       if (received[10 + index] != expected) binaryMatches = false;
     }
     Serial.printf(
-      "SPP_STREAM_RAW_RX length=%u prefix=%u binary=%u checksum=%u\n",
+      "SPP_SERIAL_RAW_RX length=%u prefix=%u binary=%u checksum=%u\n",
       static_cast<unsigned>(receivedLength), prefixMatches ? 1 : 0,
       binaryMatches ? 1 : 0, static_cast<unsigned>(checksum));
     esp_spp_disconnect(parameter->data_ind.handle);
   }
   else if (event == ESP_SPP_CLOSE_EVT)
   {
-    Serial.println("SPP_STREAM_RAW_DISCONNECTED");
+    Serial.println("SPP_SERIAL_RAW_DISCONNECTED");
   }
 }
 
@@ -89,14 +89,14 @@ void initializeClient()
       esp_bluedroid_enable() != ESP_OK ||
       esp_spp_register_callback(sppCallback) != ESP_OK)
   {
-    Serial.println("SPP_STREAM_RAW_INIT_FAILED");
+    Serial.println("SPP_SERIAL_RAW_INIT_FAILED");
     return;
   }
   esp_spp_cfg_t config = BT_SPP_DEFAULT_CONFIG();
   config.mode = ESP_SPP_MODE_CB;
   if (esp_spp_enhanced_init(&config) != ESP_OK)
   {
-    Serial.println("SPP_STREAM_RAW_INIT_FAILED");
+    Serial.println("SPP_SERIAL_RAW_INIT_FAILED");
   }
 }
 
@@ -118,7 +118,7 @@ void loop()
       if (!parseAddress(address) ||
           esp_spp_start_discovery(serverAddress) != ESP_OK)
       {
-        Serial.println("SPP_STREAM_RAW_DISCOVERY_FAILED");
+        Serial.println("SPP_SERIAL_RAW_DISCOVERY_FAILED");
       }
     }
   }

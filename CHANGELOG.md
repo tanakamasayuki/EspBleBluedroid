@@ -38,10 +38,16 @@
   Security・GATT完了eventを保持。
 - (EN) Add an ordered eight-entry SPP write queue with overflow diagnostics.
 - (JA) 順序保証付き8件SPP送信queueとoverflow診断を追加。
+- (EN) Add deferred SPP write-completion results with session, length, success,
+  and error details for the shared Client/Server session API.
+- (JA) Client/Server共通session APIへsession・byte数・成否・error detail付きの
+  SPP送信完了eventを追加。
 - (EN) Add a bounded 2048-byte SPP receive ring with Stream-like reads.
 - (JA) Stream風readとoverflow診断を備えた2048 byte固定長SPP受信ringを追加。
-- (EN) Add an Arduino Stream/Print wrapper for established SPP sessions.
-- (JA) 確立済みSPP session用Arduino Stream/Printラッパーを追加。
+- (EN) Add root-bound `EspBluedroidSppSerial`, an Arduino Stream/Print wrapper
+  that automatically follows active SPP Server and Client sessions.
+- (JA) active SPP Server/Client sessionへ自動追従するroot bindの
+  Arduino Stream/Print実装`EspBluedroidSppSerial`を追加。
 - (EN) Add Classic SSP Numeric Comparison and authenticated/encrypted SPP.
 - (JA) Classic SSP Numeric Comparisonと認証・暗号化SPPを追加。
 - (EN) Add separate Classic bond management, bonded reconnection, and secure

@@ -184,12 +184,20 @@ eventが到着した場合、最古のNotificationを1件dropして制御event�
 
 SPPなどのstream dataは`update()` eventだけでは帯域不足になる可能性がある。
 SPPはsession IDを明示する`available()`、`peek()`、`read()`と、`update()`配送の
-packet/状態イベントを分ける。接続後は非所有の`EspBluedroidSppStream`をsessionへ
-bindでき、Arduino `Stream`/`Print`として同じdata pathを利用できる。接続確立・切断は
-profile固有eventのままとし、`Stream::begin()`へ隠さない。受信byteはstack callbackで
+packet/状態イベントを分ける。非所有の`EspBluedroidSppSerial`はrootをconstructorで
+受け取り、Server/Clientを区別せず現在の単一active sessionへ自動追従する。
+Arduino `Stream`/`Print`として同じdata pathを利用できるが、接続開始・切断は
+profile固有API/eventのままとし、`Serial::begin()`へ隠さない。受信byteはstack callbackで
 固定長ringへcopyし、`update()`頻度から切り離す。満杯時は先着dataを保持して超過byte数を
 公開する。zero-copy/raw callbackが必要になった場合はadvanced APIとし、stack context
 または専用task contextであることを型名と文書に明記する。
+
+SPPの`write()`成功は送信queueへの受付を意味する。backendへ開始したwriteの完了は
+`onWriteCompleted()`で`EspBluedroidSppWriteResult`を`update()`から配送し、session ID、
+byte数、成否、共通error/detailを保持する。同期的に受付拒否されたwriteは完了eventを
+発生させない。session切断時にまだbackendへ開始していないqueue項目も対象外とする。
+`EspBluedroidSppSerial::flush()`はbackend完了まで待つが、利用者callbackの配送までは
+待たず、callback配送には引き続き`update()`が必要である。
 
 ## Errorとcapability
 

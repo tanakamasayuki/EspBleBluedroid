@@ -12,7 +12,8 @@ Read / Write / Notification購読の
 検証しています。LE Secure Connections Just Works、静的・実行時passkey MITM、
 Numeric Comparison、bondの保存・列挙・削除も実装済みです。Bluetooth Classicは
 capability snapshotと`classic().inquiry()`を実装しています。SPPはClient/Server共通の
-session、binary-safeな双方向data、Arduino `Stream`ラッパー、切断・再接続、
+session、binary-safeな双方向data、送信完了event、Server/Client sessionへ自動追従する
+`EspBluedroidSppSerial`、切断・再接続、
 SSP Numeric Comparisonによる認証・暗号化、BLE bondとは分離したClassic bondの
 列挙・削除、DisplayOnly/KeyboardOnly Passkey Entryまで利用できます。secure SPPは
 Client/Server両roleを実機確認済みです。
@@ -33,7 +34,7 @@ peerテストでは次を確認します。
 - 2台のSerial出力をpytestから検証
 - 公開APIによるAdvertising/Scanと、`update()` contextからのcallback配送
 - Classic capabilityとInquiry、name / Class of Device / RSSI、停止完了
-- Classic SPP Client/Server、Stream API、SSP拒否・retry・bond再接続・認証暗号化data
+- Classic SPP Client/Server、Serial形式Stream API、SSP拒否・retry・bond再接続・認証暗号化data
 - Classic DisplayOnly/KeyboardOnly Passkeyの表示・入力とI/O capability変更再初期化
 - active SPP sessionとBLE GATT Discovery / Read / Write / Notificationの同時利用
 

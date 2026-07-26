@@ -52,10 +52,11 @@ from a result callback, and completion delivery from `update()`.
 `peer/spp_server` verifies a public SPP Server against a raw ESP-IDF client,
 including binary-safe bidirectional data, new IDs on reconnect, remote
 disconnection, bounded shutdown while the server is running, and ordered
-eight-entry write-queue overflow behavior.
+eight-entry write-queue overflow behavior with deferred completion results for
+all eight accepted writes.
 `peer/spp_client` verifies asynchronous SDP/RFCOMM connection to a raw ESP-IDF
 server, the shared session API, binary data, public disconnection, reconnect
-IDs, and deferred failure/timeout delivery.
+IDs, deferred write completion, and deferred failure/timeout delivery.
 `peer/dual_mode_scan_spp` verifies active BLE Scan and a BLE Central/GATT
 connection while an SPP session remains connected. It covers service discovery,
 Characteristic Read/Write, subscription/notification, and a bounded
@@ -67,10 +68,11 @@ that a GATT completion evicts one notification instead of being dropped.
 `peer/spp_receive_buffer` verifies the session-scoped 2048-byte receive ring,
 binary-safe `peek()`/single-byte/bulk reads, deterministic overflow accounting,
 and buffer invalidation on disconnect against a 2300-byte raw ESP-IDF burst.
-`peer/spp_stream` verifies that an established session can be attached to an
-Arduino `Stream`, including `Print` text/number output, CRLF, binary writes,
-automatic 990-byte write chunking, `readBytes()`, `availableForWrite()`,
-`flush()`, invalid attachment, and automatic disconnected behavior.
+`peer/spp_serial` verifies the root-bound `EspBluedroidSppSerial` in the Server
+role, including automatic active-session tracking, `Print` text/number output,
+CRLF, binary writes, automatic 990-byte write chunking, `readBytes()`,
+`availableForWrite()`, `flush()`, and disconnected behavior. `peer/spp_client`
+also verifies automatic tracking across two outgoing Client sessions.
 `peer/spp_security` verifies DisplayYesNo SSP against a raw ESP-IDF client:
 matching six-digit values, explicit rejection, authentication failure,
 rediscovery and retry, authenticated/encrypted session state, deferred Classic

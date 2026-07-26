@@ -84,6 +84,16 @@ void initializeBluetooth()
       static_cast<unsigned>(
         bluetooth.classic().spp().droppedWriteCount()));
   });
+  bluetooth.classic().spp().onWriteCompleted(
+    [](const EspBluedroidSppWriteResult &result) {
+      Serial.printf(
+        "SPP_SERVER_WRITE_COMPLETED id=%u length=%u success=%u "
+        "error=%u context=%s\n",
+        static_cast<unsigned>(result.sessionId),
+        static_cast<unsigned>(result.length),
+        result.success ? 1 : 0,
+        static_cast<unsigned>(result.error), contextName());
+    });
   bluetooth.classic().spp().onDisconnected(
     [](const EspBluedroidSppSession &session) {
       Serial.printf("SPP_SERVER_DISCONNECTED id=%u remaining=%u context=%s\n",

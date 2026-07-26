@@ -18,9 +18,9 @@
 | BLE Security | Just Works / Static・Runtime Passkey / Numeric Comparison / Bond | 暗号化・認証必須attribute、保存bond再接続、passkey表示・入力・比較確認、bond管理 |
 | Capability | `capabilities()` | BLE、Classic、dual-mode、Classic Inquiry、SPPを初期化前に判定 |
 | Classic Inquiry | `classic().inquiry()` | name、address、Class of Device、RSSI、明示停止、完了event、`update()`配送 |
-| Classic SPP Server | `classic().spp().startServer()` / session / read / write / disconnect | binary-safe双方向data、固定長RX ring、remote切断、再接続ID、稼働中`end()` |
-| Classic SPP Client | `classic().spp().connect()` / connection failure / 共通session API | non-blocking SDP/RFCOMM接続、共通RX ring、local切断、再接続ID、timeout |
-| Classic SPP Stream | `EspBluedroidSppStream` | sessionへbindするArduino `Stream`/`Print`、`print()`、`readBytes()`、`flush()`、切断検知 |
+| Classic SPP Server | `classic().spp().startServer()` / session / read / write / disconnect | binary-safe双方向data、固定長RX ring、送信完了、remote切断、再接続ID、稼働中`end()` |
+| Classic SPP Client | `classic().spp().connect()` / connection failure / 共通session API | non-blocking SDP/RFCOMM接続、共通RX ring、送信完了、local切断、再接続ID、timeout |
+| Classic SPP Serial | `EspBluedroidSppSerial` | rootへbindしてServer/Clientのactive sessionへ自動追従、`Stream`/`Print`、`readBytes()`、`flush()` |
 | Classic Security | Numeric Comparison / Passkey Entry / SPP security mode / `classic().bond*()` | DisplayOnly/KeyboardOnly、比較値、明示回答、Client/Server認証失敗後retry、bond再接続・列挙・削除、認証・暗号化SPP data |
 | BLE/SPP dual mode | active BLE Scan・GATT Client + active SPP session | Discovery、Read/Write、Notification、64通知のbounded burst、drop集計、配送済み通知のSPP往復、GATT完了優先配送、停止・切断 |
 
@@ -35,9 +35,9 @@ Classic Inquiryは`tests/peer/classic_inquiry`でBTDM初期化、discoverableな
 結果callback内からの停止、完了eventまで確認している。
 SPP Serverは`tests/peer/spp_server`でraw ESP-IDF Clientとの双方向binary data、
 2回の接続で異なるsession ID、remote切断、server稼働中の終了に加え、8件送信queueの
-順序とoverflowを確認している。
+順序とoverflow、および受理された8件の送信完了を`update()` contextで確認している。
 SPP Clientは`tests/peer/spp_client`でraw ESP-IDF Serverとの非同期接続、双方向data、
-公開APIからの切断、再接続ID、Server停止後の失敗/timeout eventまで確認している。
+送信完了、公開APIからの切断、再接続ID、Server停止後の失敗/timeout eventまで確認している。
 SPP Securityは`tests/peer/spp_security`でraw ESP-IDF peerとのDisplayYesNo SSP、
 両端6桁値の一致、明示拒否、認証失敗後の再探索・再試行、両端accept後の認証・暗号化
 sessionとbinary dataをClient/Server両roleで確認している。さらにClassic bondを
@@ -99,19 +99,22 @@ CCCD購読、notificationまで確認している。
 - SPPはClient/Server、pendingまたはactive session 1つ、送信queue 8件、
   1 writeあたり1〜990 byteに対応。ClientはSDPの先頭SPP serviceを利用する。
   queue使用量は`pendingWriteCount()`またはsession指定overload、拒否・backend送信失敗の
-  累積は`droppedWriteCount()`で確認できる。
+  累積は`droppedWriteCount()`で確認できる。backendへ開始したwriteの完了は
+  `onWriteCompleted()`からsession ID・byte数・成否・error/detail付きで配送する。
+  同期的なqueue受付拒否と、切断時点で未開始のqueue項目は完了eventの対象外。
   受信は`onData()`のpacket eventに加え、stack callbackで退避する2048 byteの
   固定長ringを`available()`、`peek()`、`read()`で読める。満杯時は既存byteを保持し、
   超過分を`droppedReceiveByteCount()`で確認できる。
-  `EspBluedroidSppStream`をsessionへ`attach()`するとArduino `Stream`/`Print` APIを
-  利用できる。writeは990 byte単位へ分割し、`availableForWrite()`は固定長送信queueの
-  残り容量をbyteで返す。ラッパーはstackやsessionを所有しない。
+  `EspBluedroidSppSerial sppSerial(bluetooth)`は現在の単一active sessionへ自動追従し、
+  Server/Client両roleでArduino `Stream`/`Print` APIを利用できる。writeは990 byte単位へ
+  分割し、`availableForWrite()`は固定長送信queueの残り容量をbyteで返す。
+  ラッパーはstackやsessionを所有せず、rootより長く生存してはならない。
   SPP Security modeは認証のみ、または認証＋暗号化を選べる。Classic側は
   NoInputNoOutput、DisplayOnly、KeyboardOnly、DisplayYesNo SSPに対応し、Passkey入力と
   比較確認の未回答は既定30秒で拒否する。
   Classic bondは`EspBluedroidClassicBond`としてBLE bond storeから分離し、
   `classic().bondCount()` / `bond()` / `deleteBond()` / `deleteAllBonds()`で管理する。
-  複数session、送信完了callbackは未実装。
+  複数sessionは未実装。
 - BLE ScanおよびBLE GATT接続・ATT trafficとSPP session/dataの同時利用は確認済み。
   64 Notificationのbounded burstではBLE event queueのdropを含む全件を集計し、
   配送済み通知のSPP往復とRX ring保持を確認している。BLE connection event queue
@@ -123,6 +126,6 @@ CCCD購読、notificationまで確認している。
 ## 次のテストスライス
 
 1. BLE GATT/SPP dual-modeの長時間trafficと連続飽和時のfairness。
-2. SPP送信完了通知と複数sessionの設計。
+2. SPP複数sessionの設計。
 
 各項目は失敗するunitまたはpeerテストを先に追加してから実装する。

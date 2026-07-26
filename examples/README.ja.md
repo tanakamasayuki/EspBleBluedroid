@@ -17,7 +17,8 @@
 | Classic | [Inquiry](Classic/Inquiry/README.ja.md) | capability確認とname、Class of Device、RSSIを含むClassic機器探索 |
 | Classic | [SppServer](Classic/SppServer/README.ja.md) | binary-safe SPP Server sessionと接続・data・切断callback |
 | Classic | [SppClient](Classic/SppClient/README.ja.md) | 共通SPP session APIによる非同期SDP/RFCOMM接続 |
-| Classic | [SppStream](Classic/SppStream/README.ja.md) | 確立済みSPP session用Arduino `Stream`/`Print`ラッパー |
+| Classic | [SppSerialServer](Classic/SppSerialServer/README.ja.md) | active SPP Server sessionへ自動追従するSerial形式bridge |
+| Classic | [SppSerialClient](Classic/SppSerialClient/README.ja.md) | active SPP Client sessionへ自動追従するSerial形式bridge |
 | Classic | [SppSecurity](Classic/SppSecurity/README.ja.md) | SSP Numeric Comparisonによる認証・暗号化SPP |
 | Classic | [SppPasskey](Classic/SppPasskey/README.ja.md) | DisplayOnly/KeyboardOnly Passkey Entryによるsecure SPP |
 | Dual mode | [ScanWhileSpp](DualMode/ScanWhileSpp/README.ja.md) | Classic SPP sessionを維持したactive BLE Scan |

@@ -3,6 +3,7 @@
 #include <freertos/task.h>
 
 EspBleBluedroid bluetooth;
+EspBluedroidSppSerial sppSerial(bluetooth);
 TaskHandle_t loopTask = nullptr;
 bool initialized = false;
 EspBluedroidSppSessionId activeSessionId = 0;
@@ -29,13 +30,14 @@ void initializeBluetooth()
     [](const EspBluedroidSppSession &session) {
       activeSessionId = session.id;
       Serial.printf(
-        "SPP_CLIENT_CONNECTED id=%u address=%s incoming=%u context=%s\n",
+        "SPP_CLIENT_CONNECTED id=%u address=%s incoming=%u "
+        "stream=%u stream_id=%u context=%s\n",
         static_cast<unsigned>(session.id), session.peerAddress.c_str(),
-        session.incoming ? 1 : 0, contextName());
+        session.incoming ? 1 : 0, sppSerial.connected() ? 1 : 0,
+        static_cast<unsigned>(sppSerial.sessionId()), contextName());
       const uint8_t reply[] = {0xfe, 0x00, 'C'};
       Serial.printf("SPP_CLIENT_WRITE_ACCEPTED %u\n",
-        bluetooth.classic().spp().write(
-          session.id, reply, sizeof(reply)) ? 1 : 0);
+        sppSerial.write(reply, sizeof(reply)) == sizeof(reply) ? 1 : 0);
     });
   bluetooth.classic().spp().onData([](const EspBluedroidSppData &event) {
     Serial.printf("SPP_CLIENT_RX id=%u length=%u hex=",
@@ -47,14 +49,26 @@ void initializeBluetooth()
     }
     Serial.printf(" context=%s\n", contextName());
   });
+  bluetooth.classic().spp().onWriteCompleted(
+    [](const EspBluedroidSppWriteResult &result) {
+      Serial.printf(
+        "SPP_CLIENT_WRITE_COMPLETED id=%u length=%u success=%u "
+        "error=%u context=%s\n",
+        static_cast<unsigned>(result.sessionId),
+        static_cast<unsigned>(result.length),
+        result.success ? 1 : 0,
+        static_cast<unsigned>(result.error), contextName());
+    });
   bluetooth.classic().spp().onDisconnected(
     [](const EspBluedroidSppSession &session) {
       activeSessionId = 0;
       Serial.printf(
-        "SPP_CLIENT_DISCONNECTED id=%u remaining=%u context=%s\n",
+        "SPP_CLIENT_DISCONNECTED id=%u remaining=%u "
+        "stream=%u stream_id=%u context=%s\n",
         static_cast<unsigned>(session.id),
         static_cast<unsigned>(bluetooth.classic().spp().sessionCount()),
-        contextName());
+        sppSerial.connected() ? 1 : 0,
+        static_cast<unsigned>(sppSerial.sessionId()), contextName());
     });
   bluetooth.classic().spp().onConnectionFailed(
     [](const EspBluedroidSppConnectionFailure &failure) {

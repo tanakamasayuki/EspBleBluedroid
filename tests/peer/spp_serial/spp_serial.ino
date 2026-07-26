@@ -2,7 +2,7 @@
 #include <esp_bt_device.h>
 
 EspBleBluedroid bluetooth;
-EspBluedroidSppStream sppSerial;
+EspBluedroidSppSerial sppSerial(bluetooth);
 bool initialized = false;
 bool replied = false;
 
@@ -17,47 +17,38 @@ String localAddress()
 
 void initializeBluetooth()
 {
-  Serial.printf("SPP_STREAM_DEFAULT connected=%u id=%u\n",
+  Serial.printf("SPP_SERIAL_DEFAULT connected=%u id=%u\n",
     sppSerial.connected() ? 1 : 0,
     static_cast<unsigned>(sppSerial.sessionId()));
   if (!bluetooth.begin())
   {
-    Serial.printf("SPP_STREAM_INIT_FAILED %s\n", bluetooth.lastErrorName());
+    Serial.printf("SPP_SERIAL_INIT_FAILED %s\n", bluetooth.lastErrorName());
     return;
   }
   bluetooth.classic().spp().onServerStarted([]() {
-    Serial.printf("SPP_STREAM_SERVER_READY address=%s\n",
+    Serial.printf("SPP_SERIAL_SERVER_READY address=%s\n",
       localAddress().c_str());
   });
   bluetooth.classic().spp().onConnected(
     [](const EspBluedroidSppSession &session) {
-      const bool invalid =
-        sppSerial.attach(bluetooth.classic().spp(), session.id + 100);
-      const bool attached =
-        sppSerial.attach(bluetooth.classic().spp(), session.id);
-      EspBluedroidSppStream constructed(
-        bluetooth.classic().spp(), session.id);
       Stream *stream = &sppSerial;
       Serial.printf(
-        "SPP_STREAM_ATTACHED invalid=%u attached=%u connected=%u "
-        "id=%u stream=%u constructed=%u writable=%d\n",
-        invalid ? 1 : 0, attached ? 1 : 0,
+        "SPP_SERIAL_ATTACHED connected=%u id=%u "
+        "stream=%u automatic=%u writable=%d\n",
         sppSerial ? 1 : 0, static_cast<unsigned>(sppSerial.sessionId()),
-        stream == &sppSerial ? 1 : 0, constructed.connected() ? 1 : 0,
+        stream == &sppSerial ? 1 : 0,
+        sppSerial.sessionId() == session.id ? 1 : 0,
         sppSerial.availableForWrite());
     });
   bluetooth.classic().spp().onDisconnected(
     [](const EspBluedroidSppSession &) {
       const size_t rejected = sppSerial.write(static_cast<uint8_t>('x'));
       Serial.printf(
-        "SPP_STREAM_DISCONNECTED connected=%u available=%d "
+        "SPP_SERIAL_DISCONNECTED connected=%u available=%d "
         "peek=%d read=%d write=%u\n",
         sppSerial.connected() ? 1 : 0, sppSerial.available(),
         sppSerial.peek(), sppSerial.read(),
         static_cast<unsigned>(rejected));
-      sppSerial.detach();
-      Serial.printf("SPP_STREAM_DETACHED id=%u\n",
-        static_cast<unsigned>(sppSerial.sessionId()));
     });
 
   EspBluedroidSppServerConfig config;
@@ -99,7 +90,7 @@ void loop()
     const size_t binaryWritten = sppSerial.write(binary, sizeof(binary));
     sppSerial.flush();
     Serial.printf(
-      "SPP_STREAM_IO first=%d single=%d remaining=%02x%02x "
+      "SPP_SERIAL_IO first=%d single=%d remaining=%02x%02x "
       "available=%d printed=%u binary=%u\n",
       first, single, remaining[0], remaining[1], sppSerial.available(),
       static_cast<unsigned>(printed),
