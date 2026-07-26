@@ -32,5 +32,8 @@
 - (JA) 確立済みSPP session用Arduino Stream/Printラッパーを追加。
 - (EN) Add Classic SSP Numeric Comparison and authenticated/encrypted SPP.
 - (JA) Classic SSP Numeric Comparisonと認証・暗号化SPPを追加。
+- (EN) Add separate Classic bond management, bonded reconnection, and secure
+  SPP Client peer coverage.
+- (JA) BLEとは分離したClassic bond管理、bond再接続、secure SPP Client実機テストを追加。
 - (EN) Move the primary build and hardware-test baseline to Arduino-ESP32 3.3.11.
 - (JA) 主build・実機テスト基準をArduino-ESP32 3.3.11へ更新。

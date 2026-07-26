@@ -20,6 +20,7 @@ EspBluedroidClassicSecurityConfig	KEYWORD1
 EspBluedroidClassicSecurityIoCapability	KEYWORD1
 EspBluedroidClassicSecurityChanged	KEYWORD1
 EspBluedroidClassicNumericComparison	KEYWORD1
+EspBluedroidClassicBond	KEYWORD1
 EspBluedroidSppData	KEYWORD1
 EspBluedroidSppConnectionFailure	KEYWORD1
 EspBluedroidSppServerConfig	KEYWORD1
@@ -52,6 +53,10 @@ flush	KEYWORD2
 onSecurityChanged	KEYWORD2
 onNumericComparisonRequested	KEYWORD2
 confirmNumericComparison	KEYWORD2
+bondCount	KEYWORD2
+bond	KEYWORD2
+deleteBond	KEYWORD2
+deleteAllBonds	KEYWORD2
 connect	KEYWORD2
 disconnect	KEYWORD2
 onConnected	KEYWORD2

@@ -15,5 +15,8 @@ Unanswered requests are rejected after `responseTimeoutMilliseconds`.
 
 `EspBluedroidClassicSecurityChanged` reports the backend authentication result.
 An established secure SPP session sets `authenticated` and `encrypted`.
+Persisted Classic link keys are intentionally separate from BLE bonds and can
+be managed with `classic().bondCount()`, `bond()`, `deleteBond()`, and
+`deleteAllBonds()`.
 The example targets the original ESP32 with Arduino-ESP32 3.3.11 and does not
 require PSRAM.

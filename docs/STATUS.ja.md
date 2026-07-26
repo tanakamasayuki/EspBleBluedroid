@@ -21,7 +21,7 @@
 | Classic SPP Server | `classic().spp().startServer()` / session / read / write / disconnect | binary-safe双方向data、固定長RX ring、remote切断、再接続ID、稼働中`end()` |
 | Classic SPP Client | `classic().spp().connect()` / connection failure / 共通session API | non-blocking SDP/RFCOMM接続、共通RX ring、local切断、再接続ID、timeout |
 | Classic SPP Stream | `EspBluedroidSppStream` | sessionへbindするArduino `Stream`/`Print`、`print()`、`readBytes()`、`flush()`、切断検知 |
-| Classic Security | `classic().onSecurityChanged()` / Numeric Comparison / SPP security mode | SSP比較値の遅延配送、明示accept/reject、認証失敗後retry、認証・暗号化SPP data |
+| Classic Security | Numeric Comparison / SPP security mode / `classic().bond*()` | SSP比較値の遅延配送、明示accept/reject、Client/Server認証失敗後retry、bond再接続・列挙・削除、認証・暗号化SPP data |
 | BLE/SPP dual mode | active BLE Scan + active SPP session | Scan callbackからSPP write、binary応答、独立queue、停止・切断 |
 
 AdvertisingとScanの基本経路は`tests/peer/advertise_scan`、Advertising wire形式と
@@ -38,9 +38,11 @@ SPP Serverは`tests/peer/spp_server`でraw ESP-IDF Clientとの双方向binary d
 順序とoverflowを確認している。
 SPP Clientは`tests/peer/spp_client`でraw ESP-IDF Serverとの非同期接続、双方向data、
 公開APIからの切断、再接続ID、Server停止後の失敗/timeout eventまで確認している。
-SPP Securityは`tests/peer/spp_security`でraw ESP-IDF ClientとのDisplayYesNo SSP、
+SPP Securityは`tests/peer/spp_security`でraw ESP-IDF peerとのDisplayYesNo SSP、
 両端6桁値の一致、明示拒否、認証失敗後の再探索・再試行、両端accept後の認証・暗号化
-sessionとbinary dataを確認している。
+sessionとbinary dataをClient/Server両roleで確認している。さらにClassic bondを
+BLE bondとは別の公開APIで列挙・削除し、保存link keyによる確認UIなしのsecure再接続も
+確認している。
 dual modeは`tests/peer/dual_mode_scan_spp`でSPP session中のactive BLE Scanと、
 Scan Result callbackから開始するSPP binary往復を確認している。
 `tests/peer/stack_smoke`は、公開API実装前のbackend成立性として接続、GATT read/write、
@@ -94,8 +96,9 @@ CCCD購読、notificationまで確認している。
   残り容量をbyteで返す。ラッパーはstackやsessionを所有しない。
   SPP Security modeは認証のみ、または認証＋暗号化を選べる。Classic側は
   NoInputNoOutputとDisplayYesNo SSPに対応し、比較未回答は既定30秒で拒否する。
-  Classic Passkey Entry/Display、bond一覧・削除、secure SPP Clientの独立peerテスト、
-  複数session、送信完了callbackは未実装。
+  Classic bondは`EspBluedroidClassicBond`としてBLE bond storeから分離し、
+  `classic().bondCount()` / `bond()` / `deleteBond()` / `deleteAllBonds()`で管理する。
+  Classic Passkey Entry/Display、複数session、送信完了callbackは未実装。
 - BLE ScanとSPP session/dataの同時利用は確認済み。BLE GATT接続・ATT trafficとSPPの
   同時利用、長時間・高負荷時のfairnessは未確認。
 - GATT Server、HIDおよびSPP以外のClassic profileは公開API未実装。
@@ -103,7 +106,7 @@ CCCD購読、notificationまで確認している。
 
 ## 次のテストスライス
 
-1. Classic bond管理とsecure SPP Client。
-2. BLE GATT/SPP dual-modeと長時間traffic。
+1. BLE GATT/SPP dual-modeと長時間traffic。
+2. Classic Passkey Entry/Display。
 
 各項目は失敗するunitまたはpeerテストを先に追加してから実装する。

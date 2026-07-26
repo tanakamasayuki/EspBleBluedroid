@@ -256,6 +256,10 @@ Classic SSPはLE Securityとは別のevent型を使う。I/O capabilityと比較
 認証結果はsession成立前にも発生するため、profile session eventへ埋め込まず
 `EspBluedroidClassicSecurityChanged`でpeer address単位に通知する。成立したSPP session
 には、要求を満たしたことを示す`authenticated`と`encrypted`をsnapshotする。
+Classic link keyは`EspBluedroidClassicBond`として列挙し、LEの`EspBleBond`やaddress
+typeを持つ一覧へ混在させない。`classic().bondCount()` / `bond()` /
+`deleteBond()` / `deleteAllBonds()`はBLE側と同じ操作感にするが、Classic profile
+sessionがpendingまたはactiveな間の削除は拒否する。
 
 Passkey EntryまたはNumeric Comparisonの同期callback待機中に`disconnect()`や`end()`が
 要求された場合は、mailbox待機をcancelしてbackendへ拒否を返す。これにより30秒timeout
@@ -313,8 +317,8 @@ Classic対応は「buildで有効だから一括公開」せず、profileごと�
 1. Classic capabilityとInquiry。BLE Scanとの差を確定する。（実装済み）
 2. SPP。Client/Server session、双方向data、切断、再接続、Securityを検証する。
    Client/Server session、双方向data、切断、再接続、固定長receive buffer、
-   DisplayYesNo SSP Serverの拒否・retry・認証暗号化dataは実装済み。
-   Classic bond管理とsecure Clientの独立peerテストは未実装。
+   DisplayYesNo SSPのClient/Server拒否・retry・認証暗号化data、Classic bond管理、
+   保存link keyによるsecure再接続は実装・実機確認済み。
 3. BLEとSPPのdual-mode同時利用。resource競合とevent starvationを検証する。
    BLE Scan中のSPP binary trafficは実装・確認済み。GATT/SPP同時trafficは未確認。
 4. Classic HID Host/Device。HOGPと共有できるusage/report codecだけを共通化する。

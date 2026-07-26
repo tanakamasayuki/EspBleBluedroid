@@ -14,4 +14,6 @@ pairing UIを共有しながらSPP固有policyを持ち込まないための分�
 
 backendの認証結果は`EspBluedroidClassicSecurityChanged`で通知されます。確立した
 secure SPP sessionでは`authenticated`と`encrypted`がtrueになります。
+保存されたClassic link keyはBLE bondとは分離され、`classic().bondCount()`、
+`bond()`、`deleteBond()`、`deleteAllBonds()`で管理できます。
 対象はArduino-ESP32 3.3.11の無印ESP32で、PSRAMは不要です。

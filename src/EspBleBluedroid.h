@@ -56,6 +56,11 @@ struct EspBluedroidClassicSecurityConfig
   uint32_t responseTimeoutMilliseconds = 30000;
 };
 
+struct EspBluedroidClassicBond
+{
+  String peerAddress;
+};
+
 struct EspBleConfig
 {
   const char *deviceName = "EspBleBluedroid";
@@ -524,6 +529,10 @@ public:
   void onSecurityChanged(SecurityChangedCallback callback);
   void onNumericComparisonRequested(NumericComparisonCallback callback);
   bool confirmNumericComparison(const char *peerAddress, bool accept);
+  size_t bondCount() const;
+  bool bond(size_t index, EspBluedroidClassicBond &bond) const;
+  bool deleteBond(const EspBluedroidClassicBond &bond);
+  bool deleteAllBonds();
 
 private:
   friend class EspBleBluedroid;

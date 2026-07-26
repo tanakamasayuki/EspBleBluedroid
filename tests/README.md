@@ -68,4 +68,6 @@ automatic 990-byte write chunking, `readBytes()`, `availableForWrite()`,
 `peer/spp_security` verifies DisplayYesNo SSP against a raw ESP-IDF client:
 matching six-digit values, explicit rejection, authentication failure,
 rediscovery and retry, authenticated/encrypted session state, deferred Classic
-Security callbacks, and binary data after successful pairing.
+Security callbacks, Classic bond listing/deletion, secure reconnection from a
+stored link key without another confirmation, and binary data in both public
+SPP Server and Client roles.

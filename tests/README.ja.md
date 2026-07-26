@@ -55,7 +55,7 @@ uv run --env-file .env pytest
 | `peer/spp_client` | 非同期SPP Client、共通session、binary data、local切断、再接続、失敗/timeout |
 | `peer/spp_receive_buffer` | 2048 byte固定長RX ring、binary read、overflow byte数、切断時無効化 |
 | `peer/spp_stream` | Arduino Stream/Print、1000 byte分割write、flush、切断後の無効化 |
-| `peer/spp_security` | DisplayYesNo SSP、明示拒否、認証失敗後retry、認証・暗号化sessionとbinary data |
+| `peer/spp_security` | Client/Server両roleのDisplayYesNo SSP、明示拒否、認証失敗後retry、Classic bond列挙・再接続・削除、認証・暗号化data |
 | `peer/dual_mode_scan_spp` | active SPP session中のBLE Scan、Scan callbackからのbinary SPP往復 |
 
 特定のテストだけを実行する場合はパスを追加できます。

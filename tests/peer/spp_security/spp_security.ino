@@ -23,27 +23,6 @@ String localAddress()
   return String(value);
 }
 
-size_t clearClassicBonds()
-{
-  const int count = esp_bt_gap_get_bond_device_num();
-  if (count <= 0) return 0;
-  esp_bd_addr_t *addresses =
-    new esp_bd_addr_t[static_cast<size_t>(count)];
-  int actual = count;
-  if (esp_bt_gap_get_bond_device_list(&actual, addresses) != ESP_OK)
-  {
-    delete[] addresses;
-    return 0;
-  }
-  size_t removed = 0;
-  for (int index = 0; index < actual; ++index)
-  {
-    if (esp_bt_gap_remove_bond_device(addresses[index]) == ESP_OK) ++removed;
-  }
-  delete[] addresses;
-  return removed;
-}
-
 void initializeBluetooth()
 {
   bluetooth.classic().onNumericComparisonRequested(
@@ -68,13 +47,28 @@ void initializeBluetooth()
   bluetooth.classic().spp().onConnected(
     [](const EspBluedroidSppSession &session) {
       Serial.printf(
-        "SPP_SECURITY_CONNECTED id=%u authenticated=%u encrypted=%u\n",
+        "SPP_SECURITY_CONNECTED id=%u authenticated=%u encrypted=%u "
+        "incoming=%u\n",
         static_cast<unsigned>(session.id),
-        session.authenticated ? 1 : 0, session.encrypted ? 1 : 0);
+        session.authenticated ? 1 : 0, session.encrypted ? 1 : 0,
+        session.incoming ? 1 : 0);
+    });
+  bluetooth.classic().spp().onDisconnected(
+    [](const EspBluedroidSppSession &session) {
+      Serial.printf("SPP_SECURITY_DISCONNECTED id=%u\n",
+        static_cast<unsigned>(session.id));
     });
   bluetooth.classic().spp().onData([](const EspBluedroidSppData &event) {
     bluetooth.classic().spp().write(event.sessionId, event.value);
   });
+  bluetooth.classic().spp().onConnectionFailed(
+    [](const EspBluedroidSppConnectionFailure &failure) {
+      Serial.printf(
+        "SPP_SECURITY_CONNECTION_FAILED address=%s error=%u "
+        "context=%s\n",
+        failure.peerAddress.c_str(),
+        static_cast<unsigned>(failure.error), contextName());
+    });
 
   EspBleConfig config;
   config.deviceName = "EspBleBluedroid Secure SPP";
@@ -87,8 +81,10 @@ void initializeBluetooth()
       bluetooth.lastErrorName(), bluetooth.lastErrorDetail().c_str());
     return;
   }
-  Serial.printf("SPP_SECURITY_BONDS_CLEARED %u\n",
-    static_cast<unsigned>(clearClassicBonds()));
+  const bool cleared = bluetooth.classic().deleteAllBonds();
+  Serial.printf("SPP_SECURITY_BONDS_CLEARED success=%u count=%u\n",
+    cleared ? 1 : 0,
+    static_cast<unsigned>(bluetooth.classic().bondCount()));
 
   EspBluedroidSppServerConfig server;
   server.serviceName = "EspBleBluedroid Secure";
@@ -127,6 +123,40 @@ void loop()
       Serial.printf("SPP_SECURITY_CONFIRM accepted=%u reply=%u\n",
         command == 'a' ? 1 : 0, accepted ? 1 : 0);
       comparisonAddress = "";
+    }
+    else if (command == 'b')
+    {
+      EspBluedroidClassicBond first;
+      const size_t count = bluetooth.classic().bondCount();
+      const bool listed =
+        count > 0 && bluetooth.classic().bond(0, first);
+      Serial.printf("SPP_SECURITY_BONDS count=%u listed=%u address=%s\n",
+        static_cast<unsigned>(count), listed ? 1 : 0,
+        listed ? first.peerAddress.c_str() : "");
+    }
+    else if (command == 'd')
+    {
+      EspBluedroidClassicBond first;
+      const bool deleted =
+        bluetooth.classic().bond(0, first) &&
+        bluetooth.classic().deleteBond(first);
+      Serial.printf("SPP_SECURITY_BOND_DELETED success=%u count=%u\n",
+        deleted ? 1 : 0,
+        static_cast<unsigned>(bluetooth.classic().bondCount()));
+    }
+    else if (command == 'x')
+    {
+      Serial.printf("SPP_SECURITY_SERVER_STOPPED success=%u\n",
+        bluetooth.classic().spp().stopServer() ? 1 : 0);
+    }
+    else if (command == 'c')
+    {
+      const String address = Serial.readStringUntil('\n');
+      const bool accepted = bluetooth.classic().spp().connect(
+        address.c_str(), 10000,
+        EspBluedroidSppSecurity::AuthenticatedEncrypted);
+      Serial.printf("SPP_SECURITY_CLIENT_CONNECT accepted=%u\n",
+        accepted ? 1 : 0);
     }
   }
   bluetooth.update();

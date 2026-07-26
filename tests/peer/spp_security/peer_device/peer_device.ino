@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <esp_bt.h>
+#include <esp_bt_device.h>
 #include <esp_bt_main.h>
 #include <esp_gap_bt_api.h>
 #include <esp_spp_api.h>
@@ -10,6 +11,15 @@ esp_bd_addr_t serverAddress = {};
 esp_bd_addr_t comparisonAddress = {};
 bool comparisonPending = false;
 uint32_t connectionHandle = 0;
+
+String localAddress()
+{
+  const uint8_t *address = esp_bt_dev_get_address();
+  char value[18];
+  snprintf(value, sizeof(value), "%02x:%02x:%02x:%02x:%02x:%02x",
+    address[0], address[1], address[2], address[3], address[4], address[5]);
+  return String(value);
+}
 
 size_t clearClassicBonds()
 {
@@ -87,6 +97,34 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
     static uint8_t data[] = {0x00, 0x53, 0xff};
     esp_spp_write(connectionHandle, sizeof(data), data);
   }
+  else if (event == ESP_SPP_START_EVT)
+  {
+    if (parameter->start.status == ESP_SPP_SUCCESS)
+    {
+      Serial.printf("SPP_SECURITY_RAW_SERVER_READY address=%s\n",
+        localAddress().c_str());
+    }
+    else
+    {
+      Serial.printf("SPP_SECURITY_RAW_SERVER_START_FAILED status=%d\n",
+        parameter->start.status);
+    }
+  }
+  else if (event == ESP_SPP_SRV_OPEN_EVT)
+  {
+    if (parameter->srv_open.status != ESP_SPP_SUCCESS)
+    {
+      Serial.printf("SPP_SECURITY_RAW_SERVER_OPEN_FAILED status=%d\n",
+        parameter->srv_open.status);
+      esp_bt_gap_set_scan_mode(
+        ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
+      return;
+    }
+    connectionHandle = parameter->srv_open.handle;
+    Serial.println("SPP_SECURITY_RAW_SERVER_CONNECTED");
+    static uint8_t data[] = {0x00, 0x43, 0xff};
+    esp_spp_write(connectionHandle, sizeof(data), data);
+  }
   else if (event == ESP_SPP_DATA_IND_EVT)
   {
     Serial.printf("SPP_SECURITY_RAW_RX length=%u hex=",
@@ -96,7 +134,10 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
       Serial.printf("%02x", parameter->data_ind.data[index]);
     }
     Serial.println();
-    esp_spp_disconnect(parameter->data_ind.handle);
+    if (connectionHandle != 0)
+    {
+      esp_spp_disconnect(parameter->data_ind.handle);
+    }
   }
   else if (event == ESP_SPP_CLOSE_EVT)
   {
@@ -171,6 +212,34 @@ void loop()
     {
       Serial.println("SPP_SECURITY_RAW_DISCOVERY_FAILED");
     }
+  }
+  else if (command == 's')
+  {
+    esp_bt_gap_set_device_name("Raw Secure SPP Server");
+    if (
+      esp_bt_gap_set_scan_mode(
+        ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE) != ESP_OK ||
+      esp_spp_start_srv(
+        static_cast<esp_spp_sec_t>(
+          ESP_SPP_SEC_AUTHENTICATE | ESP_SPP_SEC_ENCRYPT),
+        ESP_SPP_ROLE_SLAVE, 0, "Raw Secure SPP Server") != ESP_OK)
+    {
+      Serial.println("SPP_SECURITY_RAW_SERVER_START_FAILED");
+    }
+  }
+  else if (command == 'b')
+  {
+    const size_t removed = clearClassicBonds();
+    const uint32_t startedAt = millis();
+    while (
+      esp_bt_gap_get_bond_device_num() != 0 &&
+      static_cast<uint32_t>(millis() - startedAt) < 2000)
+    {
+      delay(10);
+    }
+    Serial.printf("SPP_SECURITY_RAW_BONDS_CLEARED removed=%u count=%d\n",
+      static_cast<unsigned>(removed),
+      esp_bt_gap_get_bond_device_num());
   }
   else if ((command == 'a' || command == 'r') && comparisonPending)
   {

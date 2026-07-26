@@ -3248,6 +3248,215 @@ bool EspBluedroidClassic::confirmNumericComparison(
 #endif
 }
 
+size_t EspBluedroidClassic::bondCount() const
+{
+#if !defined(CONFIG_BT_CLASSIC_ENABLED)
+  return 0;
+#else
+  if (!owner_->initialized()) return 0;
+  const int count = esp_bt_gap_get_bond_device_num();
+  return count > 0 ? static_cast<size_t>(count) : 0;
+#endif
+}
+
+bool EspBluedroidClassic::bond(
+  size_t index,
+  EspBluedroidClassicBond &bond) const
+{
+#if !defined(CONFIG_BT_CLASSIC_ENABLED)
+  (void)index;
+  (void)bond;
+  return false;
+#else
+  if (!owner_->initialized()) return false;
+  const int count = esp_bt_gap_get_bond_device_num();
+  if (count <= 0 || index >= static_cast<size_t>(count)) return false;
+  esp_bd_addr_t *bonds = new (std::nothrow) esp_bd_addr_t[count];
+  if (bonds == nullptr) return false;
+  int listed = count;
+  const bool success =
+    esp_bt_gap_get_bond_device_list(&listed, bonds) == ESP_OK &&
+    index < static_cast<size_t>(listed);
+  if (success)
+  {
+    bond.peerAddress = classicAddress(bonds[index]);
+  }
+  delete[] bonds;
+  return success;
+#endif
+}
+
+bool EspBluedroidClassic::deleteBond(
+  const EspBluedroidClassicBond &bond)
+{
+#if !defined(CONFIG_BT_CLASSIC_ENABLED)
+  (void)bond;
+  owner_->setError(
+    EspBleError::Unsupported, "Classic Bluetooth is not enabled");
+  return false;
+#else
+  if (!owner_->initialized() || spp_.impl_ == nullptr)
+  {
+    owner_->setError(
+      EspBleError::InvalidState,
+      "Classic Bluetooth stack is not initialized");
+    return false;
+  }
+  if (!isValidBleAddress(bond.peerAddress.c_str()))
+  {
+    owner_->setError(
+      EspBleError::InvalidArgument,
+      "a canonical Classic peer address is required");
+    return false;
+  }
+  {
+    std::lock_guard<std::mutex> lock(spp_.impl_->mutex);
+    if (spp_.impl_->backendHandle != 0 || spp_.impl_->connecting)
+    {
+      owner_->setError(
+        EspBleError::InvalidState,
+        "disconnect SPP before deleting a Classic bond");
+      return false;
+    }
+  }
+  const int count = esp_bt_gap_get_bond_device_num();
+  esp_bd_addr_t *bonds =
+    count > 0 ? new (std::nothrow) esp_bd_addr_t[count] : nullptr;
+  if (count > 0 && bonds == nullptr)
+  {
+    owner_->setError(
+      EspBleError::ResourceExhausted,
+      "failed to allocate Classic bond list");
+    return false;
+  }
+  int listed = count;
+  if (
+    count > 0 &&
+    esp_bt_gap_get_bond_device_list(&listed, bonds) != ESP_OK)
+  {
+    delete[] bonds;
+    owner_->setError(
+      EspBleError::BackendFailure,
+      "failed to enumerate Classic bonds");
+    return false;
+  }
+  for (int index = 0; index < listed; ++index)
+  {
+    if (classicAddress(bonds[index]).equalsIgnoreCase(bond.peerAddress))
+    {
+      const esp_err_t result =
+        esp_bt_gap_remove_bond_device(bonds[index]);
+      delete[] bonds;
+      if (result != ESP_OK)
+      {
+        owner_->setError(
+          EspBleError::BackendFailure,
+          "failed to delete Classic bond");
+        return false;
+      }
+      const uint32_t startedAt = millis();
+      while (
+        esp_bt_gap_get_bond_device_num() >= count &&
+        static_cast<uint32_t>(millis() - startedAt) < 2000)
+      {
+        delay(10);
+      }
+      if (esp_bt_gap_get_bond_device_num() >= count)
+      {
+        owner_->setError(
+          EspBleError::Timeout,
+          "timed out waiting for Classic bond deletion");
+        return false;
+      }
+      owner_->clearError();
+      return true;
+    }
+  }
+  delete[] bonds;
+  owner_->setError(
+    EspBleError::NotFound, "Classic bond was not found");
+  return false;
+#endif
+}
+
+bool EspBluedroidClassic::deleteAllBonds()
+{
+#if !defined(CONFIG_BT_CLASSIC_ENABLED)
+  owner_->setError(
+    EspBleError::Unsupported, "Classic Bluetooth is not enabled");
+  return false;
+#else
+  if (!owner_->initialized() || spp_.impl_ == nullptr)
+  {
+    owner_->setError(
+      EspBleError::InvalidState,
+      "Classic Bluetooth stack is not initialized");
+    return false;
+  }
+  {
+    std::lock_guard<std::mutex> lock(spp_.impl_->mutex);
+    if (spp_.impl_->backendHandle != 0 || spp_.impl_->connecting)
+    {
+      owner_->setError(
+        EspBleError::InvalidState,
+        "disconnect SPP before deleting Classic bonds");
+      return false;
+    }
+  }
+  const int count = esp_bt_gap_get_bond_device_num();
+  if (count <= 0)
+  {
+    owner_->clearError();
+    return true;
+  }
+  esp_bd_addr_t *bonds = new (std::nothrow) esp_bd_addr_t[count];
+  if (bonds == nullptr)
+  {
+    owner_->setError(
+      EspBleError::ResourceExhausted,
+      "failed to allocate Classic bond list");
+    return false;
+  }
+  int listed = count;
+  if (esp_bt_gap_get_bond_device_list(&listed, bonds) != ESP_OK)
+  {
+    delete[] bonds;
+    owner_->setError(
+      EspBleError::BackendFailure,
+      "failed to enumerate Classic bonds");
+    return false;
+  }
+  for (int index = 0; index < listed; ++index)
+  {
+    if (esp_bt_gap_remove_bond_device(bonds[index]) != ESP_OK)
+    {
+      delete[] bonds;
+      owner_->setError(
+        EspBleError::BackendFailure,
+        "failed to delete all Classic bonds");
+      return false;
+    }
+  }
+  delete[] bonds;
+  const uint32_t startedAt = millis();
+  while (
+    esp_bt_gap_get_bond_device_num() != 0 &&
+    static_cast<uint32_t>(millis() - startedAt) < 2000)
+  {
+    delay(10);
+  }
+  if (esp_bt_gap_get_bond_device_num() != 0)
+  {
+    owner_->setError(
+      EspBleError::Timeout,
+      "timed out waiting for Classic bond deletion");
+    return false;
+  }
+  owner_->clearError();
+  return true;
+#endif
+}
+
 bool EspBluedroidClassic::begin(
   const char *deviceName,
   const EspBluedroidClassicSecurityConfig &security)

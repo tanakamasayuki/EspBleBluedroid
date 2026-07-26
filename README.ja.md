@@ -13,8 +13,9 @@ Read / Write / Notification購読の
 Numeric Comparison、bondの保存・列挙・削除も実装済みです。Bluetooth Classicは
 capability snapshotと`classic().inquiry()`を実装しています。SPPはClient/Server共通の
 session、binary-safeな双方向data、Arduino `Stream`ラッパー、切断・再接続、
-SSP Numeric Comparisonによる認証・暗号化まで利用できます。他profileは今後も
-テストファーストで追加します。
+SSP Numeric Comparisonによる認証・暗号化、BLE bondとは分離したClassic bondの
+列挙・削除まで利用できます。secure SPPはClient/Server両roleを実機確認済みです。
+他profileは今後もテストファーストで追加します。
 
 ## 現在のテスト範囲
 
@@ -31,7 +32,7 @@ peerテストでは次を確認します。
 - 2台のSerial出力をpytestから検証
 - 公開APIによるAdvertising/Scanと、`update()` contextからのcallback配送
 - Classic capabilityとInquiry、name / Class of Device / RSSI、停止完了
-- Classic SPP Client/Server、Stream API、SSP拒否・retry・認証暗号化data
+- Classic SPP Client/Server、Stream API、SSP拒否・retry・bond再接続・認証暗号化data
 
 セットアップと実行方法は[tests/README.ja.md](tests/README.ja.md)を参照してください。
 
