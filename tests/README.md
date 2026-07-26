@@ -56,8 +56,10 @@ eight-entry write-queue overflow behavior.
 `peer/spp_client` verifies asynchronous SDP/RFCOMM connection to a raw ESP-IDF
 server, the shared session API, binary data, public disconnection, reconnect
 IDs, and deferred failure/timeout delivery.
-`peer/dual_mode_scan_spp` verifies active BLE Scan while an SPP session remains
-connected, then starts binary SPP traffic from the deferred Scan callback.
+`peer/dual_mode_scan_spp` verifies active BLE Scan and a BLE Central/GATT
+connection while an SPP session remains connected. It covers service discovery,
+Characteristic Read/Write, subscription/notification, and 16 interleaved
+notification-to-SPP binary round trips without losing either connection.
 `peer/spp_receive_buffer` verifies the session-scoped 2048-byte receive ring,
 binary-safe `peek()`/single-byte/bulk reads, deterministic overflow accounting,
 and buffer invalidation on disconnect against a 2300-byte raw ESP-IDF burst.
@@ -71,3 +73,7 @@ rediscovery and retry, authenticated/encrypted session state, deferred Classic
 Security callbacks, Classic bond listing/deletion, secure reconnection from a
 stored link key without another confirmation, and binary data in both public
 SPP Server and Client roles.
+`peer/spp_passkey` verifies Classic DisplayOnly/KeyboardOnly Passkey Entry in
+both public-library roles, deferred address-scoped display/request callbacks,
+runtime passkey submission, authenticated/encrypted SPP data, and
+reinitialization with the opposite I/O capability in the same boot.

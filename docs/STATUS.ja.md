@@ -21,8 +21,8 @@
 | Classic SPP Server | `classic().spp().startServer()` / session / read / write / disconnect | binary-safe双方向data、固定長RX ring、remote切断、再接続ID、稼働中`end()` |
 | Classic SPP Client | `classic().spp().connect()` / connection failure / 共通session API | non-blocking SDP/RFCOMM接続、共通RX ring、local切断、再接続ID、timeout |
 | Classic SPP Stream | `EspBluedroidSppStream` | sessionへbindするArduino `Stream`/`Print`、`print()`、`readBytes()`、`flush()`、切断検知 |
-| Classic Security | Numeric Comparison / SPP security mode / `classic().bond*()` | SSP比較値の遅延配送、明示accept/reject、Client/Server認証失敗後retry、bond再接続・列挙・削除、認証・暗号化SPP data |
-| BLE/SPP dual mode | active BLE Scan + active SPP session | Scan callbackからSPP write、binary応答、独立queue、停止・切断 |
+| Classic Security | Numeric Comparison / Passkey Entry / SPP security mode / `classic().bond*()` | DisplayOnly/KeyboardOnly、比較値、明示回答、Client/Server認証失敗後retry、bond再接続・列挙・削除、認証・暗号化SPP data |
+| BLE/SPP dual mode | active BLE Scan・GATT Client + active SPP session | Discovery、Read/Write、Notification、16サイクルのSPP往復、独立queue、停止・切断 |
 
 AdvertisingとScanの基本経路は`tests/peer/advertise_scan`、Advertising wire形式と
 payload境界は`tests/peer/advertise_payload`で実機確認している。Scanはduration停止、
@@ -43,8 +43,13 @@ SPP Securityは`tests/peer/spp_security`でraw ESP-IDF peerとのDisplayYesNo SS
 sessionとbinary dataをClient/Server両roleで確認している。さらにClassic bondを
 BLE bondとは別の公開APIで列挙・削除し、保存link keyによる確認UIなしのsecure再接続も
 確認している。
-dual modeは`tests/peer/dual_mode_scan_spp`でSPP session中のactive BLE Scanと、
-Scan Result callbackから開始するSPP binary往復を確認している。
+Classic Passkeyは`tests/peer/spp_passkey`でpublic KeyboardOnlyとraw DisplayOnly、
+およびpublic DisplayOnlyとraw KeyboardOnlyの両方向を確認している。表示・入力要求は
+`update()`からpeer address付きで配送し、`providePasskey(address, value)`で回答する。
+同一bootで`end()`後にI/O capabilityを反転して再初期化できることも確認している。
+dual modeは`tests/peer/dual_mode_scan_spp`でSPP session中のactive BLE Scan、
+BLE Central接続、GATT Discovery / Characteristic Read・Write / Notificationと、
+NotificationごとのSPP binary往復を16サイクル継続できることを確認している。
 `tests/peer/stack_smoke`は、公開API実装前のbackend成立性として接続、GATT read/write、
 CCCD購読、notificationまで確認している。
 
@@ -83,7 +88,7 @@ CCCD購読、notificationまで確認している。
   その間は次のGATT操作を受理しない。
 - Classic Inquiry result queueは16件。overflowは`droppedResultCount()`で確認できる。
   Inquiry時間は1〜61秒、`maxResponses=0`はbackend上限まで探索する。Classic Inquiryは
-  BLE Scanとは別の操作・結果型であり、同時実行の保証はdual-modeテスト追加後に確定する。
+  BLE Scanとは別の操作・結果型であり、InquiryとBLE Scanの同時実行は保証しない。
 - SPPはClient/Server、pendingまたはactive session 1つ、送信queue 8件、
   1 writeあたり1〜990 byteに対応。ClientはSDPの先頭SPP serviceを利用する。
   queue使用量は`pendingWriteCount()`またはsession指定overload、拒否・backend送信失敗の
@@ -95,18 +100,20 @@ CCCD購読、notificationまで確認している。
   利用できる。writeは990 byte単位へ分割し、`availableForWrite()`は固定長送信queueの
   残り容量をbyteで返す。ラッパーはstackやsessionを所有しない。
   SPP Security modeは認証のみ、または認証＋暗号化を選べる。Classic側は
-  NoInputNoOutputとDisplayYesNo SSPに対応し、比較未回答は既定30秒で拒否する。
+  NoInputNoOutput、DisplayOnly、KeyboardOnly、DisplayYesNo SSPに対応し、Passkey入力と
+  比較確認の未回答は既定30秒で拒否する。
   Classic bondは`EspBluedroidClassicBond`としてBLE bond storeから分離し、
   `classic().bondCount()` / `bond()` / `deleteBond()` / `deleteAllBonds()`で管理する。
-  Classic Passkey Entry/Display、複数session、送信完了callbackは未実装。
-- BLE ScanとSPP session/dataの同時利用は確認済み。BLE GATT接続・ATT trafficとSPPの
-  同時利用、長時間・高負荷時のfairnessは未確認。
+  複数session、送信完了callbackは未実装。
+- BLE ScanおよびBLE GATT接続・ATT trafficとSPP session/dataの同時利用は確認済み。
+  NotificationとSPP往復を16サイクル継続しているが、長時間・飽和負荷時のfairnessは
+  未確認。
 - GATT Server、HIDおよびSPP以外のClassic profileは公開API未実装。
 - Advertisingの時間指定停止は`update()`で処理するため、継続的な`update()`呼出しが必要。
 
 ## 次のテストスライス
 
-1. BLE GATT/SPP dual-modeと長時間traffic。
-2. Classic Passkey Entry/Display。
+1. Classic Passkey未回答timeout・拒否後retry。
+2. BLE GATT/SPP dual-modeの長時間・飽和負荷traffic。
 
 各項目は失敗するunitまたはpeerテストを先に追加してから実装する。

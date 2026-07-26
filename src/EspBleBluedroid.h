@@ -45,6 +45,8 @@ struct EspBleSecurityConfig
 enum class EspBluedroidClassicSecurityIoCapability : uint8_t
 {
   None = 0,
+  DisplayOnly,
+  KeyboardOnly,
   DisplayYesNo,
 };
 
@@ -295,6 +297,17 @@ struct EspBluedroidClassicNumericComparison
   uint32_t value = 0;
 };
 
+struct EspBluedroidClassicPasskeyDisplayed
+{
+  String peerAddress;
+  uint32_t passkey = 0;
+};
+
+struct EspBluedroidClassicPasskeyRequested
+{
+  String peerAddress;
+};
+
 struct EspBluedroidSppData
 {
   EspBluedroidSppSessionId sessionId = 0;
@@ -523,12 +536,19 @@ public:
     std::function<void(const EspBluedroidClassicSecurityChanged &event)>;
   using NumericComparisonCallback =
     std::function<void(const EspBluedroidClassicNumericComparison &event)>;
+  using PasskeyDisplayedCallback =
+    std::function<void(const EspBluedroidClassicPasskeyDisplayed &event)>;
+  using PasskeyRequestedCallback =
+    std::function<void(const EspBluedroidClassicPasskeyRequested &event)>;
 
   EspBluedroidClassicInquiry &inquiry();
   EspBluedroidSpp &spp();
   void onSecurityChanged(SecurityChangedCallback callback);
   void onNumericComparisonRequested(NumericComparisonCallback callback);
+  void onPasskeyDisplayed(PasskeyDisplayedCallback callback);
+  void onPasskeyRequested(PasskeyRequestedCallback callback);
   bool confirmNumericComparison(const char *peerAddress, bool accept);
+  bool providePasskey(const char *peerAddress, uint32_t passkey);
   size_t bondCount() const;
   bool bond(size_t index, EspBluedroidClassicBond &bond) const;
   bool deleteBond(const EspBluedroidClassicBond &bond);
@@ -551,6 +571,8 @@ private:
   EspBluedroidSpp spp_;
   SecurityChangedCallback securityChangedCallback_;
   NumericComparisonCallback numericComparisonCallback_;
+  PasskeyDisplayedCallback passkeyDisplayedCallback_;
+  PasskeyRequestedCallback passkeyRequestedCallback_;
   EspBluedroidClassicImpl *impl_ = nullptr;
 };
 

@@ -227,6 +227,8 @@ struct EspBluedroidClassicImpl
   {
     SecurityChanged,
     NumericComparison,
+    PasskeyDisplayed,
+    PasskeyRequested,
   };
 
   struct Event
@@ -234,6 +236,8 @@ struct EspBluedroidClassicImpl
     EventType type = EventType::SecurityChanged;
     EspBluedroidClassicSecurityChanged securityChanged;
     EspBluedroidClassicNumericComparison numericComparison;
+    EspBluedroidClassicPasskeyDisplayed passkeyDisplayed;
+    EspBluedroidClassicPasskeyRequested passkeyRequested;
   };
 
   bool enqueue(Event event)
@@ -262,6 +266,11 @@ struct EspBluedroidClassicImpl
   String numericComparisonAddress;
   esp_bd_addr_t numericComparisonBackendAddress = {};
   uint32_t numericComparisonDeadlineMs = 0;
+  bool passkeyRequestedCallbackConfigured = false;
+  bool passkeyPending = false;
+  String passkeyAddress;
+  esp_bd_addr_t passkeyBackendAddress = {};
+  uint32_t passkeyDeadlineMs = 0;
 };
 
 #if defined(CONFIG_BT_CLASSIC_ENABLED)
@@ -379,6 +388,19 @@ void classicGapCallback(
           sizeof(classic->numericComparisonBackendAddress));
         classic->numericComparisonDeadlineMs = 0;
       }
+      if (
+        classic->passkeyPending &&
+        memcmp(
+          classic->passkeyBackendAddress,
+          parameter->auth_cmpl.bda, ESP_BD_ADDR_LEN) == 0)
+      {
+        classic->passkeyPending = false;
+        classic->passkeyAddress = "";
+        memset(
+          classic->passkeyBackendAddress, 0,
+          sizeof(classic->passkeyBackendAddress));
+        classic->passkeyDeadlineMs = 0;
+      }
     }
     EspBluedroidClassicImpl::Event queued;
     queued.type =
@@ -438,9 +460,62 @@ void classicGapCallback(
       esp_bt_gap_ssp_confirm_reply(parameter->cfm_req.bda, false);
     }
   }
+  else if (event == ESP_BT_GAP_KEY_NOTIF_EVT)
+  {
+    EspBluedroidClassicImpl::Event queued;
+    queued.type =
+      EspBluedroidClassicImpl::EventType::PasskeyDisplayed;
+    queued.passkeyDisplayed.peerAddress =
+      classicAddress(parameter->key_notif.bda);
+    queued.passkeyDisplayed.passkey = parameter->key_notif.passkey;
+    classic->enqueue(std::move(queued));
+  }
   else if (event == ESP_BT_GAP_KEY_REQ_EVT)
   {
-    esp_bt_gap_ssp_passkey_reply(parameter->key_req.bda, false, 0);
+    bool canRequest = false;
+    {
+      std::lock_guard<std::mutex> lock(classic->mutex);
+      canRequest =
+        classic->security.enabled &&
+        classic->security.ioCapability ==
+          EspBluedroidClassicSecurityIoCapability::KeyboardOnly &&
+        classic->passkeyRequestedCallbackConfigured &&
+        !classic->passkeyPending;
+      if (canRequest)
+      {
+        classic->passkeyPending = true;
+        classic->passkeyAddress =
+          classicAddress(parameter->key_req.bda);
+        memcpy(
+          classic->passkeyBackendAddress,
+          parameter->key_req.bda, ESP_BD_ADDR_LEN);
+        classic->passkeyDeadlineMs =
+          millis() + classic->security.responseTimeoutMilliseconds;
+      }
+    }
+    if (!canRequest)
+    {
+      esp_bt_gap_ssp_passkey_reply(parameter->key_req.bda, false, 0);
+      return;
+    }
+    EspBluedroidClassicImpl::Event queued;
+    queued.type =
+      EspBluedroidClassicImpl::EventType::PasskeyRequested;
+    queued.passkeyRequested.peerAddress =
+      classicAddress(parameter->key_req.bda);
+    if (!classic->enqueue(std::move(queued)))
+    {
+      {
+        std::lock_guard<std::mutex> lock(classic->mutex);
+        classic->passkeyPending = false;
+        classic->passkeyAddress = "";
+        memset(
+          classic->passkeyBackendAddress, 0,
+          sizeof(classic->passkeyBackendAddress));
+        classic->passkeyDeadlineMs = 0;
+      }
+      esp_bt_gap_ssp_passkey_reply(parameter->key_req.bda, false, 0);
+    }
   }
   else if (event == ESP_BT_GAP_PIN_REQ_EVT)
   {
@@ -3192,6 +3267,24 @@ void EspBluedroidClassic::onNumericComparisonRequested(
   }
 }
 
+void EspBluedroidClassic::onPasskeyDisplayed(
+  PasskeyDisplayedCallback callback)
+{
+  passkeyDisplayedCallback_ = std::move(callback);
+}
+
+void EspBluedroidClassic::onPasskeyRequested(
+  PasskeyRequestedCallback callback)
+{
+  passkeyRequestedCallback_ = std::move(callback);
+  if (impl_ != nullptr)
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    impl_->passkeyRequestedCallbackConfigured =
+      static_cast<bool>(passkeyRequestedCallback_);
+  }
+}
+
 bool EspBluedroidClassic::confirmNumericComparison(
   const char *peerAddress,
   bool accept)
@@ -3242,6 +3335,66 @@ bool EspBluedroidClassic::confirmNumericComparison(
       impl_->numericComparisonBackendAddress, 0,
       sizeof(impl_->numericComparisonBackendAddress));
     impl_->numericComparisonDeadlineMs = 0;
+  }
+  owner_->clearError();
+  return true;
+#endif
+}
+
+bool EspBluedroidClassic::providePasskey(
+  const char *peerAddress,
+  uint32_t passkey)
+{
+#if !defined(CONFIG_BT_CLASSIC_ENABLED)
+  (void)peerAddress;
+  (void)passkey;
+  owner_->setError(
+    EspBleError::Unsupported, "Classic Bluetooth is not enabled");
+  return false;
+#else
+  if (!isValidBleAddress(peerAddress) || passkey > 999999)
+  {
+    owner_->setError(
+      EspBleError::InvalidArgument,
+      "a canonical Classic peer address and six-digit passkey are required");
+    return false;
+  }
+  if (impl_ == nullptr)
+  {
+    owner_->setError(
+      EspBleError::InvalidState,
+      "Classic Bluetooth stack is not initialized");
+    return false;
+  }
+  esp_bd_addr_t address = {};
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (
+      !impl_->passkeyPending ||
+      !impl_->passkeyAddress.equalsIgnoreCase(peerAddress))
+    {
+      owner_->setError(
+        EspBleError::NotFound,
+        "Classic Passkey Entry request was not found");
+      return false;
+    }
+    memcpy(address, impl_->passkeyBackendAddress, sizeof(address));
+  }
+  if (esp_bt_gap_ssp_passkey_reply(address, true, passkey) != ESP_OK)
+  {
+    owner_->setError(
+      EspBleError::BackendFailure,
+      "failed to reply to Classic Passkey Entry");
+    return false;
+  }
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    impl_->passkeyPending = false;
+    impl_->passkeyAddress = "";
+    memset(
+      impl_->passkeyBackendAddress, 0,
+      sizeof(impl_->passkeyBackendAddress));
+    impl_->passkeyDeadlineMs = 0;
   }
   owner_->clearError();
   return true;
@@ -3477,6 +3630,8 @@ bool EspBluedroidClassic::begin(
     impl_->security = security;
     impl_->numericComparisonCallbackConfigured =
       static_cast<bool>(numericComparisonCallback_);
+    impl_->passkeyRequestedCallbackConfigured =
+      static_cast<bool>(passkeyRequestedCallback_);
     impl_->eventHead = 0;
     impl_->eventCount = 0;
     impl_->dropped = 0;
@@ -3486,6 +3641,12 @@ bool EspBluedroidClassic::begin(
       impl_->numericComparisonBackendAddress, 0,
       sizeof(impl_->numericComparisonBackendAddress));
     impl_->numericComparisonDeadlineMs = 0;
+    impl_->passkeyPending = false;
+    impl_->passkeyAddress = "";
+    memset(
+      impl_->passkeyBackendAddress, 0,
+      sizeof(impl_->passkeyBackendAddress));
+    impl_->passkeyDeadlineMs = 0;
   }
 #if defined(CONFIG_BT_CLASSIC_ENABLED)
   activeClassic.store(impl_, std::memory_order_release);
@@ -3499,9 +3660,19 @@ bool EspBluedroidClassic::begin(
   }
 #if defined(CONFIG_BT_CLASSIC_ENABLED)
   esp_bt_io_cap_t capability = ESP_BT_IO_CAP_NONE;
-  if (
+  if (security.ioCapability ==
+      EspBluedroidClassicSecurityIoCapability::DisplayOnly)
+  {
+    capability = ESP_BT_IO_CAP_OUT;
+  }
+  else if (security.ioCapability ==
+           EspBluedroidClassicSecurityIoCapability::KeyboardOnly)
+  {
+    capability = ESP_BT_IO_CAP_IN;
+  }
+  else if (
     security.ioCapability ==
-    EspBluedroidClassicSecurityIoCapability::DisplayYesNo)
+      EspBluedroidClassicSecurityIoCapability::DisplayYesNo)
   {
     capability = ESP_BT_IO_CAP_IO;
   }
@@ -3533,7 +3704,9 @@ void EspBluedroidClassic::end()
 #if defined(CONFIG_BT_CLASSIC_ENABLED)
   activeClassic.store(nullptr, std::memory_order_release);
   esp_bd_addr_t pendingAddress = {};
+  esp_bd_addr_t pendingPasskeyAddress = {};
   bool pending = false;
+  bool passkeyPending = false;
   if (impl_ != nullptr)
   {
     std::lock_guard<std::mutex> lock(impl_->mutex);
@@ -3541,10 +3714,18 @@ void EspBluedroidClassic::end()
     memcpy(
       pendingAddress, impl_->numericComparisonBackendAddress,
       sizeof(pendingAddress));
+    passkeyPending = impl_->passkeyPending;
+    memcpy(
+      pendingPasskeyAddress, impl_->passkeyBackendAddress,
+      sizeof(pendingPasskeyAddress));
   }
   if (pending)
   {
     esp_bt_gap_ssp_confirm_reply(pendingAddress, false);
+  }
+  if (passkeyPending)
+  {
+    esp_bt_gap_ssp_passkey_reply(pendingPasskeyAddress, false, 0);
   }
 #endif
   spp_.end();
@@ -3557,12 +3738,19 @@ void EspBluedroidClassic::end()
     impl_->dropped = 0;
     impl_->security = EspBluedroidClassicSecurityConfig();
     impl_->numericComparisonCallbackConfigured = false;
+    impl_->passkeyRequestedCallbackConfigured = false;
     impl_->numericComparisonPending = false;
     impl_->numericComparisonAddress = "";
     memset(
       impl_->numericComparisonBackendAddress, 0,
       sizeof(impl_->numericComparisonBackendAddress));
     impl_->numericComparisonDeadlineMs = 0;
+    impl_->passkeyPending = false;
+    impl_->passkeyAddress = "";
+    memset(
+      impl_->passkeyBackendAddress, 0,
+      sizeof(impl_->passkeyBackendAddress));
+    impl_->passkeyDeadlineMs = 0;
   }
 }
 
@@ -3572,7 +3760,9 @@ void EspBluedroidClassic::update()
   {
 #if defined(CONFIG_BT_CLASSIC_ENABLED)
     esp_bd_addr_t timedOutAddress = {};
+    esp_bd_addr_t timedOutPasskeyAddress = {};
     bool timedOut = false;
+    bool passkeyTimedOut = false;
     {
       std::lock_guard<std::mutex> lock(impl_->mutex);
       timedOut =
@@ -3591,10 +3781,30 @@ void EspBluedroidClassic::update()
           sizeof(impl_->numericComparisonBackendAddress));
         impl_->numericComparisonDeadlineMs = 0;
       }
+      passkeyTimedOut =
+        impl_->passkeyPending &&
+        static_cast<int32_t>(
+          millis() - impl_->passkeyDeadlineMs) >= 0;
+      if (passkeyTimedOut)
+      {
+        memcpy(
+          timedOutPasskeyAddress, impl_->passkeyBackendAddress,
+          sizeof(timedOutPasskeyAddress));
+        impl_->passkeyPending = false;
+        impl_->passkeyAddress = "";
+        memset(
+          impl_->passkeyBackendAddress, 0,
+          sizeof(impl_->passkeyBackendAddress));
+        impl_->passkeyDeadlineMs = 0;
+      }
     }
     if (timedOut)
     {
       esp_bt_gap_ssp_confirm_reply(timedOutAddress, false);
+    }
+    if (passkeyTimedOut)
+    {
+      esp_bt_gap_ssp_passkey_reply(timedOutPasskeyAddress, false, 0);
     }
 #endif
     while (true)
@@ -3622,6 +3832,20 @@ void EspBluedroidClassic::update()
         numericComparisonCallback_)
       {
         numericComparisonCallback_(event.numericComparison);
+      }
+      else if (
+        event.type ==
+          EspBluedroidClassicImpl::EventType::PasskeyDisplayed &&
+        passkeyDisplayedCallback_)
+      {
+        passkeyDisplayedCallback_(event.passkeyDisplayed);
+      }
+      else if (
+        event.type ==
+          EspBluedroidClassicImpl::EventType::PasskeyRequested &&
+        passkeyRequestedCallback_)
+      {
+        passkeyRequestedCallback_(event.passkeyRequested);
       }
     }
   }

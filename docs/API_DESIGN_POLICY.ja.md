@@ -256,6 +256,11 @@ Classic SSPはLE Securityとは別のevent型を使う。I/O capabilityと比較
 認証結果はsession成立前にも発生するため、profile session eventへ埋め込まず
 `EspBluedroidClassicSecurityChanged`でpeer address単位に通知する。成立したSPP session
 には、要求を満たしたことを示す`authenticated`と`encrypted`をsnapshotする。
+DisplayOnlyのPasskeyは`classic().onPasskeyDisplayed()`、KeyboardOnlyの入力要求は
+`classic().onPasskeyRequested()`へ、いずれもpeer address付きで`update()`から配送する。
+入力は`classic().providePasskey(peerAddress, passkey)`で回答し、成功はbackendへ回答を
+受理したことだけを意味する。認証結果はNumeric Comparisonと同じく
+`onSecurityChanged()`で確定する。
 Classic link keyは`EspBluedroidClassicBond`として列挙し、LEの`EspBleBond`やaddress
 typeを持つ一覧へ混在させない。`classic().bondCount()` / `bond()` /
 `deleteBond()` / `deleteAllBonds()`はBLE側と同じ操作感にするが、Classic profile
@@ -320,7 +325,8 @@ Classic対応は「buildで有効だから一括公開」せず、profileごと�
    DisplayYesNo SSPのClient/Server拒否・retry・認証暗号化data、Classic bond管理、
    保存link keyによるsecure再接続は実装・実機確認済み。
 3. BLEとSPPのdual-mode同時利用。resource競合とevent starvationを検証する。
-   BLE Scan中のSPP binary trafficは実装・確認済み。GATT/SPP同時trafficは未確認。
+   BLE ScanとGATT Discovery / Read / Write / Notification中のSPP binary trafficを
+   実装・確認済み。長時間・飽和負荷時のfairnessは未確認。
 4. Classic HID Host/Device。HOGPと共有できるusage/report codecだけを共通化する。
 5. A2DP/AVRCP。audio data pathとcontrol eventを分離して設計する。
 6. HFP。同期音声linkを含むため、別途resource/latency設計を行う。

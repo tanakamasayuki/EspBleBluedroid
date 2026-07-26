@@ -1,9 +1,35 @@
 #include <Arduino.h>
+#include <BLE2902.h>
 #include <BLEDevice.h>
+#include <BLEServer.h>
 #include <esp_bt_device.h>
 #include <esp_gap_bt_api.h>
 #include <esp_spp_api.h>
 #include <esp32-hal-alloc-bt-classic-mem.h>
+
+static constexpr const char *SERVICE_UUID =
+  "48e8c100-a176-4c75-8d8d-6f626c756564";
+static constexpr const char *CHARACTERISTIC_UUID =
+  "48e8c101-a176-4c75-8d8d-6f626c756564";
+
+BLECharacteristic *gattCharacteristic = nullptr;
+
+class DualCharacteristicCallbacks : public BLECharacteristicCallbacks
+{
+  void onWrite(BLECharacteristic *characteristic) override
+  {
+    const String value = characteristic->getValue();
+    Serial.printf("DUAL_PEER_GATT_WRITE length=%u hex=",
+      static_cast<unsigned>(value.length()));
+    for (size_t index = 0; index < value.length(); ++index)
+    {
+      Serial.printf("%02x", static_cast<uint8_t>(value[index]));
+    }
+    Serial.println();
+  }
+};
+
+DualCharacteristicCallbacks gattCallbacks;
 
 void printReady()
 {
@@ -61,7 +87,20 @@ void initializePeer()
     Serial.println("DUAL_PEER_INIT_FAILED");
     return;
   }
+  BLEServer *server = BLEDevice::createServer();
+  BLEService *service = server->createService(SERVICE_UUID);
+  gattCharacteristic = service->createCharacteristic(
+    CHARACTERISTIC_UUID,
+    BLECharacteristic::PROPERTY_READ |
+      BLECharacteristic::PROPERTY_WRITE |
+      BLECharacteristic::PROPERTY_NOTIFY);
+  gattCharacteristic->setCallbacks(&gattCallbacks);
+  gattCharacteristic->addDescriptor(new BLE2902());
+  const uint8_t initialValue[] = {0xb0, 0x00, 0x52};
+  gattCharacteristic->setValue(initialValue, sizeof(initialValue));
+  service->start();
   BLEAdvertising *advertising = BLEDevice::getAdvertising();
+  advertising->addServiceUUID(SERVICE_UUID);
   advertising->setScanResponse(true);
   BLEDevice::startAdvertising();
 
@@ -86,9 +125,20 @@ void setup()
 
 void loop()
 {
-  if (Serial.available() && Serial.read() == 'i')
+  if (Serial.available())
   {
-    initializePeer();
+    const char command = Serial.read();
+    if (command == 'i')
+    {
+      initializePeer();
+    }
+    else if (command == 'n' && gattCharacteristic != nullptr)
+    {
+      const uint8_t value[] = {0xb2, 0x00, 0x4e};
+      gattCharacteristic->setValue(value, sizeof(value));
+      gattCharacteristic->notify();
+      Serial.println("DUAL_PEER_GATT_NOTIFIED");
+    }
   }
   delay(1);
 }

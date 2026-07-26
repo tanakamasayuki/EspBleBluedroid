@@ -24,6 +24,10 @@
 - (JA) 共通sessionを使う非同期Classic SPP Client接続を追加。
 - (EN) Verify active BLE Scan and binary SPP traffic on one dual-mode stack.
 - (JA) 1つのdual-mode stack上のactive BLE Scanとbinary SPP trafficを検証。
+- (EN) Verify GATT discovery, Characteristic traffic, notifications, and
+  sustained SPP round trips on one dual-mode stack.
+- (JA) 1つのdual-mode stack上でGATT Discovery・Characteristic通信・Notificationと
+  継続的なSPP往復を検証。
 - (EN) Add an ordered eight-entry SPP write queue with overflow diagnostics.
 - (JA) 順序保証付き8件SPP送信queueとoverflow診断を追加。
 - (EN) Add a bounded 2048-byte SPP receive ring with Stream-like reads.
@@ -35,5 +39,9 @@
 - (EN) Add separate Classic bond management, bonded reconnection, and secure
   SPP Client peer coverage.
 - (JA) BLEとは分離したClassic bond管理、bond再接続、secure SPP Client実機テストを追加。
+- (EN) Add address-scoped Classic DisplayOnly/KeyboardOnly Passkey Entry with
+  two-way peer coverage.
+- (JA) peer address付きClassic DisplayOnly/KeyboardOnly Passkey Entryと
+  双方向実機テストを追加。
 - (EN) Move the primary build and hardware-test baseline to Arduino-ESP32 3.3.11.
 - (JA) 主build・実機テスト基準をArduino-ESP32 3.3.11へ更新。

@@ -15,7 +15,8 @@ bond management are also available. The first Bluetooth Classic API provides a
 capability snapshot, asynchronous Inquiry, and binary-safe SPP Client/Server
 sessions under `classic()`, including an Arduino `Stream`/`Print` wrapper for
 established SPP sessions and SSP Numeric Comparison for authenticated/encrypted
-SPP. Classic link keys can be listed and deleted through a bond API kept
+SPP. Classic DisplayOnly/KeyboardOnly Passkey Entry is also available with
+deferred display/request callbacks. Classic link keys can be listed and deleted through a bond API kept
 separate from BLE bonds, and secure SPP is covered in both Client and Server
 roles. Additional Classic profile behavior will continue to be added
 test-first.
