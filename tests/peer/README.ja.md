@@ -24,3 +24,6 @@ Inquiry result、結果callbackからの停止、`update()`上の完了eventを�
 
 `spp_server`はraw ESP-IDF Clientに対する公開SPP Server、binary data、再接続ID、
 remote切断、stack終了を検証します。
+
+`spp_client`はraw ESP-IDF Serverへの公開非同期Client接続、共通session、local切断、
+再接続、失敗eventを検証します。

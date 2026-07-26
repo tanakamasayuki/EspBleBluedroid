@@ -52,3 +52,6 @@ from a result callback, and completion delivery from `update()`.
 `peer/spp_server` verifies a public SPP Server against a raw ESP-IDF client,
 including binary-safe bidirectional data, new IDs on reconnect, remote
 disconnection, and bounded shutdown while the server is running.
+`peer/spp_client` verifies asynchronous SDP/RFCOMM connection to a raw ESP-IDF
+server, the shared session API, binary data, public disconnection, reconnect
+IDs, and deferred failure/timeout delivery.

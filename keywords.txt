@@ -15,6 +15,7 @@ EspBluedroidClassicInquiryComplete	KEYWORD1
 EspBluedroidClassicInquiryResult	KEYWORD1
 EspBluedroidSpp	KEYWORD1
 EspBluedroidSppData	KEYWORD1
+EspBluedroidSppConnectionFailure	KEYWORD1
 EspBluedroidSppServerConfig	KEYWORD1
 EspBluedroidSppSession	KEYWORD1
 EspBluedroidSppSessionId	KEYWORD1

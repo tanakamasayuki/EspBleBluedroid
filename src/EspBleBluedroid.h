@@ -258,6 +258,13 @@ struct EspBluedroidSppData
   String value;
 };
 
+struct EspBluedroidSppConnectionFailure
+{
+  String peerAddress;
+  EspBleError error = EspBleError::BackendFailure;
+  String detail;
+};
+
 class EspBleBluedroid;
 struct EspBleScannerImpl;
 struct EspBleConnectionImpl;
@@ -371,11 +378,17 @@ public:
   using SessionCallback =
     std::function<void(const EspBluedroidSppSession &session)>;
   using DataCallback = std::function<void(const EspBluedroidSppData &event)>;
+  using ConnectionFailureCallback =
+    std::function<void(const EspBluedroidSppConnectionFailure &failure)>;
 
   void onServerStarted(ServerStartedCallback callback);
   void onConnected(SessionCallback callback);
   void onDisconnected(SessionCallback callback);
   void onData(DataCallback callback);
+  void onConnectionFailed(ConnectionFailureCallback callback);
+  bool connect(
+    const char *address,
+    uint32_t timeoutMilliseconds = 10000);
   bool startServer(
     const EspBluedroidSppServerConfig &config =
       EspBluedroidSppServerConfig());
@@ -410,6 +423,7 @@ private:
   SessionCallback connectedCallback_;
   SessionCallback disconnectedCallback_;
   DataCallback dataCallback_;
+  ConnectionFailureCallback connectionFailedCallback_;
   EspBluedroidSppImpl *impl_ = nullptr;
 };
 

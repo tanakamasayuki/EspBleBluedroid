@@ -20,3 +20,5 @@
 - (JA) Classic capability snapshotと非同期Inquiry facadeを2台peerテスト付きで追加。
 - (EN) Add binary-safe Classic SPP Server sessions and reconnect coverage.
 - (JA) binary-safeなClassic SPP Server sessionと再接続テストを追加。
+- (EN) Add asynchronous Classic SPP Client connections using shared sessions.
+- (JA) 共通sessionを使う非同期Classic SPP Client接続を追加。

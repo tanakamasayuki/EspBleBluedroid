@@ -314,6 +314,7 @@ struct EspBluedroidSppImpl
     Connected,
     Disconnected,
     Data,
+    ConnectionFailed,
   };
 
   struct Event
@@ -321,6 +322,7 @@ struct EspBluedroidSppImpl
     EventType type = EventType::ServerStarted;
     EspBluedroidSppSession session;
     EspBluedroidSppData data;
+    EspBluedroidSppConnectionFailure failure;
   };
 
   bool enqueue(Event event)
@@ -354,12 +356,38 @@ struct EspBluedroidSppImpl
   EspBluedroidSppSessionId nextSessionId = 1;
   bool txPending = false;
   String txValue;
+  bool connecting = false;
+  String connectAddress;
+  esp_bd_addr_t connectBackendAddress = {};
+  uint32_t connectDeadlineMs = 0;
 };
 
 #if defined(CONFIG_BT_SPP_ENABLED)
 namespace
 {
 std::atomic<EspBluedroidSppImpl *> activeSpp{nullptr};
+
+void failSppConnection(
+  EspBluedroidSppImpl *impl,
+  EspBleError error,
+  const char *detail)
+{
+  EspBluedroidSppConnectionFailure failure;
+  {
+    std::lock_guard<std::mutex> lock(impl->mutex);
+    if (!impl->connecting) return;
+    failure.peerAddress = impl->connectAddress;
+    failure.error = error;
+    failure.detail = detail == nullptr ? "" : detail;
+    impl->connecting = false;
+    impl->connectAddress = "";
+    impl->connectDeadlineMs = 0;
+  }
+  EspBluedroidSppImpl::Event queued;
+  queued.type = EspBluedroidSppImpl::EventType::ConnectionFailed;
+  queued.failure = std::move(failure);
+  impl->enqueue(std::move(queued));
+}
 
 void startPendingSppServer(EspBluedroidSppImpl *impl)
 {
@@ -426,6 +454,77 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
     queued.type = EspBluedroidSppImpl::EventType::ServerStarted;
     impl->enqueue(std::move(queued));
   }
+  else if (event == ESP_SPP_DISCOVERY_COMP_EVT)
+  {
+    bool connecting = false;
+    esp_bd_addr_t address = {};
+    {
+      std::lock_guard<std::mutex> lock(impl->mutex);
+      connecting = impl->connecting;
+      memcpy(address, impl->connectBackendAddress, sizeof(address));
+    }
+    if (!connecting) return;
+    if (
+      parameter->disc_comp.status != ESP_SPP_SUCCESS ||
+      parameter->disc_comp.scn_num == 0)
+    {
+      failSppConnection(
+        impl, EspBleError::NotFound, "peer does not advertise an SPP service");
+      return;
+    }
+    if (esp_spp_connect(
+          ESP_SPP_SEC_NONE, ESP_SPP_ROLE_MASTER,
+          parameter->disc_comp.scn[0], address) != ESP_OK)
+    {
+      failSppConnection(
+        impl, EspBleError::BackendFailure,
+        "failed to start the SPP connection");
+    }
+  }
+  else if (
+    event == ESP_SPP_CL_INIT_EVT &&
+    parameter->cl_init.status != ESP_SPP_SUCCESS)
+  {
+    failSppConnection(
+      impl, EspBleError::BackendFailure,
+      "failed to initialize the SPP client connection");
+  }
+  else if (event == ESP_SPP_OPEN_EVT)
+  {
+    if (parameter->open.status != ESP_SPP_SUCCESS)
+    {
+      failSppConnection(
+        impl, EspBleError::BackendFailure, "SPP connection failed");
+      return;
+    }
+    EspBluedroidSppSession session;
+    bool accept = false;
+    {
+      std::lock_guard<std::mutex> lock(impl->mutex);
+      if (impl->connecting && impl->backendHandle == 0)
+      {
+        session.id = impl->nextSessionId++;
+        if (impl->nextSessionId == 0) impl->nextSessionId = 1;
+        session.peerAddress = classicAddress(parameter->open.rem_bda);
+        session.incoming = false;
+        impl->backendHandle = parameter->open.handle;
+        impl->activeSession = session;
+        impl->connecting = false;
+        impl->connectAddress = "";
+        impl->connectDeadlineMs = 0;
+        accept = true;
+      }
+    }
+    if (!accept)
+    {
+      esp_spp_disconnect(parameter->open.handle);
+      return;
+    }
+    EspBluedroidSppImpl::Event queued;
+    queued.type = EspBluedroidSppImpl::EventType::Connected;
+    queued.session = std::move(session);
+    impl->enqueue(std::move(queued));
+  }
   else if (
     event == ESP_SPP_SRV_OPEN_EVT &&
     parameter->srv_open.status == ESP_SPP_SUCCESS)
@@ -433,7 +532,7 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
     EspBluedroidSppSession session;
     {
       std::lock_guard<std::mutex> lock(impl->mutex);
-      if (impl->backendHandle != 0)
+      if (impl->backendHandle != 0 || impl->connecting)
       {
         esp_spp_disconnect(parameter->srv_open.handle);
         return;
@@ -2109,6 +2208,10 @@ void EspBluedroidSpp::end()
   impl_->nextSessionId = 1;
   impl_->txPending = false;
   impl_->txValue = "";
+  impl_->connecting = false;
+  impl_->connectAddress = "";
+  memset(impl_->connectBackendAddress, 0, sizeof(impl_->connectBackendAddress));
+  impl_->connectDeadlineMs = 0;
 }
 
 void EspBluedroidSpp::onServerStarted(ServerStartedCallback callback)
@@ -2129,6 +2232,78 @@ void EspBluedroidSpp::onDisconnected(SessionCallback callback)
 void EspBluedroidSpp::onData(DataCallback callback)
 {
   dataCallback_ = std::move(callback);
+}
+
+void EspBluedroidSpp::onConnectionFailed(
+  ConnectionFailureCallback callback)
+{
+  connectionFailedCallback_ = std::move(callback);
+}
+
+bool EspBluedroidSpp::connect(
+  const char *address,
+  uint32_t timeoutMilliseconds)
+{
+  if (!owner_->initialized_)
+  {
+    owner_->setError(
+      EspBleError::InvalidState, "Bluetooth stack is not initialized");
+    return false;
+  }
+#if !defined(CONFIG_BT_SPP_ENABLED)
+  (void)address;
+  (void)timeoutMilliseconds;
+  owner_->setError(EspBleError::Unsupported, "SPP is not enabled");
+  return false;
+#else
+  if (!isValidBleAddress(address) || timeoutMilliseconds == 0)
+  {
+    owner_->setError(
+      EspBleError::InvalidArgument,
+      "SPP peer address must be canonical and timeout must be nonzero");
+    return false;
+  }
+  unsigned bytes[ESP_BD_ADDR_LEN] = {};
+  if (sscanf(
+        address, "%02x:%02x:%02x:%02x:%02x:%02x",
+        &bytes[0], &bytes[1], &bytes[2],
+        &bytes[3], &bytes[4], &bytes[5]) != ESP_BD_ADDR_LEN)
+  {
+    owner_->setError(
+      EspBleError::InvalidArgument, "invalid SPP peer address");
+    return false;
+  }
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (impl_->connecting || impl_->backendHandle != 0)
+    {
+      owner_->setError(
+        EspBleError::InvalidState,
+        "an SPP connection is already pending or active");
+      return false;
+    }
+    impl_->connecting = true;
+    impl_->connectAddress = address;
+    for (size_t index = 0; index < ESP_BD_ADDR_LEN; ++index)
+    {
+      impl_->connectBackendAddress[index] =
+        static_cast<uint8_t>(bytes[index]);
+    }
+    impl_->connectDeadlineMs = millis() + timeoutMilliseconds;
+  }
+  if (esp_spp_start_discovery(impl_->connectBackendAddress) != ESP_OK)
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    impl_->connecting = false;
+    impl_->connectAddress = "";
+    impl_->connectDeadlineMs = 0;
+    owner_->setError(
+      EspBleError::BackendFailure, "failed to start SPP service discovery");
+    return false;
+  }
+  owner_->clearError();
+  return true;
+#endif
 }
 
 bool EspBluedroidSpp::startServer(
@@ -2372,6 +2547,20 @@ size_t EspBluedroidSpp::droppedEventCount() const
 void EspBluedroidSpp::update()
 {
   if (impl_ == nullptr) return;
+#if defined(CONFIG_BT_SPP_ENABLED)
+  bool timedOut = false;
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    timedOut =
+      impl_->connecting &&
+      static_cast<int32_t>(millis() - impl_->connectDeadlineMs) >= 0;
+  }
+  if (timedOut)
+  {
+    failSppConnection(
+      impl_, EspBleError::Timeout, "SPP connection timed out");
+  }
+#endif
   while (true)
   {
     EspBluedroidSppImpl::Event event;
@@ -2405,6 +2594,12 @@ void EspBluedroidSpp::update()
       event.type == EspBluedroidSppImpl::EventType::Data && dataCallback_)
     {
       dataCallback_(event.data);
+    }
+    else if (
+      event.type == EspBluedroidSppImpl::EventType::ConnectionFailed &&
+      connectionFailedCallback_)
+    {
+      connectionFailedCallback_(event.failure);
     }
   }
 }

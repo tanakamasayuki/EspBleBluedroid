@@ -56,6 +56,7 @@ DEFAULT_EXAMPLES = [
     ("GAP Connect", "Gap/Connect"),
     ("Classic Inquiry", "Classic/Inquiry"),
     ("Classic SPP Server", "Classic/SppServer"),
+    ("Classic SPP Client", "Classic/SppClient"),
 ]
 
 # Module/flash/PSRAM variants within the ESP32 family are intentionally not a

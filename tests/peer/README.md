@@ -16,3 +16,5 @@ against a discoverable Classic-only peer, including deferred cancellation
 completion.
 `spp_server` verifies the public SPP Server against a raw ESP-IDF client,
 including binary data, reconnect IDs, remote disconnect, and stack shutdown.
+`spp_client` verifies public asynchronous Client connection to a raw ESP-IDF
+server, shared sessions, local disconnect, reconnect, and failure delivery.

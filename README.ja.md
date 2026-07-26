@@ -11,9 +11,9 @@ Read / Write / Notification購読の
 無印ESP32を2台使ったpeerテストで
 検証しています。LE Secure Connections Just Works、静的・実行時passkey MITM、
 Numeric Comparison、bondの保存・列挙・削除も実装済みです。Bluetooth Classicは
-capability snapshotと`classic().inquiry()`を実装しています。SPPはServer側のsession、
-binary-safeな双方向data、切断・再接続まで利用でき、Clientや他profileは今後
-テストファーストで追加します。
+capability snapshotと`classic().inquiry()`を実装しています。SPPはClient/Server共通の
+session、binary-safeな双方向data、切断・再接続まで利用でき、Securityや他profileは
+今後テストファーストで追加します。
 
 ## 現在のテスト範囲
 

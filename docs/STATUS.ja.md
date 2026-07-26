@@ -19,6 +19,7 @@
 | Capability | `capabilities()` | BLE、Classic、dual-mode、Classic Inquiry、未実装SPPを初期化前に判定 |
 | Classic Inquiry | `classic().inquiry()` | name、address、Class of Device、RSSI、明示停止、完了event、`update()`配送 |
 | Classic SPP Server | `classic().spp().startServer()` / session / write / disconnect | binary-safe双方向data、remote切断、再接続ID、稼働中`end()`、`update()`配送 |
+| Classic SPP Client | `classic().spp().connect()` / connection failure / 共通session API | non-blocking SDP/RFCOMM接続、binary data、local切断、再接続ID、timeout |
 
 AdvertisingとScanの基本経路は`tests/peer/advertise_scan`、Advertising wire形式と
 payload境界は`tests/peer/advertise_payload`で実機確認している。Scanはduration停止、
@@ -31,6 +32,8 @@ Classic Inquiryは`tests/peer/classic_inquiry`でBTDM初期化、discoverableな
 結果callback内からの停止、完了eventまで確認している。
 SPP Serverは`tests/peer/spp_server`でraw ESP-IDF Clientとの双方向binary data、
 2回の接続で異なるsession ID、remote切断、server稼働中の終了まで確認している。
+SPP Clientは`tests/peer/spp_client`でraw ESP-IDF Serverとの非同期接続、双方向data、
+公開APIからの切断、再接続ID、Server停止後の失敗/timeout eventまで確認している。
 `tests/peer/stack_smoke`は、公開API実装前のbackend成立性として接続、GATT read/write、
 CCCD購読、notificationまで確認している。
 
@@ -70,15 +73,15 @@ CCCD購読、notificationまで確認している。
 - Classic Inquiry result queueは16件。overflowは`droppedResultCount()`で確認できる。
   Inquiry時間は1〜61秒、`maxResponses=0`はbackend上限まで探索する。Classic Inquiryは
   BLE Scanとは別の操作・結果型であり、同時実行の保証はdual-modeテスト追加後に確定する。
-- SPPはServer、active session 1つ、pending write 1つ、1 writeあたり1〜990 byteに対応。
-  Client接続、複数session、Security、送信完了callbackは未実装。
+- SPPはClient/Server、pendingまたはactive session 1つ、pending write 1つ、
+  1 writeあたり1〜990 byteに対応。ClientはSDPの先頭SPP serviceを利用する。
+  複数session、Security、送信完了callback、高帯域receive bufferは未実装。
 - GATT Server、HIDおよびSPP以外のClassic profileは公開API未実装。
 - Advertisingの時間指定停止は`update()`で処理するため、継続的な`update()`呼出しが必要。
 
 ## 次のテストスライス
 
-1. SPP Client接続をServerと同じsession APIへ合流。
-2. SPP Securityと送信queue。
-3. BLE/SPP dual-mode。
+1. SPP Securityと送受信queue。
+2. BLE/SPP dual-mode。
 
 各項目は失敗するunitまたはpeerテストを先に追加してから実装する。
