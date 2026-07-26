@@ -13,6 +13,32 @@ static constexpr const char *CHARACTERISTIC_UUID =
   "48e8c101-a176-4c75-8d8d-6f626c756564";
 
 BLECharacteristic *gattCharacteristic = nullptr;
+size_t notificationsRemaining = 0;
+uint32_t nextNotificationAt = 0;
+uint32_t sppHandle = 0;
+size_t pendingSppResponses = 0;
+bool sppResponseInFlight = false;
+size_t sppResponsesCompleted = 0;
+size_t trafficSppRequestsReceived = 0;
+uint32_t lastTrafficSppDataAt = 0;
+bool trafficStarted = false;
+bool trafficSummaryPrinted = false;
+
+void startNextSppResponse()
+{
+  if (
+    sppHandle == 0 || pendingSppResponses == 0 ||
+    sppResponseInFlight)
+  {
+    return;
+  }
+  static uint8_t response[] = {0xd1, 0x00, 'P'};
+  if (esp_spp_write(sppHandle, sizeof(response), response) == ESP_OK)
+  {
+    --pendingSppResponses;
+    sppResponseInFlight = true;
+  }
+}
 
 class DualCharacteristicCallbacks : public BLECharacteristicCallbacks
 {
@@ -59,6 +85,7 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
   else if (event == ESP_SPP_SRV_OPEN_EVT &&
            parameter->srv_open.status == ESP_SPP_SUCCESS)
   {
+    sppHandle = parameter->srv_open.handle;
     Serial.println("DUAL_PEER_SPP_CONNECTED");
   }
   else if (event == ESP_SPP_DATA_IND_EVT)
@@ -70,12 +97,31 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
       Serial.printf("%02x", parameter->data_ind.data[index]);
     }
     Serial.println();
-    static uint8_t response[] = {0xd1, 0x00, 'P'};
-    esp_spp_write(
-      parameter->data_ind.handle, sizeof(response), response);
+    if (
+      parameter->data_ind.len == 3 &&
+      parameter->data_ind.data[0] == 0xd2)
+    {
+      ++trafficSppRequestsReceived;
+      lastTrafficSppDataAt = millis();
+    }
+    ++pendingSppResponses;
+    startNextSppResponse();
+  }
+  else if (event == ESP_SPP_WRITE_EVT)
+  {
+    sppResponseInFlight = false;
+    ++sppResponsesCompleted;
+    startNextSppResponse();
   }
   else if (event == ESP_SPP_CLOSE_EVT)
   {
+    sppHandle = 0;
+    pendingSppResponses = 0;
+    sppResponseInFlight = false;
+    sppResponsesCompleted = 0;
+    trafficSppRequestsReceived = 0;
+    trafficStarted = false;
+    trafficSummaryPrinted = false;
     Serial.println("DUAL_PEER_SPP_DISCONNECTED");
   }
 }
@@ -139,6 +185,45 @@ void loop()
       gattCharacteristic->notify();
       Serial.println("DUAL_PEER_GATT_NOTIFIED");
     }
+    else if (command == 't' && gattCharacteristic != nullptr)
+    {
+      notificationsRemaining =
+        static_cast<size_t>(Serial.parseInt());
+      trafficStarted = true;
+      trafficSummaryPrinted = false;
+      trafficSppRequestsReceived = 0;
+      lastTrafficSppDataAt = millis();
+      nextNotificationAt = millis();
+      Serial.printf("DUAL_PEER_TRAFFIC_STARTED count=%u\n",
+        static_cast<unsigned>(notificationsRemaining));
+    }
+  }
+  if (
+    notificationsRemaining > 0 &&
+    static_cast<int32_t>(millis() - nextNotificationAt) >= 0)
+  {
+    const uint8_t value[] = {0xb2, 0x00, 0x4e};
+    gattCharacteristic->setValue(value, sizeof(value));
+    gattCharacteristic->notify();
+    --notificationsRemaining;
+    nextNotificationAt = millis() + 10;
+    if (notificationsRemaining == 0)
+    {
+      Serial.println("DUAL_PEER_TRAFFIC_SENT");
+    }
+  }
+  if (
+    trafficStarted && !trafficSummaryPrinted &&
+    notificationsRemaining == 0 && pendingSppResponses == 0 &&
+    !sppResponseInFlight &&
+    static_cast<uint32_t>(millis() - lastTrafficSppDataAt) >= 2000)
+  {
+    trafficSummaryPrinted = true;
+    Serial.printf(
+      "DUAL_PEER_RESPONSES_IDLE received=%u completed=%u\n",
+      static_cast<unsigned>(trafficSppRequestsReceived),
+      static_cast<unsigned>(
+        sppResponsesCompleted > 0 ? sppResponsesCompleted - 1 : 0));
   }
   delay(1);
 }

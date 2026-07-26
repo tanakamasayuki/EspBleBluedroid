@@ -28,6 +28,10 @@
   sustained SPP round trips on one dual-mode stack.
 - (JA) 1つのdual-mode stack上でGATT Discovery・Characteristic通信・Notificationと
   継続的なSPP往復を検証。
+- (EN) Add bounded 64-notification dual-mode saturation coverage with explicit
+  BLE event-drop accounting and lossless SPP receive-ring checks for delivered data.
+- (JA) 64通知のbounded dual-mode飽和試験を追加し、BLE event dropの明示集計と
+  配送済みdataのSPP受信ring保持を検証。
 - (EN) Add an ordered eight-entry SPP write queue with overflow diagnostics.
 - (JA) 順序保証付き8件SPP送信queueとoverflow診断を追加。
 - (EN) Add a bounded 2048-byte SPP receive ring with Stream-like reads.

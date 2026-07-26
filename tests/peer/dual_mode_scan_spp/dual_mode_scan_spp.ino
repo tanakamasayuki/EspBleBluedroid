@@ -6,19 +6,39 @@ static constexpr const char *SERVICE_UUID =
   "48e8c100-a176-4c75-8d8d-6f626c756564";
 static constexpr const char *CHARACTERISTIC_UUID =
   "48e8c101-a176-4c75-8d8d-6f626c756564";
-
 EspBleBluedroid bluetooth;
 TaskHandle_t loopTask = nullptr;
 EspBluedroidSppSessionId sppSessionId = 0;
 EspBleConnectionId bleConnectionId = 0;
 uint16_t characteristicHandle = 0;
 size_t sppReceiveCount = 0;
+size_t notificationCount = 0;
+size_t trafficSppCallbackCount = 0;
+size_t pendingTrafficWrites = 0;
+bool trafficActive = false;
 bool initialized = false;
 bool scanResultHandled = false;
 
 const char *contextName()
 {
   return xTaskGetCurrentTaskHandle() == loopTask ? "loop" : "stack";
+}
+
+void pumpTrafficWrites()
+{
+  static const uint8_t message[] = {0xd2, 0x00, 'G'};
+  while (
+    pendingTrafficWrites > 0 &&
+    bluetooth.classic().spp().pendingWriteCount(sppSessionId) <
+      EspBluedroidSpp::WriteQueueCapacity)
+  {
+    if (!bluetooth.classic().spp().write(
+          sppSessionId, message, sizeof(message)))
+    {
+      return;
+    }
+    --pendingTrafficWrites;
+  }
 }
 
 void initializeBluetooth()
@@ -56,6 +76,7 @@ void initializeBluetooth()
     });
   bluetooth.classic().spp().onData([](const EspBluedroidSppData &event) {
     ++sppReceiveCount;
+    if (trafficActive) ++trafficSppCallbackCount;
     Serial.printf("DUAL_SPP_RX id=%u length=%u hex=",
       static_cast<unsigned>(event.sessionId),
       static_cast<unsigned>(event.value.length()));
@@ -66,14 +87,12 @@ void initializeBluetooth()
     Serial.printf(" phase=%u ble_connections=%u context=%s\n",
       static_cast<unsigned>(sppReceiveCount),
       static_cast<unsigned>(bluetooth.connectionCount()), contextName());
-    if (sppReceiveCount == 17)
+    if (sppReceiveCount == 1)
     {
-      Serial.printf("DUAL_GATT_UNSUBSCRIBE_ACCEPTED %u\n",
-        bluetooth.unsubscribe(
-          bleConnectionId, characteristicHandle, 5000) ? 1 : 0);
-    }
-    else if (sppReceiveCount == 1)
-    {
+      while (bluetooth.classic().spp().available(event.sessionId) > 0)
+      {
+        bluetooth.classic().spp().read(event.sessionId);
+      }
       Serial.printf("DUAL_GATT_DISCOVERY_ACCEPTED %u\n",
         bluetooth.discoverServices(bleConnectionId, 5000) ? 1 : 0);
     }
@@ -161,6 +180,7 @@ void initializeBluetooth()
         result.connectionId, characteristicHandle, true, 5000) ? 1 : 0);
   });
   bluetooth.onSubscribed([](const EspBleGattResult &result) {
+    trafficActive = true;
     Serial.printf(
       "DUAL_GATT_SUBSCRIBED success=%u spp_sessions=%u context=%s\n",
       result.success ? 1 : 0,
@@ -168,6 +188,7 @@ void initializeBluetooth()
       contextName());
   });
   bluetooth.onNotification([](const EspBleGattNotification &notification) {
+    ++notificationCount;
     const bool valid =
       notification.value.length() == 3 &&
       static_cast<uint8_t>(notification.value[0]) == 0xb2 &&
@@ -178,10 +199,10 @@ void initializeBluetooth()
       valid ? 1 : 0,
       static_cast<unsigned>(bluetooth.classic().spp().sessionCount()),
       contextName());
-    const uint8_t message[] = {0xd2, 0x00, 'G'};
-    Serial.printf("DUAL_SPP_DURING_GATT_WRITE_ACCEPTED %u\n",
-      bluetooth.classic().spp().write(
-        sppSessionId, message, sizeof(message)) ? 1 : 0);
+    ++pendingTrafficWrites;
+    pumpTrafficWrites();
+    Serial.printf("DUAL_SPP_DURING_GATT_WRITE_PENDING %u\n",
+      static_cast<unsigned>(pendingTrafficWrites));
   });
   bluetooth.onUnsubscribed([](const EspBleGattResult &result) {
     Serial.printf(
@@ -226,7 +247,50 @@ void loop()
       Serial.printf("DUAL_CONNECT_ACCEPTED %u\n",
         bluetooth.classic().spp().connect(address.c_str()) ? 1 : 0);
     }
+    else if (command == 'q' && sppSessionId != 0)
+    {
+      size_t byteCount = 0;
+      size_t validPacketCount = 0;
+      uint8_t packet[3] = {};
+      while (
+        bluetooth.classic().spp().available(sppSessionId) >=
+        sizeof(packet))
+      {
+        const size_t read = bluetooth.classic().spp().read(
+          sppSessionId, packet, sizeof(packet));
+        byteCount += read;
+        if (
+          read == sizeof(packet) &&
+          packet[0] == 0xd1 && packet[1] == 0x00 &&
+          packet[2] == 'P')
+        {
+          ++validPacketCount;
+        }
+      }
+      const size_t sppEventDropped =
+        bluetooth.classic().spp().droppedEventCount();
+      Serial.printf(
+        "DUAL_TRAFFIC_COMPLETE notifications=%u ring_packets=%u "
+        "ring_bytes=%u spp_callbacks=%u ble_event_dropped=%u "
+        "spp_event_dropped=%u spp_rx_dropped=%u "
+        "spp_write_dropped=%u app_pending=%u\n",
+        static_cast<unsigned>(notificationCount),
+        static_cast<unsigned>(validPacketCount),
+        static_cast<unsigned>(byteCount),
+        static_cast<unsigned>(trafficSppCallbackCount),
+        static_cast<unsigned>(bluetooth.droppedEventCount()),
+        static_cast<unsigned>(sppEventDropped),
+        static_cast<unsigned>(
+          bluetooth.classic().spp().droppedReceiveByteCount()),
+        static_cast<unsigned>(
+          bluetooth.classic().spp().droppedWriteCount()),
+        static_cast<unsigned>(pendingTrafficWrites));
+      Serial.printf("DUAL_GATT_UNSUBSCRIBE_ACCEPTED %u\n",
+        bluetooth.unsubscribe(
+          bleConnectionId, characteristicHandle, 5000) ? 1 : 0);
+    }
   }
   bluetooth.update();
+  pumpTrafficWrites();
   delay(1);
 }

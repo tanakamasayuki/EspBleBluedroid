@@ -70,24 +70,40 @@ def test_ble_gatt_and_spp_data_share_dual_mode_stack(dut, peers):
         timeout=30,
     )
 
-    for cycle in range(16):
-        peer.write("n")
-        peer.expect_exact("DUAL_PEER_GATT_NOTIFIED", timeout=30)
-        dut.expect_exact(
-            "DUAL_GATT_NOTIFICATION valid=1 spp_sessions=1 context=loop",
-            timeout=30,
-        )
-        dut.expect_exact(
-            "DUAL_SPP_DURING_GATT_WRITE_ACCEPTED 1", timeout=30
-        )
-        peer.expect_exact(
-            "DUAL_PEER_SPP_RX length=3 hex=d20047", timeout=30
-        )
-        dut.expect_exact(
-            f"DUAL_SPP_RX id={session_id} length=3 hex=d10050 "
-            f"phase={cycle + 2} ble_connections=1 context=loop",
-            timeout=30,
-        )
+    peer.write("t64\n")
+    peer.expect_exact("DUAL_PEER_TRAFFIC_STARTED count=64", timeout=30)
+    peer.expect_exact("DUAL_PEER_TRAFFIC_SENT", timeout=30)
+    peer_responses = peer.expect(
+        re.compile(
+            rb"DUAL_PEER_RESPONSES_IDLE received=(\d+) completed=(\d+)"
+        ),
+        timeout=30,
+    )
+    peer_received = int(peer_responses.group(1))
+    assert peer_received == int(peer_responses.group(2))
+    assert 0 < peer_received <= 64
+    dut.write("q")
+    traffic = dut.expect(
+        re.compile(
+            rb"DUAL_TRAFFIC_COMPLETE notifications=(\d+) "
+            rb"ring_packets=(\d+) ring_bytes=(\d+) spp_callbacks=(\d+) "
+            rb"ble_event_dropped=(\d+) spp_event_dropped=(\d+) "
+            rb"spp_rx_dropped=0 spp_write_dropped=0 app_pending=0"
+        ),
+        timeout=30,
+    )
+    notification_count = int(traffic.group(1))
+    ring_packet_count = int(traffic.group(2))
+    ring_byte_count = int(traffic.group(3))
+    callback_count = int(traffic.group(4))
+    dropped_ble_event_count = int(traffic.group(5))
+    dropped_spp_event_count = int(traffic.group(6))
+    assert notification_count + dropped_ble_event_count == 64
+    assert notification_count == peer_received
+    assert ring_packet_count == peer_received
+    assert ring_byte_count == peer_received * 3
+    assert callback_count > 0
+    assert callback_count + dropped_spp_event_count <= peer_received
     dut.expect_exact("DUAL_GATT_UNSUBSCRIBE_ACCEPTED 1", timeout=30)
     dut.expect_exact(
         "DUAL_GATT_UNSUBSCRIBED success=1 spp_sessions=1 context=loop",
