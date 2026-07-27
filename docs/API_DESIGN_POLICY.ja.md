@@ -242,6 +242,14 @@ fixtureを用意し、session別RX分離、write完了、片側切断、送信fa
 先に失敗するテストとして記述できることである。Arduino-ESP32/Bluedroid側の実用上限が
 再現できない場合は公開上限を増やさず、単一session制限を維持する。
 
+Arduino-ESP32 3.3.11のraw Bluedroidでは、1台のpeerとの同一ACL上で異なる2つの
+RFCOMM server channel（SCN）へ接続し、2 sessionの同時data pathと個別handle、
+両方の切断を`tests/peer/spp_multi_backend`で確認している。同一peerから同じSCNへの
+2本目はこの2台fixtureでは成立しなかった。したがって同じServer serviceへ複数clientを
+接続する試験には3台目のpeerが必要であり、2台だけで公開APIを先行実装しない。
+2台構成で次に検証できる候補は、異なるSCNを使うincoming Server sessionとoutgoing
+Client sessionの同時成立である。
+
 ## Errorとcapability
 
 BLE共通面のerror分類はEspBleの`None`、`InvalidState`、`InvalidArgument`、

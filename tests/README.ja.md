@@ -53,6 +53,7 @@ uv run --env-file .env pytest
 | `peer/classic_inquiry` | dual-mode初期化、capability、Classic name / Class of Device / RSSI、停止・完了event |
 | `peer/spp_server` | SPP Server、binary-safe双方向data、8件送信queue・overflow・送信完了、再接続ID、remote切断、稼働中終了 |
 | `peer/spp_client` | 非同期SPP Client、共通session、binary data・送信完了、local切断、再接続、失敗/timeout |
+| `peer/spp_multi_backend` | raw Bluedroid、同一ACL上の異なる2 SCN、2 session同時接続、handle別双方向data、両session切断 |
 | `peer/spp_receive_buffer` | 2048 byte固定長RX ring、binary read、overflow byte数、切断時無効化 |
 | `peer/spp_serial` | root bindの`EspBluedroidSppSerial`、2つの連続Server sessionへの自動追従、Stream/Print、1000 byte分割write、flush、切断後の無効化 |
 | `peer/spp_security` | Client/Server両roleのDisplayYesNo SSP、明示拒否、認証失敗後retry、Classic bond列挙・再接続・削除、認証・暗号化data |

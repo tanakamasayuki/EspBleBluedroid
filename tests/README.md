@@ -57,6 +57,12 @@ all eight accepted writes.
 `peer/spp_client` verifies asynchronous SDP/RFCOMM connection to a raw ESP-IDF
 server, the shared session API, binary data, public disconnection, reconnect
 IDs, deferred write completion, and deferred failure/timeout delivery.
+`peer/spp_multi_backend` is a raw Bluedroid feasibility test. It opens two
+simultaneous SPP sessions over one ACL by using two distinct RFCOMM server
+channels, verifies handle-separated bidirectional data, and closes both
+sessions. A second session to the same channel did not establish in this
+two-board topology; testing multiple clients against one Server service needs
+another peer.
 `peer/dual_mode_scan_spp` verifies active BLE Scan and a BLE Central/GATT
 connection while an SPP session remains connected. It covers service discovery,
 Characteristic Read/Write, subscription/notification, and consecutive bounded

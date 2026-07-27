@@ -66,3 +66,7 @@
   Stream adapter.
 - (JA) 将来のSPP複数session拡張について、session別resourceとfairness、stickyな
   自動Serial選択、明示session用Stream adapterの分離方針を定義。
+- (EN) Add a raw Bluedroid feasibility test for two simultaneous SPP sessions
+  over one ACL using distinct RFCOMM server channels.
+- (JA) 異なるRFCOMM server channelを使い、同一ACL上で2本のSPP sessionを同時利用する
+  raw Bluedroid成立性テストを追加。

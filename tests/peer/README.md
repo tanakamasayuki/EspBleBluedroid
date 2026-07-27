@@ -19,5 +19,9 @@ including binary data, ordered write-queue overflow, reconnect IDs, remote
 disconnect, and stack shutdown.
 `spp_client` verifies public asynchronous Client connection to a raw ESP-IDF
 server, shared sessions, local disconnect, reconnect, and failure delivery.
+`spp_multi_backend` is a raw Bluedroid feasibility test for two simultaneous
+SPP sessions over one ACL using distinct RFCOMM server channels. It verifies
+handle-separated bidirectional data and cleanup without claiming public
+multi-session support.
 `dual_mode_scan_spp` verifies BLE Scan and binary SPP traffic on one active
 dual-mode stack.

@@ -28,5 +28,10 @@ overflow、再接続ID、remote切断、stack終了を検証します。
 `spp_client`はraw ESP-IDF Serverへの公開非同期Client接続、共通session、local切断、
 再接続、失敗eventを検証します。
 
+`spp_multi_backend`は公開APIに依存しないraw Bluedroidの成立性試験です。同一ACL上の
+異なる2つのRFCOMM server channelへ同時接続し、handle別の双方向dataと両sessionの
+切断を検証します。同じchannelへの2本目や公開APIの複数session対応を保証する試験では
+ありません。
+
 `dual_mode_scan_spp`は1つのdual-mode stack上でBLE Scanとbinary SPP trafficを
 同時利用できることを検証します。
