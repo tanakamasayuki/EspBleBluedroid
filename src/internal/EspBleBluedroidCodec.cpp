@@ -100,6 +100,39 @@ bool parseBleUuid(const char *value, BleUuid &uuid)
   return true;
 }
 
+std::string formatBleUuid(const BleUuid &uuid)
+{
+  if (uuid.bitSize != 16 && uuid.bitSize != 32 && uuid.bitSize != 128)
+  {
+    return {};
+  }
+  uint8_t expanded[16] = {};
+  expandUuid(uuid, expanded);
+  char value[37] = {};
+  std::snprintf(
+    value,
+    sizeof(value),
+    "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-"
+    "%02x%02x%02x%02x%02x%02x",
+    expanded[15],
+    expanded[14],
+    expanded[13],
+    expanded[12],
+    expanded[11],
+    expanded[10],
+    expanded[9],
+    expanded[8],
+    expanded[7],
+    expanded[6],
+    expanded[5],
+    expanded[4],
+    expanded[3],
+    expanded[2],
+    expanded[1],
+    expanded[0]);
+  return value;
+}
+
 bool uuidEquals(const char *left, const char *right)
 {
   BleUuid leftUuid;

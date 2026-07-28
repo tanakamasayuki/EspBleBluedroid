@@ -172,20 +172,27 @@ CCCD購読、notificationまで確認している。
 
 Arduino BLE wrapperを撤去する作業は
 [BLE直接バックエンド移行計画](BLE_DIRECT_BACKEND_MIGRATION.ja.md)に従って進めている。
-現在は第1段階のBLE address、UUID、Legacy Advertising Data codecを内部実装へ移し、
+第1段階のBLE address、UUID、Legacy Advertising Data codecを内部実装へ移し、
 backend非依存unit testと既存Advertising / Scan peer試験を通している。
 
 次のGATTC直接化に向けて、application登録、接続要求、cancel競合、切断、再接続、
 古い操作generationの無視を表す内部状態機械とunit testを追加済みである。
+GATT Database Discoveryは`esp_ble_gattc_search_service()`とGATTC Search event、
+Characteristic / Descriptorのcache列挙APIへ直接移行済みである。Discovery済みsnapshotを
+対象とするCharacteristic Readも`esp_ble_gattc_read_char()`と完了eventへ直接移行した。
+snapshotがないReadと、Write、Descriptor、Subscribeは公開互換性を保つため現在も
+wrapper fallbackを使用する。
 公開接続・GATT Client経路はまだ`BLEClient` / `BLERemote*`を利用しており、
 直接GATTC eventへ切り替わったとは扱わない。
 
 ## 次のテストスライス
 
-1. GATTC application登録と直接接続をtest seamへ接続し、OPEN成功、失敗、cancel競合、
+1. Characteristic Write、Descriptor Read / Write、Subscribe / NotificationをGATTC eventへ
+   直接移し、GATT worker taskと`BLERemote*`依存を撤去する。
+2. GATTC application登録と直接接続をtest seamへ接続し、OPEN成功、失敗、cancel競合、
    timeout、`end()`、再接続を既存peer scenarioで固定する。
-2. BLE GATT/SPP dual-modeの長時間soakとround境界なしの連続飽和時fairness。
-3. 異なるSCNを使うincoming Serverとoutgoing Clientの同時sessionを2台fixtureで検証する。
+3. BLE GATT/SPP dual-modeの長時間soakとround境界なしの連続飽和時fairness。
+4. 異なるSCNを使うincoming Serverとoutgoing Clientの同時sessionを2台fixtureで検証する。
    公開実装は、session別RX/write/fairness/cleanupを失敗するテストとして先に固定できた
    場合だけ開始する。同じServer serviceへの複数client試験には3台目のpeerが必要。
 

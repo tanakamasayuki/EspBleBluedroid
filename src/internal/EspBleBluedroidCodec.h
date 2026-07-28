@@ -16,6 +16,7 @@ struct BleUuid
 };
 
 bool parseBleUuid(const char *value, BleUuid &uuid);
+std::string formatBleUuid(const BleUuid &uuid);
 bool uuidEquals(const char *left, const char *right);
 
 bool parseBleAddress(const char *value, uint8_t address[6]);

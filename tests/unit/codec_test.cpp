@@ -10,6 +10,7 @@
 using espblebluedroid::internal::BleUuid;
 using espblebluedroid::internal::LegacyAdvertisingData;
 using espblebluedroid::internal::formatBleAddress;
+using espblebluedroid::internal::formatBleUuid;
 using espblebluedroid::internal::GattcLinkState;
 using espblebluedroid::internal::GattcOpenResult;
 using espblebluedroid::internal::GattcState;
@@ -41,11 +42,13 @@ void testUuidCodec()
   assert(uuid.bitSize == 16);
   assert(uuid.bytes[0] == 0x0d);
   assert(uuid.bytes[1] == 0x18);
+  assert(formatBleUuid(uuid) == "0000180d-0000-1000-8000-00805f9b34fb");
 
   assert(parseBleUuid("12345678", uuid));
   assert(uuid.bitSize == 32);
   const uint8_t expected32[] = {0x78, 0x56, 0x34, 0x12};
   assert(std::memcmp(uuid.bytes.data(), expected32, sizeof(expected32)) == 0);
+  assert(formatBleUuid(uuid) == "12345678-0000-1000-8000-00805f9b34fb");
 
   assert(parseBleUuid("12345678-1234-5678-9abc-def012345678", uuid));
   assert(uuid.bitSize == 128);
@@ -53,6 +56,12 @@ void testUuidCodec()
     0x78, 0x56, 0x34, 0x12, 0xf0, 0xde, 0xbc, 0x9a,
     0x78, 0x56, 0x34, 0x12, 0x78, 0x56, 0x34, 0x12};
   assert(std::memcmp(uuid.bytes.data(), expected128, sizeof(expected128)) == 0);
+  assert(
+    formatBleUuid(uuid) ==
+    "12345678-1234-5678-9abc-def012345678");
+
+  BleUuid invalid;
+  assert(formatBleUuid(invalid).empty());
 
   assert(uuidEquals(
     "180d", "0000180D-0000-1000-8000-00805F9B34FB"));
