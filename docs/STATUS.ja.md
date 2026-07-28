@@ -13,7 +13,7 @@
 | Advertising | `data()` / `scanResponse()`、name、service UUID/data、manufacturer data、appearance、Tx Power、connectable、interval、開始・停止 | 2面の独立構成、raw PDU、複数UUIDの集約、31 byte境界、時間停止を実機確認 |
 | Scan | active/passive、interval/window、duration、duplicate指定、rich result、開始・停止 | AdvertisingとScan Responseのaddress単位merge、Service Data・Appearance・Tx Power、値型copy、duration・明示停止、16件queue・overflow、`end()`時flushを確認 |
 | Event配送 | `EspBleScanner::onResult()` | stack callbackからqueueへcopyし、利用者callbackを`update()`から配送 |
-| Central接続 | `connect()` / `disconnect()` / connection snapshot / lifecycle・MTU callback | non-blocking要求、再接続ID、MTU交換、HCI切断理由、timeout分類、切断、active link終了、再初期化 |
+| Central接続 | `connect()` / `disconnect()` / connection snapshot / lifecycle・MTU・parameter callback | non-blocking要求、再接続ID、MTU交換、接続パラメータ取得・更新、HCI切断理由、timeout分類、切断、再初期化 |
 | GATT Client | Database Discovery / UUID・handle指定Characteristic操作 / Descriptor Read・Write / Notification | connection単位snapshot、binary-safe値、CCCD、専用task、`update()`配送 |
 | BLE Security | Just Works / Static・Runtime Passkey / Numeric Comparison / Bond | 暗号化・認証必須attribute、保存bond再接続、passkey表示・入力・比較確認、bond管理 |
 | Capability | `capabilities()` | BLE、Classic、dual-mode、Classic Inquiry、SPPを初期化前に判定 |
@@ -34,6 +34,10 @@ Central接続は`tests/peer/connect_disconnect`でlink確立とcallback配送を
 希望MTU 247と23→185の交換event、HCI切断理由、切断後の再Advertising・再Scan・再接続、
 新しいID、Advertising停止peerへの厳密なtimeout、
 接続試行中と接続成立後の`end()`、peer切断、再初期化まで確認している。
+接続パラメータは`tests/peer/connection_parameters`で初期interval/latency/timeoutが
+connection snapshotへ入ることと、Centralからinterval 80（100ms）、latency 0、
+timeout 200（2秒）を要求した後、公開callbackとraw Bluedroid Peripheralの双方が同じ
+合意値を報告することを確認している。callbackは`update()` contextから配送される。
 Classic Inquiryは`tests/peer/classic_inquiry`でBTDM初期化、discoverableなClassic peer、
 結果callback内からの停止、完了eventまで確認している。
 SPP Serverは`tests/peer/spp_server`でraw ESP-IDF Clientとの双方向binary data、
@@ -93,6 +97,10 @@ CCCD購読、notificationまで確認している。
 - `onDisconnected()`のsnapshotには低レベルGATTC eventから得たHCI切断理由を格納する。
   Arduino-ESP32 3.3.11のBluedroid Clientはローカル切断理由の指定値をlink終了へ渡さない
   ため、理由指定`disconnect()` overloadは公開しない。
+- Connection Interval、Peripheral Latency、Supervision Timeoutは接続時snapshotと
+  `onConnectionParametersUpdated()`で取得できる。`updateConnectionParameters()`は
+  Centralのactive connectionに対する要求を受け付ける。接続開始時の値指定とPHY変更は
+  未実装で、無印ESP32はLE 2M/Coded PHYに対応しない。
 - Bluedroidの接続待機を1秒以下の区間に分けるため、接続試行中の`end()`は同期的に
   終了するが、復帰まで最大約1秒待つことがある。終了した試行のcallbackは配送しない。
 - GATT ClientはDatabase Discovery、Characteristic/Descriptor Read/Write、Subscribe/Unsubscribe。

@@ -30,6 +30,9 @@ classification against a non-advertising known peer,
 deferred callbacks, disconnection, bounded `end()` during an in-flight attempt
 and an established link, peer disconnection, and reinitialization without
 stale events.
+`peer/connection_parameters` verifies initial interval/latency/timeout
+snapshots, a Central update request, matching negotiated values on both peers,
+and callback delivery from `update()`.
 `peer/gatt_client` verifies public asynchronous Characteristic and Descriptor Read, both Write
 modes, Notification subscription/unsubscription, binary-safe values,
 connection-scoped database snapshots, peer reception, disconnect invalidation,

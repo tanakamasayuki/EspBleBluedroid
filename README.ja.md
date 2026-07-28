@@ -25,6 +25,7 @@ peerテストでは次を確認します。
 
 - Advertisingとactive scan
 - CentralからPeripheralへの接続
+- 接続直後のparameter snapshotと接続後のparameter更新
 - GATT characteristicのreadとwrite
 - Discoveryで得たhandleを使うcharacteristic read/write/subscribe/unsubscribe
 - GATT descriptorのbinary-safeなreadとwrite

@@ -23,6 +23,9 @@ separate from BLE bonds, and secure SPP is covered in both Client and Server
 roles. Additional Classic profile behavior will continue to be added
 test-first.
 
+Peer coverage includes the initial BLE connection-parameter snapshot and
+post-connect interval, latency, and supervision-timeout updates.
+
 See [tests/README.md](tests/README.md) for setup and usage.
 
 The current API and Bluetooth Classic coexistence policy is documented in

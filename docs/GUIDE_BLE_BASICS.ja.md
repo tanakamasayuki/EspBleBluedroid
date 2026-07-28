@@ -262,7 +262,15 @@ BLEには「接続要求が来ました、承認しますか？」という問�
 - **Peripheral Latency** — Peripheralが応答をスキップしてよい回数。送るものがないときに電力を節約する
 - **Supervision Timeout** — この時間だけ通信が途絶えたら切断とみなす
 
-現在のEspBleBluedroidはこれらの値を接続snapshotへ公開しておらず、変更APIも未実装です。Bluedroidから値と完了eventを一貫して取得できる経路をpeerテストで確認してから追加します。
+EspBleBluedroidはこれらを`EspBleConnection::connectionInterval`、
+`peripheralLatency`、`supervisionTimeout`へ格納します。単位はBLE仕様のままで、
+Intervalは1.25ms、Timeoutは10ms、Latencyはskip可能なconnection event数です。
+
+接続後は`updateConnectionParameters()`で希望範囲を要求できます。戻り値は要求の受付で、
+合意値は`onConnectionParametersUpdated()`へ更新済みconnection snapshotとして届きます。
+相手が要求と異なる値を選ぶことがあるため、完了callbackの値を正として扱います。
+具体的な換算と低遅延・省電力profileは
+[Gap/ConnectionParameters](../examples/Gap/ConnectionParameters/)で確認できます。
 
 もう1つ重要なのが**MTU**（Maximum Transmission Unit）です。1回のやり取りで運べるバイト数の上限で、接続時に両者が希望値を交換し、**小さい方**が採用されます。
 
@@ -392,7 +400,9 @@ EspBleBluedroidではAdvertising側・Scan側とも公開APIが未実装です�
 
 接続を開始する時点でConnection IntervalやPHYを指定することは**できません**。同梱backendの接続APIが指定を受け付けないためです。
 
-接続後にConnection IntervalやPHYを変更する公開APIも未実装です。Bluedroid/ESP-IDFには下位APIがありますが、要求受理と非同期完了をEspBleと同じ意味で公開できることをpeerテストしてから追加します。
+接続後のConnection Interval、Peripheral Latency、Supervision Timeoutは
+`updateConnectionParameters()`で変更を要求できます。PHY変更は未実装です。対象の
+無印ESP32 controllerは1M PHYだけを利用でき、2M/Coded PHYは追加できません。
 
 #### アドバタイズチャネルの選択
 

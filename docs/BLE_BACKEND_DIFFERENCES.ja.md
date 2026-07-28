@@ -25,6 +25,7 @@ backendが違っても同じ意味にできる機能は、型名、操作の要�
 | lifecycle | `begin()` / `end()` / `update()` | BLEとClassicで共有するcontroller/hostをrootが一括所有 |
 | Advertising / Scan | payload builder、scan result、開始・停止callback | Active ScanのAdvertisingとScan Responseの報告順が一定でないため、address単位で短時間merge |
 | Central接続 | 非同期`connect()`、connection ID、接続・切断callback | 現在は同時1接続。接続処理はworker taskへ隔離 |
+| 接続パラメータ | snapshot、`updateConnectionParameters()`、`onConnectionParametersUpdated()` | 初期値はcontrollerから読み、GAP完了eventの合意値だけを`update()`から配送 |
 | MTU | 既定247、`EspBleConnection::mtu`、`EspBleMtuChanged`、`onMtuChanged()` | 接続成立後にClientから明示的に交換を開始し、低レベル完了eventの合意値だけを公開 |
 | 切断 | `disconnect()`と`onDisconnected()` | Arduino callbackが捨てるHCI reasonを低レベルGATTC eventから補完 |
 | GATT Client | Discovery、Characteristic/Descriptor Read・Write、Subscribe | Bluedroidの同期wrapperを専用taskへ隔離し、完了は`update()`から配送 |
@@ -41,10 +42,9 @@ Arduino-ESP32 3.3.11のBluedroid `BLEClient::disconnect(reason)`は引数をlink
 `onDisconnected()`の`EspBleConnection::disconnectReason`へ格納し、取得できない場合だけ
 0とします。
 
-EspBleにある自動再接続、Connection Parameter更新、PHY更新は未実装です。
-Bluedroid/ESP-IDFにConnection Parameter更新経路はありますが、要求受理だけでなく
-合意値の完了eventとsnapshot更新までpeerテストしてから追加します。対象の無印ESP32は
-BLE 4.2 controllerで、LE 2M PHYとLE Coded PHYは利用できません。
+EspBleにある自動再接続とPHY更新は未実装です。Connection Parameter更新は同じ
+公開APIで利用でき、初期snapshotと更新後の合意値を実機peerテストしています。
+対象の無印ESP32はBLE 4.2 controllerで、LE 2M PHYとLE Coded PHYは利用できません。
 
 ### PeripheralとGATT Server
 
@@ -56,8 +56,9 @@ NimBLEより動的変更しやすい場合でも、既存objectの寿命やcallb
 
 ### GAPの未実装機能
 
-own address選択、RPA、Filter Accept List、Directed Advertising、接続パラメータ指定、
-送信電力設定は未実装です。Legacy Advertisingのみを扱います。無印ESP32のcontroller
+own address選択、RPA、Filter Accept List、Directed Advertising、接続開始時の
+パラメータ指定、送信電力設定は未実装です。接続後のパラメータ更新には対応しています。
+Legacy Advertisingのみを扱います。無印ESP32のcontroller
 制約によりExtended Advertising、Periodic Advertising、LE 2M/Coded PHYは追加できません。
 
 ## Bluedroidだから追加できる機能

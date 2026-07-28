@@ -21,6 +21,7 @@ static void printConnection(const EspBleConnection &connection)
   Serial.printf(
     "CONNECTION id=%lu handle=%u peer=%s(type=%u) role=%s\n"
     "  mtu=%u maxNotificationPayload=%u\n"
+    "  interval=%u latency=%u timeout=%u\n"
     "  encrypted=%u authenticated=%u bonded=%u keySize=%u\n",
     static_cast<unsigned long>(connection.id),
     connection.handle,
@@ -29,6 +30,9 @@ static void printConnection(const EspBleConnection &connection)
     connection.localRole == EspBleRole::Central ? "Central" : "Peripheral",
     connection.mtu,
     static_cast<unsigned>(connection.maximumNotificationPayload()),
+    connection.connectionInterval,
+    connection.peripheralLatency,
+    connection.supervisionTimeout,
     connection.encrypted ? 1 : 0,
     connection.authenticated ? 1 : 0,
     connection.bonded ? 1 : 0,

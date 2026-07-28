@@ -11,6 +11,7 @@
 | GAP | [ServiceData](Gap/ServiceData/README.ja.md) | 接続せずService UUID付きのbinary値を放送 |
 | GAP | [Scan](Gap/Scan/README.ja.md) | active scanと`update()` contextの値型Scan Result |
 | GAP | [Connect](Gap/Connect/README.ja.md) | Scan Resultから非同期接続し、安定したconnection IDを取得 |
+| GAP | [ConnectionParameters](Gap/ConnectionParameters/README.ja.md) | 接続interval、latency、supervision timeoutの表示・更新 |
 | GAP | [Mtu](Gap/Mtu/README.ja.md) | 希望ATT MTUを設定し、交換前後の値とpayload上限を確認 |
 | GATT Basics | [Client](Gatt/Basics/Client/README.ja.md) | Database Discovery、Read/Write、Descriptor、Notification購読のcallback chain |
 | GATT Device | [BatteryClient](Gatt/Device/BatteryClient/README.ja.md) | 標準Battery LevelのReadとNotification購読 |

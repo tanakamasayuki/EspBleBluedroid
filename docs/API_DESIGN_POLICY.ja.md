@@ -356,6 +356,7 @@ EspBleのAPIを移植するときは、各機能を次の3分類へ明示する�
 - `begin()` / `end()` / `update()`
 - BLE `scanner()` / `advertising()`
 - BLE Connection IDとConnection snapshot
+- 接続後のConnection Parameter更新と完了callback（現在はCentral接続）
 - Generic GATT read/write/discovery/subscribe
 - GATT Serverの静的構成
 - backend非依存のcodec、keymap、HID Report Map解析
@@ -365,7 +366,7 @@ EspBleのAPIを移植するときは、各機能を次の3分類へ明示する�
 利用形は似せられるが、結果フィールド、保証順序、設定可能範囲などが異なるもの。
 
 - Scanから接続するまでの制御
-- MTU、接続パラメータ、PHY
+- 接続開始時のパラメータ指定、MTU、PHY
 - Pairing、passkey、Numeric Comparison、Bond管理
 - 複数接続上限と同時GATT操作数
 - HID Host/Deviceのbackend依存部分

@@ -1144,6 +1144,7 @@ struct EspBleConnectionImpl
     Disconnected,
     Failed,
     MtuChanged,
+    ConnectionParametersUpdated,
     SecurityChanged,
     PasskeyDisplayed,
     NumericComparison,
@@ -1354,6 +1355,26 @@ struct EspBleConnectionImpl
     // Every new ATT bearer starts at 23. BLEClient reuses its previous m_mtu
     // value across reconnects, so getMTU() is stale until CFG_MTU completes.
     connection.mtu = 23;
+    BLEAddress peerAddress = connectedClient->getPeerAddress();
+    memcpy(peerBda, peerAddress.getNative(), sizeof(peerBda));
+    peerBdaPresent = true;
+    esp_gap_conn_params_t connectionParameters{};
+    if (esp_ble_get_current_conn_params(
+          peerBda, &connectionParameters) == ESP_OK)
+    {
+      connection.connectionInterval = connectionParameters.interval;
+      connection.peripheralLatency = connectionParameters.latency;
+      connection.supervisionTimeout = connectionParameters.timeout;
+    }
+    if (pendingConnectionParametersPresent &&
+        memcmp(
+          peerBda, pendingConnectionParametersBda, sizeof(peerBda)) == 0)
+    {
+      connection.connectionInterval = pendingConnectionInterval;
+      connection.peripheralLatency = pendingConnectionLatency;
+      connection.supervisionTimeout = pendingConnectionTimeout;
+      pendingConnectionParametersPresent = false;
+    }
     Event event;
     event.type = EventType::Connected;
     event.connection = connection;
@@ -1390,6 +1411,7 @@ struct EspBleConnectionImpl
     event.connection = connection;
     active = false;
     connection = EspBleConnection();
+    peerBdaPresent = false;
     pendingMtuPresent = false;
     if (gattDatabase != nullptr)
     {
@@ -1448,6 +1470,56 @@ struct EspBleConnectionImpl
   }
 
   static EspBleConnectionImpl *customGattcOwner;
+
+  void backendConnectionParametersUpdated(
+    esp_bt_status_t status,
+    const esp_bd_addr_t address,
+    uint16_t interval,
+    uint16_t latency,
+    uint16_t timeout)
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (ending || status != ESP_BT_STATUS_SUCCESS) return;
+    if (!active || !peerBdaPresent)
+    {
+      pendingConnectionParametersPresent = true;
+      memcpy(
+        pendingConnectionParametersBda, address,
+        sizeof(pendingConnectionParametersBda));
+      pendingConnectionInterval = interval;
+      pendingConnectionLatency = latency;
+      pendingConnectionTimeout = timeout;
+      return;
+    }
+    if (memcmp(peerBda, address, sizeof(peerBda)) != 0) return;
+    connection.connectionInterval = interval;
+    connection.peripheralLatency = latency;
+    connection.supervisionTimeout = timeout;
+    Event event;
+    event.type = EventType::ConnectionParametersUpdated;
+    event.connection = connection;
+    pushEventLocked(event);
+  }
+
+  static void customGapHandler(
+    esp_gap_ble_cb_event_t event,
+    esp_ble_gap_cb_param_t *param)
+  {
+    EspBleConnectionImpl *owner = customGapOwner;
+    if (owner == nullptr || param == nullptr ||
+        event != ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT)
+    {
+      return;
+    }
+    owner->backendConnectionParametersUpdated(
+      param->update_conn_params.status,
+      param->update_conn_params.bda,
+      param->update_conn_params.conn_int,
+      param->update_conn_params.latency,
+      param->update_conn_params.timeout);
+  }
+
+  static EspBleConnectionImpl *customGapOwner;
 
   void backendSecurityChanged(const esp_ble_auth_cmpl_t &result)
   {
@@ -2026,6 +2098,13 @@ struct EspBleConnectionImpl
   bool pendingMtuPresent = false;
   uint16_t pendingMtuHandle = 0xffff;
   uint16_t pendingMtu = 23;
+  bool peerBdaPresent = false;
+  esp_bd_addr_t peerBda{};
+  bool pendingConnectionParametersPresent = false;
+  esp_bd_addr_t pendingConnectionParametersBda{};
+  uint16_t pendingConnectionInterval = 0;
+  uint16_t pendingConnectionLatency = 0;
+  uint16_t pendingConnectionTimeout = 0;
   EspBleConnectionId nextConnectionId = 1;
   Event events[EventCapacity];
   size_t eventHead = 0;
@@ -2034,6 +2113,7 @@ struct EspBleConnectionImpl
 };
 
 EspBleConnectionImpl *EspBleConnectionImpl::customGattcOwner = nullptr;
+EspBleConnectionImpl *EspBleConnectionImpl::customGapOwner = nullptr;
 
 bool EspBleScanResult::hasName() const
 {
@@ -4513,13 +4593,18 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
     return false;
   }
   EspBleConnectionImpl::customGattcOwner = connectionImpl_;
+  EspBleConnectionImpl::customGapOwner = connectionImpl_;
   connectionImpl_->preferredMtu = config.preferredMtu;
   BLEDevice::setCustomGattcHandler(
     &EspBleConnectionImpl::customGattcHandler);
+  BLEDevice::setCustomGapHandler(
+    &EspBleConnectionImpl::customGapHandler);
   if (BLEDevice::setMTU(config.preferredMtu) != ESP_OK)
   {
     BLEDevice::setCustomGattcHandler(nullptr);
+    BLEDevice::setCustomGapHandler(nullptr);
     EspBleConnectionImpl::customGattcOwner = nullptr;
+    EspBleConnectionImpl::customGapOwner = nullptr;
     BLEDevice::deinit(false);
     delete connectionImpl_;
     connectionImpl_ = nullptr;
@@ -4529,7 +4614,9 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
   if (!classic_.begin(deviceName, config.classicSecurity))
   {
     BLEDevice::setCustomGattcHandler(nullptr);
+    BLEDevice::setCustomGapHandler(nullptr);
     EspBleConnectionImpl::customGattcOwner = nullptr;
+    EspBleConnectionImpl::customGapOwner = nullptr;
     BLEDevice::deinit(false);
     delete connectionImpl_;
     connectionImpl_ = nullptr;
@@ -4542,7 +4629,9 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
     {
       classic_.end();
       BLEDevice::setCustomGattcHandler(nullptr);
+      BLEDevice::setCustomGapHandler(nullptr);
       EspBleConnectionImpl::customGattcOwner = nullptr;
+      EspBleConnectionImpl::customGapOwner = nullptr;
       BLEDevice::deinit(false);
       delete connectionImpl_;
       connectionImpl_ = nullptr;
@@ -4652,7 +4741,9 @@ void EspBleBluedroid::end()
   BLESecurity::setForceAuthentication(false);
   BLEDevice::deinit(false);
   BLEDevice::setCustomGattcHandler(nullptr);
+  BLEDevice::setCustomGapHandler(nullptr);
   EspBleConnectionImpl::customGattcOwner = nullptr;
+  EspBleConnectionImpl::customGapOwner = nullptr;
   initialized_ = false;
   activeClassicSecurity_ = EspBluedroidClassicSecurityConfig();
   delete connectionImpl_;
@@ -4782,6 +4873,7 @@ bool EspBleBluedroid::connect(
     connectionImpl_->target = scanResult;
     connectionImpl_->timeoutMilliseconds = timeoutMilliseconds;
     connectionImpl_->pendingMtuPresent = false;
+    connectionImpl_->pendingConnectionParametersPresent = false;
     connectionImpl_->connecting = true;
   }
 
@@ -4848,6 +4940,49 @@ bool EspBleBluedroid::disconnect(EspBleConnectionId connectionId)
       }
     }
     setError(EspBleError::BackendFailure, "failed to request disconnection");
+    return false;
+  }
+  clearError();
+  return true;
+}
+
+bool EspBleBluedroid::updateConnectionParameters(
+  EspBleConnectionId connectionId,
+  uint16_t minInterval,
+  uint16_t maxInterval,
+  uint16_t latency,
+  uint16_t supervisionTimeout)
+{
+  if (!initialized_ || connectionImpl_ == nullptr)
+  {
+    setError(EspBleError::InvalidState, "BLE stack is not initialized");
+    return false;
+  }
+  if (minInterval > maxInterval)
+  {
+    setError(
+      EspBleError::InvalidArgument,
+      "minInterval must not exceed maxInterval");
+    return false;
+  }
+  BLEClient *client;
+  {
+    std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+    if (!connectionImpl_->active ||
+        connectionImpl_->connection.id != connectionId)
+    {
+      setError(EspBleError::InvalidArgument, "connection ID was not found");
+      return false;
+    }
+    client = connectionImpl_->client;
+  }
+  if (client == nullptr ||
+      !client->updateConnParams(
+        minInterval, maxInterval, latency, supervisionTimeout))
+  {
+    setError(
+      EspBleError::BackendFailure,
+      "failed to request connection parameter update");
     return false;
   }
   clearError();
@@ -5573,6 +5708,12 @@ void EspBleBluedroid::onMtuChanged(MtuChangedCallback callback)
   mtuChangedCallback_ = std::move(callback);
 }
 
+void EspBleBluedroid::onConnectionParametersUpdated(
+  ConnectionCallback callback)
+{
+  connectionParametersUpdatedCallback_ = std::move(callback);
+}
+
 void EspBleBluedroid::onSecurityChanged(SecurityChangedCallback callback)
 {
   securityChangedCallback_ = std::move(callback);
@@ -5694,6 +5835,13 @@ void EspBleBluedroid::dispatchConnectionEvents()
              mtuChangedCallback_)
     {
       mtuChangedCallback_(event.mtuChanged);
+    }
+    else if (
+      event.type ==
+        EspBleConnectionImpl::EventType::ConnectionParametersUpdated &&
+      connectionParametersUpdatedCallback_)
+    {
+      connectionParametersUpdatedCallback_(event.connection);
     }
     else if (
       event.type == EspBleConnectionImpl::EventType::SecurityChanged &&

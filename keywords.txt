@@ -85,6 +85,8 @@ onConnected	KEYWORD2
 onDisconnected	KEYWORD2
 onConnectionFailed	KEYWORD2
 onMtuChanged	KEYWORD2
+updateConnectionParameters	KEYWORD2
+onConnectionParametersUpdated	KEYWORD2
 connectionCount	KEYWORD2
 onResult	KEYWORD2
 start	KEYWORD2

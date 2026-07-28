@@ -144,8 +144,13 @@ struct EspBleConnection
   bool bonded = false;
   uint8_t encryptionKeySize = 0;
   // Meaningful in onDisconnected(): the HCI disconnection reason, or 0 when
-  // unavailable. It is 0 in onConnected() and onMtuChanged().
+  // unavailable. It is 0 in connection-state update callbacks.
   int disconnectReason = 0;
+  // Current BLE connection parameters. Interval uses 1.25 ms units, timeout
+  // uses 10 ms units, and latency counts skipped connection events.
+  uint16_t connectionInterval = 0;
+  uint16_t peripheralLatency = 0;
+  uint16_t supervisionTimeout = 0;
 
   size_t maximumNotificationPayload() const;
 };
@@ -687,6 +692,16 @@ public:
     EspBleAddressType addressType,
     uint32_t timeoutMilliseconds = 10000);
   bool disconnect(EspBleConnectionId connectionId);
+  // Request new parameters for an active Central connection. Interval values
+  // use 1.25 ms units and supervisionTimeout uses 10 ms units. A true return
+  // value means that the backend accepted the request; observe the negotiated
+  // result through onConnectionParametersUpdated().
+  bool updateConnectionParameters(
+    EspBleConnectionId connectionId,
+    uint16_t minInterval,
+    uint16_t maxInterval,
+    uint16_t latency,
+    uint16_t supervisionTimeout);
   bool discoverServices(
     EspBleConnectionId connectionId,
     uint32_t timeoutMilliseconds = 10000);
@@ -811,6 +826,7 @@ public:
   void onDisconnected(ConnectionCallback callback);
   void onConnectionFailed(ConnectionFailureCallback callback);
   void onMtuChanged(MtuChangedCallback callback);
+  void onConnectionParametersUpdated(ConnectionCallback callback);
   void onSecurityChanged(SecurityChangedCallback callback);
   void onPasskeyDisplayed(PasskeyDisplayedCallback callback);
   void onNumericComparison(PasskeyDisplayedCallback callback);
@@ -859,6 +875,7 @@ private:
   ConnectionCallback disconnectedCallback_;
   ConnectionFailureCallback connectionFailedCallback_;
   MtuChangedCallback mtuChangedCallback_;
+  ConnectionCallback connectionParametersUpdatedCallback_;
   SecurityChangedCallback securityChangedCallback_;
   PasskeyDisplayedCallback passkeyDisplayedCallback_;
   PasskeyDisplayedCallback numericComparisonCallback_;

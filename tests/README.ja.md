@@ -45,6 +45,7 @@ uv run --env-file .env pytest
 | `peer/advertise_scan` | 公開APIのlifecycle、Advertising/Scan Response二面構成、Service Data・Appearance・Tx Powerを含むactive Scan merge、payload超過拒否、値型result、`update()`配送 |
 | `peer/advertise_payload` | raw AD構造、複数UUIDの集約、31 byte境界、時間指定停止 |
 | `peer/connect_disconnect` | non-blocking接続、再接続ID、MTU交換、HCI切断理由、非同期失敗、`update()`配送、切断、再初期化 |
+| `peer/connection_parameters` | 初期connection parameter snapshot、更新要求、両peerの合意値、`update()`配送 |
 | `peer/gatt_client` | Database snapshot、UUID/handle指定Characteristic操作、Descriptor Read/Write、Notification購読/解除、切断時無効化、`update()`配送 |
 | `peer/security_bond` | Just Works、暗号化GATT、bond保存、暗号化再接続、security callback、bond削除 |
 | `peer/security_passkey` | 静的passkey MITM、passkey表示、authenticated GATT、bond保存 |

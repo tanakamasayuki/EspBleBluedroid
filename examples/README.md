@@ -11,6 +11,7 @@
 | GAP | [ServiceData](Gap/ServiceData/README.md) | Broadcast binary Service Data without a connection |
 | GAP | [Scan](Gap/Scan/README.md) | Active scan and value-type results delivered from `update()` |
 | GAP | [Connect](Gap/Connect/README.md) | Asynchronous connection from a Scan Result with a stable connection ID |
+| GAP | [ConnectionParameters](Gap/ConnectionParameters/README.md) | Inspect and update interval, latency, and supervision timeout |
 | GAP | [Mtu](Gap/Mtu/README.md) | Configure a preferred ATT MTU and observe the negotiated payload limit |
 | GATT Basics | [Client](Gatt/Basics/Client/README.md) | Database discovery, Read/Write, Descriptor access, and Notification subscription |
 | GATT Device | [BatteryClient](Gatt/Device/BatteryClient/README.md) | Standard Battery Level Read and Notification subscription |
