@@ -10,8 +10,8 @@
 |---|---|---|
 | Lifecycle | `begin()` / `end()` / `update()` / `initialized()` | 初期化前操作拒否、同一設定の再実行、接続試行・active linkの終了 |
 | Error | `lastError()` / `lastErrorName()` / `lastErrorDetail()` | state・argument・backend・resource・unsupportedの分類 |
-| Advertising | name、service UUID、manufacturer data、appearance、scan response、connectable、interval、開始・停止 | raw PDU、複数UUIDの集約、31 byte境界、時間停止を実機確認 |
-| Scan | active/passive、interval/window、duration、duplicate指定、開始・停止 | 値型copy、duration・明示停止、16件queue・overflow、`end()`時flushを確認 |
+| Advertising | `data()` / `scanResponse()`、name、service UUID/data、manufacturer data、appearance、Tx Power、connectable、interval、開始・停止 | 2面の独立構成、raw PDU、複数UUIDの集約、31 byte境界、時間停止を実機確認 |
+| Scan | active/passive、interval/window、duration、duplicate指定、rich result、開始・停止 | AdvertisingとScan Responseのaddress単位merge、Service Data・Appearance・Tx Power、値型copy、duration・明示停止、16件queue・overflow、`end()`時flushを確認 |
 | Event配送 | `EspBleScanner::onResult()` | stack callbackからqueueへcopyし、利用者callbackを`update()`から配送 |
 | Central接続 | `connect()` / `disconnect()` / connection snapshot / lifecycle callback | non-blocking要求、再接続ID、timeout分類、切断、active link終了、再初期化 |
 | GATT Client | Database Discovery / UUID・handle指定Characteristic操作 / Descriptor Read・Write / Notification | connection単位snapshot、binary-safe値、CCCD、専用task、`update()`配送 |
@@ -25,7 +25,9 @@
 | BLE/SPP dual mode | active BLE Scan・GATT Client + active SPP session | Discovery、Read/Write、Notification、64→128→256通知の段階的bounded burst、round別drop集計、配送済み通知のSPP往復、GATT完了優先配送、停止・切断 |
 
 AdvertisingとScanの基本経路は`tests/peer/advertise_scan`、Advertising wire形式と
-payload境界は`tests/peer/advertise_payload`で実機確認している。Scanはduration停止、
+payload境界は`tests/peer/advertise_payload`で実機確認している。Active Scanでは
+BluedroidがAdvertisingだけを先に報告する場合があるため、短時間だけ同じaddressの
+Scan Responseをmergeしてから公開callbackへ配送する。Scanはduration停止、
 明示停止、16件queueへ18件を決定的に注入した16件配送・2件drop、未配送結果を残した
 `end()`と再初期化も確認している。
 Central接続は`tests/peer/connect_disconnect`でlink確立とcallback配送を分離し、切断後の
@@ -67,8 +69,8 @@ CCCD購読、notificationまで確認している。
 - 必須機能はPSRAMなしで動作する設計とし、build確認はgeneric `esp32` profileに集約する。
   PSRAM搭載moduleなど、同じESP32 SoC内のboard variant別matrixは作らない。
 - Legacy Advertisingのみ。Extended Advertisingには未対応。
-- Advertising service UUIDは格納上限4、Scan Resultは格納上限8。超過したScan UUIDの
-  個数はまだ個別に報告しない。
+- Advertising service UUID / service dataは各payloadで各4件、Scan Resultはservice UUID
+  8件、service data 4件。超過したScan fieldの個数はまだ個別に報告しない。
 - Scan result queueは16件。overflowは`droppedResultCount()`で確認できる。
 - LE Secure Connections Just Works、DisplayOnly/KeyboardOnlyの静的passkey MITM、
   KeyboardOnlyの実行時Passkey Entry、DisplayYesNoのNumeric Comparisonに対応。

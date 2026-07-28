@@ -16,7 +16,8 @@ def test_public_gap_api_and_deferred_scan_callback(dut, peers):
     dut.expect_exact("UPDATE_START", timeout=20)
     match = dut.expect(
         re.compile(
-            rb"SCAN_RESULT name=Bluedroid Peer mfg=3412 rssi=-?\d+ "
+            rb"SCAN_RESULT name=Bluedroid Response mfg=3412 service=a5005a "
+            rb"appearance=0341 tx_present=1 rssi=-?\d+ "
             rb"connectable=1 scannable=1"
         ),
         timeout=30,

@@ -14,6 +14,8 @@
 #include <cstring>
 #include <mutex>
 #include <new>
+#include <set>
+#include <string>
 #include <utility>
 
 #if defined(CONFIG_BT_CLASSIC_ENABLED)
@@ -130,6 +132,85 @@ bool isValidBleAddress(const char *address)
 
 struct EspBleScannerImpl
 {
+  struct QueueEntry
+  {
+    EspBleScanResult result;
+    uint32_t readyAtMs = 0;
+  };
+
+  static void mergeResult(
+    EspBleScanResult &destination, const EspBleScanResult &source)
+  {
+    destination.rssi = source.rssi;
+    destination.connectable =
+      destination.connectable || source.connectable;
+    destination.scannable = destination.scannable || source.scannable;
+    if (!source.name.isEmpty()) destination.name = source.name;
+    if (!source.manufacturerData.isEmpty())
+    {
+      destination.manufacturerData = source.manufacturerData;
+    }
+    if (source.appearance != 0) destination.appearance = source.appearance;
+    if (source.txPowerLevelPresent)
+    {
+      destination.txPowerLevel = source.txPowerLevel;
+      destination.txPowerLevelPresent = true;
+    }
+
+    for (size_t sourceIndex = 0;
+         sourceIndex < source.serviceUuidCount;
+         ++sourceIndex)
+    {
+      bool found = false;
+      for (size_t destinationIndex = 0;
+           destinationIndex < destination.serviceUuidCount;
+           ++destinationIndex)
+      {
+        if (uuidEquals(
+              destination.serviceUuids[destinationIndex],
+              source.serviceUuids[sourceIndex].c_str()))
+        {
+          found = true;
+          break;
+        }
+      }
+      if (!found &&
+          destination.serviceUuidCount < EspBleScanResult::MaxServiceUuids)
+      {
+        destination.serviceUuids[destination.serviceUuidCount++] =
+          source.serviceUuids[sourceIndex];
+      }
+    }
+
+    for (size_t sourceIndex = 0;
+         sourceIndex < source.serviceDataCount;
+         ++sourceIndex)
+    {
+      size_t destinationIndex = 0;
+      for (; destinationIndex < destination.serviceDataCount;
+           ++destinationIndex)
+      {
+        if (uuidEquals(
+              destination.serviceData[destinationIndex].uuid,
+              source.serviceData[sourceIndex].uuid.c_str()))
+        {
+          break;
+        }
+      }
+      if (destinationIndex < destination.serviceDataCount)
+      {
+        destination.serviceData[destinationIndex] =
+          source.serviceData[sourceIndex];
+      }
+      else if (
+        destination.serviceDataCount < EspBleScanResult::MaxServiceData)
+      {
+        destination.serviceData[destination.serviceDataCount++] =
+          source.serviceData[sourceIndex];
+      }
+    }
+  }
+
   class BackendCallbacks : public BLEAdvertisedDeviceCallbacks
   {
   public:
@@ -152,6 +233,26 @@ struct EspBleScannerImpl
       {
         result.manufacturerData = device.getManufacturerData();
       }
+      const int serviceDataCount = device.getServiceDataCount();
+      for (int index = 0;
+           index < serviceDataCount &&
+             result.serviceDataCount < EspBleScanResult::MaxServiceData;
+           ++index)
+      {
+        EspBleServiceData &block =
+          result.serviceData[result.serviceDataCount++];
+        block.uuid = device.getServiceDataUUID(index).toString();
+        block.data = device.getServiceData(index);
+      }
+      if (device.haveAppearance())
+      {
+        result.appearance = device.getAppearance();
+      }
+      if (device.haveTXPower())
+      {
+        result.txPowerLevel = device.getTXPower();
+        result.txPowerLevelPresent = true;
+      }
 
       const int serviceCount = device.getServiceUUIDCount();
       for (int index = 0;
@@ -163,7 +264,7 @@ struct EspBleScannerImpl
           device.getServiceUUID(index).toString();
       }
 
-      owner_->enqueue(std::move(result));
+      owner_->enqueue(std::move(result), false);
     }
 
   private:
@@ -172,25 +273,49 @@ struct EspBleScannerImpl
 
   EspBleScannerImpl() : callbacks(this) {}
 
-  bool enqueue(EspBleScanResult result)
+  bool enqueue(EspBleScanResult result, bool injected)
   {
     std::lock_guard<std::mutex> lock(mutex);
+    const std::string address(result.address.c_str());
+    if (!injected && !wantDuplicates && !address.empty() &&
+        reportedAddresses.count(address) != 0)
+    {
+      return true;
+    }
+    if (!injected && active && !address.empty())
+    {
+      for (size_t offset = 0; offset < count; ++offset)
+      {
+        QueueEntry &entry = queue[(head + offset) % ScanQueueCapacity];
+        if (entry.result.address.equalsIgnoreCase(result.address))
+        {
+          mergeResult(entry.result, result);
+          return true;
+        }
+      }
+    }
     if (count == ScanQueueCapacity)
     {
       ++dropped;
       return false;
     }
     const size_t tail = (head + count) % ScanQueueCapacity;
-    queue[tail] = std::move(result);
+    queue[tail].result = std::move(result);
+    queue[tail].readyAtMs =
+      !injected && active ? millis() + ActiveScanMergeMilliseconds : 0;
     ++count;
     return true;
   }
 
+  static constexpr uint32_t ActiveScanMergeMilliseconds = 30;
   mutable std::mutex mutex;
-  EspBleScanResult queue[ScanQueueCapacity];
+  QueueEntry queue[ScanQueueCapacity];
   size_t head = 0;
   size_t count = 0;
   size_t dropped = 0;
+  bool active = false;
+  bool wantDuplicates = false;
+  std::set<std::string> reportedAddresses;
   BackendCallbacks callbacks;
 };
 
@@ -1845,6 +1970,39 @@ bool EspBleScanResult::hasManufacturerData() const
   return !manufacturerData.isEmpty();
 }
 
+bool EspBleScanResult::hasServiceData() const
+{
+  return serviceDataCount != 0;
+}
+
+bool EspBleScanResult::hasAppearance() const
+{
+  return appearance != 0;
+}
+
+bool EspBleScanResult::hasTxPowerLevel() const
+{
+  return txPowerLevelPresent;
+}
+
+bool EspBleScanResult::serviceDataFor(
+  const char *uuid, String &data) const
+{
+  if (uuid == nullptr || uuid[0] == '\0')
+  {
+    return false;
+  }
+  for (size_t index = 0; index < serviceDataCount; ++index)
+  {
+    if (uuidEquals(serviceData[index].uuid, uuid))
+    {
+      data = serviceData[index].data;
+      return true;
+    }
+  }
+  return false;
+}
+
 bool EspBleScanResult::advertisesService(const char *uuid) const
 {
   for (size_t index = 0; index < serviceUuidCount; ++index)
@@ -1862,23 +2020,142 @@ size_t EspBleConnection::maximumNotificationPayload() const
   return mtu > 3 ? mtu - 3 : 0;
 }
 
+void EspBleAdvertisingData::clear()
+{
+  name_ = "";
+  manufacturerData_ = "";
+  for (EspBleServiceData &block : serviceData_)
+  {
+    block = EspBleServiceData();
+  }
+  serviceDataCount_ = 0;
+  serviceUuidCount_ = 0;
+  appearance_ = 0;
+  txPowerIncluded_ = false;
+}
+
+void EspBleAdvertisingData::setName(const char *name)
+{
+  name_ = name == nullptr ? "" : name;
+}
+
+bool EspBleAdvertisingData::addServiceUuid(const char *uuid)
+{
+  if (uuid == nullptr || uuid[0] == '\0')
+  {
+    return false;
+  }
+  for (size_t index = 0; index < serviceUuidCount_; ++index)
+  {
+    if (uuidEquals(serviceUuids_[index], uuid))
+    {
+      return true;
+    }
+  }
+  if (serviceUuidCount_ == MaxServiceUuids)
+  {
+    return false;
+  }
+  serviceUuids_[serviceUuidCount_++] = uuid;
+  return true;
+}
+
+void EspBleAdvertisingData::setManufacturerData(
+  const uint8_t *data, size_t length)
+{
+  manufacturerData_ = data == nullptr || length == 0
+    ? String()
+    : String(reinterpret_cast<const char *>(data), length);
+}
+
+bool EspBleAdvertisingData::addServiceData(
+  const char *uuid, const uint8_t *data, size_t length)
+{
+  if (uuid == nullptr || uuid[0] == '\0')
+  {
+    return false;
+  }
+
+  size_t slot = serviceDataCount_;
+  for (size_t index = 0; index < serviceDataCount_; ++index)
+  {
+    if (uuidEquals(serviceData_[index].uuid, uuid))
+    {
+      slot = index;
+      break;
+    }
+  }
+
+  if (data == nullptr || length == 0)
+  {
+    if (slot == serviceDataCount_)
+    {
+      return true;
+    }
+    for (size_t next = slot + 1; next < serviceDataCount_; ++next)
+    {
+      serviceData_[next - 1] = serviceData_[next];
+    }
+    serviceData_[--serviceDataCount_] = EspBleServiceData();
+    return true;
+  }
+
+  if (slot == serviceDataCount_)
+  {
+    if (serviceDataCount_ == MaxServiceData)
+    {
+      return false;
+    }
+    ++serviceDataCount_;
+  }
+  serviceData_[slot].uuid = uuid;
+  serviceData_[slot].data =
+    String(reinterpret_cast<const char *>(data), length);
+  return true;
+}
+
+void EspBleAdvertisingData::setAppearance(uint16_t appearance)
+{
+  appearance_ = appearance;
+}
+
+void EspBleAdvertisingData::setTxPowerIncluded(bool included)
+{
+  txPowerIncluded_ = included;
+}
+
+bool EspBleAdvertisingData::isEmpty() const
+{
+  return name_.isEmpty() && manufacturerData_.isEmpty() &&
+    serviceDataCount_ == 0 && serviceUuidCount_ == 0 &&
+    appearance_ == 0 && !txPowerIncluded_;
+}
+
 EspBleAdvertising::EspBleAdvertising(EspBleBluedroid *owner) : owner_(owner) {}
 
 void EspBleAdvertising::clear()
 {
-  name_ = "";
-  manufacturerData_ = "";
-  serviceUuidCount_ = 0;
-  appearance_ = 0;
+  data_.clear();
+  scanResponseData_.clear();
   scanResponseEnabled_ = true;
   connectable_ = true;
   intervalMinMs_ = 0;
   intervalMaxMs_ = 0;
 }
 
+EspBleAdvertisingData &EspBleAdvertising::data()
+{
+  return data_;
+}
+
+EspBleAdvertisingData &EspBleAdvertising::scanResponse()
+{
+  return scanResponseData_;
+}
+
 void EspBleAdvertising::setName(const char *name)
 {
-  name_ = name == nullptr ? "" : name;
+  data_.setName(name);
 }
 
 bool EspBleAdvertising::addServiceUuid(const char *uuid)
@@ -1888,35 +2165,44 @@ bool EspBleAdvertising::addServiceUuid(const char *uuid)
     owner_->setError(EspBleError::InvalidArgument, "service UUID is empty");
     return false;
   }
-  for (size_t index = 0; index < serviceUuidCount_; ++index)
-  {
-    if (uuidEquals(serviceUuids_[index], uuid))
-    {
-      owner_->clearError();
-      return true;
-    }
-  }
-  if (serviceUuidCount_ == MaxServiceUuids)
+  if (!data_.addServiceUuid(uuid))
   {
     owner_->setError(
       EspBleError::ResourceExhausted, "too many advertising service UUIDs");
     return false;
   }
-  serviceUuids_[serviceUuidCount_++] = uuid;
   owner_->clearError();
   return true;
 }
 
 void EspBleAdvertising::setManufacturerData(const uint8_t *data, size_t length)
 {
-  manufacturerData_ = data == nullptr || length == 0
-    ? String()
-    : String(reinterpret_cast<const char *>(data), length);
+  data_.setManufacturerData(data, length);
+}
+
+bool EspBleAdvertising::addServiceData(
+  const char *uuid, const uint8_t *data, size_t length)
+{
+  if (uuid == nullptr || uuid[0] == '\0')
+  {
+    owner_->setError(
+      EspBleError::InvalidArgument, "service data UUID is required");
+    return false;
+  }
+  if (!data_.addServiceData(uuid, data, length))
+  {
+    owner_->setError(
+      EspBleError::ResourceExhausted,
+      "too many advertising service data blocks");
+    return false;
+  }
+  owner_->clearError();
+  return true;
 }
 
 void EspBleAdvertising::setAppearance(uint16_t appearance)
 {
-  appearance_ = appearance;
+  data_.setAppearance(appearance);
 }
 
 void EspBleAdvertising::setScanResponseEnabled(bool enabled)
@@ -1957,100 +2243,162 @@ bool EspBleAdvertising::start(uint32_t durationSeconds)
   BLEAdvertising *backend = BLEDevice::getAdvertising();
   backend->reset();
 
-  BLEAdvertisementData advertisingData;
-  if (!appendAdvertisingData(
-        advertisingData, ESP_BLE_AD_TYPE_FLAG, String("\x06", 1)))
-  {
-    owner_->setError(
-      EspBleError::InvalidArgument,
-      "advertising flags do not fit in legacy advertising payload");
-    return false;
-  }
-  if (appearance_ != 0)
-  {
-    const String appearance(
-      reinterpret_cast<const char *>(&appearance_), sizeof(appearance_));
-    if (!appendAdvertisingData(
-          advertisingData, ESP_BLE_AD_TYPE_APPEARANCE, appearance))
+  const auto buildPayload = [this](
+    const EspBleAdvertisingData &source,
+    BLEAdvertisementData &destination,
+    bool includeFlags,
+    const char *payloadName) {
+    const auto append = [this, &destination, payloadName](
+      uint8_t type, const String &value, const char *field) {
+      if (appendAdvertisingData(destination, type, value))
+      {
+        return true;
+      }
+      String detail(field);
+      detail += " does not fit in legacy ";
+      detail += payloadName;
+      detail += " payload";
+      owner_->setError(EspBleError::InvalidArgument, detail.c_str());
+      return false;
+    };
+
+    if (includeFlags &&
+        !append(ESP_BLE_AD_TYPE_FLAG, String("\x06", 1), "flags"))
     {
-      owner_->setError(
-        EspBleError::InvalidArgument,
-        "appearance does not fit in legacy advertising payload");
       return false;
     }
-  }
-  if (serviceUuidCount_ > 0)
-  {
-    String uuids16;
-    String uuids32;
-    String uuids128;
-    for (size_t index = 0; index < serviceUuidCount_; ++index)
+    if (source.txPowerIncluded_)
     {
-      BLEUUID uuid(serviceUuids_[index].c_str());
+      const int8_t txPower = static_cast<int8_t>(
+        BLEDevice::getPower(ESP_BLE_PWR_TYPE_ADV));
+      if (!append(
+            ESP_BLE_AD_TYPE_TX_PWR,
+            String(reinterpret_cast<const char *>(&txPower), sizeof(txPower)),
+            "Tx Power Level"))
+      {
+        return false;
+      }
+    }
+    if (source.appearance_ != 0)
+    {
+      const String appearance(
+        reinterpret_cast<const char *>(&source.appearance_),
+        sizeof(source.appearance_));
+      if (!append(
+            ESP_BLE_AD_TYPE_APPEARANCE, appearance, "appearance"))
+      {
+        return false;
+      }
+    }
+    if (source.serviceUuidCount_ > 0)
+    {
+      String uuids16;
+      String uuids32;
+      String uuids128;
+      for (size_t index = 0; index < source.serviceUuidCount_; ++index)
+      {
+        BLEUUID uuid(source.serviceUuids_[index].c_str());
+        switch (uuid.bitSize())
+        {
+        case 16:
+          uuids16 += String(reinterpret_cast<const char *>(
+            &uuid.getNative()->uuid.uuid16), 2);
+          break;
+        case 32:
+          uuids32 += String(reinterpret_cast<const char *>(
+            &uuid.getNative()->uuid.uuid32), 4);
+          break;
+        case 128:
+          uuids128 += String(reinterpret_cast<const char *>(
+            uuid.getNative()->uuid.uuid128), 16);
+          break;
+        default:
+          owner_->setError(
+            EspBleError::InvalidArgument,
+            "invalid advertising service UUID");
+          return false;
+        }
+      }
+      const struct
+      {
+        const String *values;
+        uint8_t type;
+      } lists[] = {
+        {&uuids16, ESP_BLE_AD_TYPE_16SRV_CMPL},
+        {&uuids32, ESP_BLE_AD_TYPE_32SRV_CMPL},
+        {&uuids128, ESP_BLE_AD_TYPE_128SRV_CMPL},
+      };
+      for (const auto &list : lists)
+      {
+        if (!list.values->isEmpty() &&
+            !append(list.type, *list.values, "service UUIDs"))
+        {
+          return false;
+        }
+      }
+    }
+    if (!source.manufacturerData_.isEmpty() &&
+        !append(
+          ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE,
+          source.manufacturerData_,
+          "manufacturer data"))
+    {
+      return false;
+    }
+    for (size_t index = 0; index < source.serviceDataCount_; ++index)
+    {
+      const EspBleServiceData &block = source.serviceData_[index];
+      BLEUUID uuid(block.uuid.c_str());
+      String encodedUuid;
+      uint8_t type = 0;
       switch (uuid.bitSize())
       {
       case 16:
-        uuids16 += String(reinterpret_cast<const char *>(
+        type = ESP_BLE_AD_TYPE_SERVICE_DATA;
+        encodedUuid = String(reinterpret_cast<const char *>(
           &uuid.getNative()->uuid.uuid16), 2);
         break;
       case 32:
-        uuids32 += String(reinterpret_cast<const char *>(
+        type = ESP_BLE_AD_TYPE_32SERVICE_DATA;
+        encodedUuid = String(reinterpret_cast<const char *>(
           &uuid.getNative()->uuid.uuid32), 4);
         break;
       case 128:
-        uuids128 += String(reinterpret_cast<const char *>(
+        type = ESP_BLE_AD_TYPE_128SERVICE_DATA;
+        encodedUuid = String(reinterpret_cast<const char *>(
           uuid.getNative()->uuid.uuid128), 16);
         break;
       default:
         owner_->setError(
-          EspBleError::InvalidArgument, "invalid advertising service UUID");
+          EspBleError::InvalidArgument, "invalid service data UUID");
         return false;
       }
-    }
-
-    const struct
-    {
-      const String *values;
-      uint8_t type;
-    } lists[] = {
-      {&uuids16, ESP_BLE_AD_TYPE_16SRV_CMPL},
-      {&uuids32, ESP_BLE_AD_TYPE_32SRV_CMPL},
-      {&uuids128, ESP_BLE_AD_TYPE_128SRV_CMPL},
-    };
-    for (const auto &list : lists)
-    {
-      if (!list.values->isEmpty() &&
-          !appendAdvertisingData(advertisingData, list.type, *list.values))
+      if (!append(type, encodedUuid + block.data, "service data"))
       {
-        owner_->setError(
-          EspBleError::InvalidArgument,
-          "service UUIDs do not fit in legacy advertising payload");
         return false;
       }
     }
-  }
-  if (!manufacturerData_.isEmpty())
-  {
-    if (!appendAdvertisingData(
-          advertisingData, ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE,
-          manufacturerData_))
+    if (!source.name_.isEmpty() &&
+        !append(ESP_BLE_AD_TYPE_NAME_CMPL, source.name_, "name"))
     {
-      owner_->setError(
-        EspBleError::InvalidArgument,
-        "manufacturer data does not fit in legacy advertising payload");
       return false;
     }
-  }
-  if (!scanResponseEnabled_ && !name_.isEmpty())
+    return true;
+  };
+
+  const bool autoNameInScanResponse =
+    scanResponseEnabled_ && scanResponseData_.isEmpty() &&
+    !data_.name_.isEmpty();
+  EspBleAdvertisingData primary = data_;
+  if (autoNameInScanResponse)
   {
-    if (!appendAdvertisingData(
-          advertisingData, ESP_BLE_AD_TYPE_NAME_CMPL, name_))
-    {
-      owner_->setError(
-        EspBleError::InvalidArgument,
-        "name does not fit in legacy advertising payload");
-      return false;
-    }
+    primary.name_ = "";
+  }
+
+  BLEAdvertisementData advertisingData;
+  if (!buildPayload(primary, advertisingData, true, "advertising"))
+  {
+    return false;
   }
   if (!backend->setAdvertisementData(advertisingData))
   {
@@ -2062,21 +2410,26 @@ bool EspBleAdvertising::start(uint32_t durationSeconds)
   backend->setScanResponse(scanResponseEnabled_);
   if (scanResponseEnabled_)
   {
-    BLEAdvertisementData responseData;
-    if (!name_.isEmpty() &&
-        !appendAdvertisingData(
-          responseData, ESP_BLE_AD_TYPE_NAME_CMPL, name_))
+    EspBleAdvertisingData responseSource = scanResponseData_;
+    if (autoNameInScanResponse)
     {
-      owner_->setError(
-        EspBleError::InvalidArgument,
-        "name does not fit in legacy scan response payload");
-      return false;
+      responseSource.setName(data_.name_.c_str());
     }
-    if (!backend->setScanResponseData(responseData))
+    if (!responseSource.isEmpty())
     {
-      owner_->setError(
-        EspBleError::BackendFailure, "failed to configure scan response data");
-      return false;
+      BLEAdvertisementData responseData;
+      if (!buildPayload(
+            responseSource, responseData, false, "scan response"))
+      {
+        return false;
+      }
+      if (!backend->setScanResponseData(responseData))
+      {
+        owner_->setError(
+          EspBleError::BackendFailure,
+          "failed to configure scan response data");
+        return false;
+      }
     }
   }
 
@@ -2179,8 +2532,17 @@ bool EspBleScanner::start(const EspBleScanConfig &config)
   }
 
   BLEScan *backend = BLEDevice::getScan();
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    impl_->active = config.active;
+    impl_->wantDuplicates = config.wantDuplicates;
+    impl_->reportedAddresses.clear();
+  }
+  // Bluedroid can report the advertisement before its active-scan response.
+  // Receive both backend events and merge them by address before exposing one
+  // public result. Public duplicate filtering is applied by EspBleScannerImpl.
   backend->setAdvertisedDeviceCallbacks(
-    &impl_->callbacks, config.wantDuplicates, true);
+    &impl_->callbacks, config.active || config.wantDuplicates, true);
   backend->setActiveScan(config.active);
   backend->setInterval(config.intervalMilliseconds);
   backend->setWindow(config.windowMilliseconds);
@@ -2238,7 +2600,7 @@ bool EspBleScanner::injectResultForTest(const EspBleScanResult &result)
     impl_ = new (std::nothrow) EspBleScannerImpl();
     if (impl_ == nullptr) return false;
   }
-  return impl_->enqueue(result);
+  return impl_->enqueue(result, true);
 }
 
 size_t EspBleScanner::pendingResultCountForTest() const
@@ -2259,6 +2621,7 @@ void EspBleScanner::flushPendingResults()
   impl_->head = 0;
   impl_->count = 0;
   impl_->dropped = 0;
+  impl_->reportedAddresses.clear();
 }
 
 void EspBleScanner::dispatchPendingResults()
@@ -2276,7 +2639,19 @@ void EspBleScanner::dispatchPendingResults()
       {
         break;
       }
-      result = std::move(impl_->queue[impl_->head]);
+      const uint32_t readyAtMs = impl_->queue[impl_->head].readyAtMs;
+      if (readyAtMs != 0 &&
+          static_cast<int32_t>(millis() - readyAtMs) < 0)
+      {
+        break;
+      }
+      result = std::move(impl_->queue[impl_->head].result);
+      if (!impl_->wantDuplicates && !result.address.isEmpty())
+      {
+        impl_->reportedAddresses.insert(
+          std::string(result.address.c_str()));
+      }
+      impl_->queue[impl_->head] = EspBleScannerImpl::QueueEntry();
       impl_->head = (impl_->head + 1) % ScanQueueCapacity;
       --impl_->count;
     }

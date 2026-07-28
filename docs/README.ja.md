@@ -1,5 +1,9 @@
 # EspBleBluedroid ドキュメント
 
+- [BLE通信の入門ガイド](GUIDE_BLE_BASICS.ja.md) — Advertising、Scan、接続、
+  GATT Client
+- [Bluetooth Classic通信の入門ガイド](GUIDE_CLASSIC_BASICS.ja.md) —
+  Inquiry、SPP、Serial/Stream、BLEとの同時利用
 - [API設計方針](API_DESIGN_POLICY.ja.md) — EspBleとの共通部分、Bluedroid差分、
   Bluetooth Classicを追加しても破綻しない境界
 - [実装状況](STATUS.ja.md) — 現在の公開API、実機確認済み範囲、既知の制限

@@ -6,6 +6,8 @@
 |---|---|---|
 | Build | [CompileSmoke](CompileSmoke/README.ja.md) | header、Bluedroid backend guard、version macroのbuild確認 |
 | GAP | [Advertise](Gap/Advertise/README.ja.md) | Local Name、Service UUID、Manufacturer DataのLegacy Advertising |
+| GAP | [ScanResponse](Gap/ScanResponse/README.ja.md) | Advertising本体とScan Responseを個別に構成 |
+| GAP | [ServiceData](Gap/ServiceData/README.ja.md) | 接続せずService UUID付きのbinary値を放送 |
 | GAP | [Scan](Gap/Scan/README.ja.md) | active scanと`update()` contextの値型Scan Result |
 | GAP | [Connect](Gap/Connect/README.ja.md) | Scan Resultから非同期接続し、安定したconnection IDを取得 |
 | GATT | [Read](Gatt/Read/README.ja.md) | 接続後の非同期Battery Characteristic Read |

@@ -2,7 +2,7 @@
 #include <EspBleBluedroid.h>
 
 static constexpr const char *SERVICE_UUID =
-  "8d47a630-8d3a-4d65-a76f-6f626c756564";
+  "180d";
 
 EspBleBluedroid bluetooth;
 static bool found = false;
@@ -70,13 +70,24 @@ void setup()
       return;
     }
     found = true;
+    String serviceData;
+    const bool hasBatteryData = result.serviceDataFor("180f", serviceData);
     Serial.printf(
-      "SCAN_RESULT name=%s mfg=%02x%02x rssi=%d connectable=%u scannable=%u\n",
+      "SCAN_RESULT name=%s mfg=%02x%02x service=%02x%02x%02x "
+      "appearance=%04x tx_present=%u rssi=%d connectable=%u scannable=%u\n",
       result.name.c_str(),
       result.manufacturerData.length() > 0
         ? static_cast<uint8_t>(result.manufacturerData[0]) : 0,
       result.manufacturerData.length() > 1
         ? static_cast<uint8_t>(result.manufacturerData[1]) : 0,
+      hasBatteryData && serviceData.length() > 0
+        ? static_cast<uint8_t>(serviceData[0]) : 0,
+      hasBatteryData && serviceData.length() > 1
+        ? static_cast<uint8_t>(serviceData[1]) : 0,
+      hasBatteryData && serviceData.length() > 2
+        ? static_cast<uint8_t>(serviceData[2]) : 0,
+      result.appearance,
+      result.hasTxPowerLevel() ? 1 : 0,
       result.rssi,
       result.connectable ? 1 : 0,
       result.scannable ? 1 : 0);

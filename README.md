@@ -2,7 +2,7 @@
 
 EspBleBluedroid is an Arduino library for ESP32 boards using the Bluedroid
 stack. It aims to provide an experience similar to its NimBLE-based sibling
-library, [EspBle](../EspBle/), especially for GATT operations after a
+library, [EspBle](https://github.com/tanakamasayuki/EspBle), especially for GATT operations after a
 connection is established.
 
 The project is in its initial bring-up stage. Its public API currently covers
@@ -27,6 +27,9 @@ See [tests/README.md](tests/README.md) for setup and usage.
 
 The current API and Bluetooth Classic coexistence policy is documented in
 [Japanese](docs/API_DESIGN_POLICY.ja.md).
+Japanese introductory guides cover
+[BLE](docs/GUIDE_BLE_BASICS.ja.md) and
+[Bluetooth Classic](docs/GUIDE_CLASSIC_BASICS.ja.md) separately.
 
 The implemented and planned feature set is tracked in
 [Japanese](docs/STATUS.ja.md), with examples in [examples](examples/README.md).

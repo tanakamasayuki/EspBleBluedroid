@@ -1,7 +1,7 @@
 # EspBleBluedroid
 
 ESP32のBluedroidスタックを利用するArduinoライブラリです。NimBLEを利用する
-兄弟ライブラリ[EspBle](../EspBle/)と、接続後のGATT操作を中心に似た使い勝手を
+兄弟ライブラリ[EspBle](https://github.com/tanakamasayuki/EspBle)と、接続後のGATT操作を中心に似た使い勝手を
 提供することを目標にしています。
 
 現在は実装の最初の段階です。root lifecycle、Legacy Advertising、Scan、Central
@@ -42,6 +42,8 @@ peerテストでは次を確認します。
 
 公開APIとBluetooth Classicを共存させる設計方針は
 [docs/API_DESIGN_POLICY.ja.md](docs/API_DESIGN_POLICY.ja.md)にまとめています。
+利用方法は[BLE通信の入門ガイド](docs/GUIDE_BLE_BASICS.ja.md)と
+[Bluetooth Classic通信の入門ガイド](docs/GUIDE_CLASSIC_BASICS.ja.md)を参照してください。
 実装済み範囲と未対応機能は[docs/STATUS.ja.md](docs/STATUS.ja.md)を参照してください。
 実装は[開発方針](docs/DEVELOPMENT.ja.md)に従い、公開動作ごとにテストを先に追加します。
 

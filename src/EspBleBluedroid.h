@@ -88,9 +88,16 @@ enum class EspBleAddressType : uint8_t
   RandomIdentity,
 };
 
+struct EspBleServiceData
+{
+  String uuid;
+  String data;
+};
+
 struct EspBleScanResult
 {
   static constexpr size_t MaxServiceUuids = 8;
+  static constexpr size_t MaxServiceData = 4;
 
   String address;
   EspBleAddressType addressType = EspBleAddressType::Public;
@@ -99,11 +106,20 @@ struct EspBleScanResult
   bool connectable = false;
   bool scannable = false;
   String manufacturerData;
+  EspBleServiceData serviceData[MaxServiceData];
+  size_t serviceDataCount = 0;
   String serviceUuids[MaxServiceUuids];
   size_t serviceUuidCount = 0;
+  uint16_t appearance = 0;
+  int8_t txPowerLevel = 0;
+  bool txPowerLevelPresent = false;
 
   bool hasName() const;
   bool hasManufacturerData() const;
+  bool hasServiceData() const;
+  bool hasAppearance() const;
+  bool hasTxPowerLevel() const;
+  bool serviceDataFor(const char *uuid, String &data) const;
   bool advertisesService(const char *uuid) const;
 };
 
@@ -337,15 +353,49 @@ struct EspBluedroidClassicInquiryImpl;
 struct EspBluedroidSppImpl;
 struct EspBluedroidClassicImpl;
 
-class EspBleAdvertising
+class EspBleAdvertisingData
 {
 public:
   static constexpr size_t MaxServiceUuids = 4;
+  static constexpr size_t MaxServiceData = 4;
 
   void clear();
   void setName(const char *name);
   bool addServiceUuid(const char *uuid);
   void setManufacturerData(const uint8_t *data, size_t length);
+  bool addServiceData(const char *uuid, const uint8_t *data, size_t length);
+  void setAppearance(uint16_t appearance);
+  void setTxPowerIncluded(bool included);
+  bool isEmpty() const;
+
+private:
+  friend class EspBleAdvertising;
+
+  String name_;
+  String manufacturerData_;
+  EspBleServiceData serviceData_[MaxServiceData];
+  size_t serviceDataCount_ = 0;
+  String serviceUuids_[MaxServiceUuids];
+  size_t serviceUuidCount_ = 0;
+  uint16_t appearance_ = 0;
+  bool txPowerIncluded_ = false;
+};
+
+class EspBleAdvertising
+{
+public:
+  static constexpr size_t MaxServiceUuids =
+    EspBleAdvertisingData::MaxServiceUuids;
+
+  void clear();
+  EspBleAdvertisingData &data();
+  EspBleAdvertisingData &scanResponse();
+
+  void setName(const char *name);
+  bool addServiceUuid(const char *uuid);
+  void setManufacturerData(const uint8_t *data, size_t length);
+  bool addServiceData(
+    const char *uuid, const uint8_t *data, size_t length);
   void setAppearance(uint16_t appearance);
   void setScanResponseEnabled(bool enabled);
   void setConnectable(bool connectable);
@@ -361,11 +411,8 @@ private:
   void update();
 
   EspBleBluedroid *owner_;
-  String name_;
-  String manufacturerData_;
-  String serviceUuids_[MaxServiceUuids];
-  size_t serviceUuidCount_ = 0;
-  uint16_t appearance_ = 0;
+  EspBleAdvertisingData data_;
+  EspBleAdvertisingData scanResponseData_;
   bool scanResponseEnabled_ = true;
   bool connectable_ = true;
   uint16_t intervalMinMs_ = 0;

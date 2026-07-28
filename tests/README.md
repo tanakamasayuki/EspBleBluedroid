@@ -17,8 +17,9 @@ between machines or USB connection order. Running the test flashes both boards
 and overwrites their existing firmware.
 
 `peer/stack_smoke` verifies the underlying Bluedroid connection and GATT path.
-`peer/advertise_scan` verifies the public lifecycle, advertising payload limit,
-scanning, value-type results, duration and explicit stopping, end-time queue
+`peer/advertise_scan` verifies the public lifecycle, independent advertising
+and scan-response payloads, active-scan merging with Service Data, Appearance,
+and Tx Power, payload limits, value-type results, duration and explicit stopping, end-time queue
 flushing, reinitialization, deferred callback dispatch through `update()`, and
 deterministic 16-result queue overflow/drop accounting through a test-only seam.
 `peer/advertise_payload` verifies raw AD structures, grouped UUIDs, the 31-byte
