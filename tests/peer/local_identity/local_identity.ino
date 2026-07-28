@@ -1,7 +1,7 @@
 #include <EspBleBluedroid.h>
 
 static constexpr const char *SERVICE_UUID =
-  "70726976-6163-7900-9003-72616e646d01";
+  "f22f68c8-2a62-5b78-a16c-0d5feacd9111";
 
 EspBleBluedroid bluetooth;
 bool reported = false;
