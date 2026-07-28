@@ -15,6 +15,7 @@
 | Event配送 | `EspBleScanner::onResult()` | stack callbackからqueueへcopyし、利用者callbackを`update()`から配送 |
 | Advertising identity / radio | `ownAddressType` / `localAddress()` / `setTxPower()` | Public、Random Static、RPA、−12/+9 dBmと電波上の値を確認 |
 | Advertising accept list | `addToAcceptList()` / 一覧管理 / `setFilterPolicy()` | controller一覧同期、一覧外接続の拒否、`Any`へ変更後の接続・切断 |
+| Directed Advertising | `startDirected()` / High・Low Duty / peer address type | 宛先Centralでの空payload受信・接続、High Duty自動停止、Low Duty継続・明示停止 |
 | Central接続 | `connect()` / `disconnect()` / connection snapshot / lifecycle・MTU・parameter callback | non-blocking要求、再接続ID、MTU交換、接続パラメータ取得・更新、HCI切断理由、timeout分類、切断、再初期化 |
 | GATT Client | Database Discovery / UUID・handle指定Characteristic操作 / Descriptor Read・Write / Notification | connection単位snapshot、binary-safe値、CCCD、専用task、`update()`配送 |
 | BLE Security | Just Works / Static・Runtime Passkey / Numeric Comparison / Bond | 暗号化・認証必須attribute、保存bond再接続、passkey表示・入力・比較確認、bond管理 |
@@ -46,6 +47,10 @@ Tx Power Levelが一致することを確認している。
 Advertising Filter Accept Listは`tests/peer/accept_list`で初期化前操作、重複追加、
 controllerによる一覧外Centralの接続拒否、`Any`へのpolicy変更後の接続と正常切断を
 確認している。変更はAdvertising開始時にcontrollerへ同期する。
+Directed Advertisingは`tests/peer/directed_advertising`でpublic addressのCentralを
+宛先にしたHigh Duty packetがaddress・RSSI・connectableだけを持って届き、そのまま
+接続・切断できることを確認している。未接続High Dutyは1.28秒で停止し、Low Dutyは
+1.5秒後も継続して明示停止できる。
 Classic Inquiryは`tests/peer/classic_inquiry`でBTDM初期化、discoverableなClassic peer、
 結果callback内からの停止、完了eventまで確認している。
 SPP Serverは`tests/peer/spp_server`でraw ESP-IDF Clientとの双方向binary data、
@@ -82,6 +87,8 @@ CCCD購読、notificationまで確認している。
 - 必須機能はPSRAMなしで動作する設計とし、build確認はgeneric `esp32` profileに集約する。
   PSRAM搭載moduleなど、同じESP32 SoC内のboard variant別matrixは作らない。
 - Legacy Advertisingのみ。Extended Advertisingには未対応。
+- Directed AdvertisingはHigh/Low Dutyに対応する。仕様上payloadとScan Responseはなく、
+  activeな別Advertisingを停止してから開始する。
 - Advertising own addressはPublic、Random Static、RPAに対応する。Scan Requestは現在
   Public address固定。RPAはcontroller管理で、現在値を
   返す公開GAP APIがないため`localAddress()`は空文字列を返す。

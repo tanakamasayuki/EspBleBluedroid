@@ -377,19 +377,18 @@ sequenceDiagram
 
 接続の必要がないビーコン用途では、`onResult` までで完結します。
 
-### 2.7 GAPで対応していないこと
-
-BLEの仕様にはあるが、EspBleBluedroidでは使えない機能です。理由もあわせて挙げます。
-
-#### Directed Advertising（送信できない）
+### 2.7 Directed Advertising
 
 **Directed Advertising**は、相手を1台に限定したアドバタイズです。通常のアドバタイズが「誰でもどうぞ」と放送するのに対し、これは**送信先のアドレスを指定**し、その相手だけが接続できます。ボンディング済みの相手へ素早く再接続する用途で使われ、特に**High Duty Cycle Directed Advertising**は3.75ミリ秒間隔で最大1.28秒間送出し、極めて短時間で再接続を成立させます。
 
-EspBleBluedroidでは**送信できません**。現在使用しているArduino-ESP32のAdvertising wrapperは送信先アドレスを公開APIから受け取らず、EspBleBluedroidにも指定APIがないためです。
+`advertising().startDirected(peerAddress, peerAddressType, mode)`で送信できます。
+`HighDutyCycle`は3.75 ms固定で最大1.28秒、`LowDutyCycle`は`setInterval()`の値で
+接続または`stop()`まで継続します。Low Dutyのintervalを指定しない場合は1.28秒です。
 
-接続相手だけを制限するならFilter Accept Listを利用できます。ただし通常のAdvertising
-自体は周囲全体へ送られ、接続先1台へ直接送信するDirected Advertisingとは異なります。
-また、接続成立後にpeerを確認して不要な接続を切る方法もありますが、一度は接続が成立します。
+Directed Advertisingは仕様上AD dataもScan Responseも持てません。Local Name、
+Service UUID、Manufacturer Dataなどを設定した状態では`startDirected()`を拒否します。
+通常Advertisingから切り替えるときは先に`stop()`します。RPAを使うbond済みpeerには、
+一時的に観測したRPAではなくidentity addressと正しいaddress typeを指定します。
 
 **受信側の挙動**は次のとおりです。
 
@@ -398,6 +397,16 @@ EspBleBluedroidでは**送信できません**。現在使用しているArduino
 - 接続可能フラグは立ち、スキャン応答可能フラグは立ちません
 - そのまま通常どおり接続できます
 - ただし**「これはDirected Advertisingだ」と判別する手段はありません**。EspBleBluedroidがアドバタイズ種別を公開していないためです。「接続可能・スキャン応答不可・データが空」という組み合わせから推測することになります
+
+具体的な設定とHigh/Low Dutyの切替は
+[Gap/DirectedAdvertising](../examples/Gap/DirectedAdvertising/)を参照してください。
+
+接続相手だけを制限しつつ通常のAdvertising payloadも送りたい場合はFilter Accept Listを
+使います。その場合、Advertising自体は周囲全体へ届きます。
+
+### 2.8 GAPで対応していないこと
+
+BLEの仕様にはあるが、EspBleBluedroidでは使えない機能です。理由もあわせて挙げます。
 
 #### Extended Advertising / Periodic Advertising
 

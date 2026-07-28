@@ -10,6 +10,7 @@
 | GAP | [ScanResponse](Gap/ScanResponse/README.md) | Compose advertising and scan-response payloads independently |
 | GAP | [PrivateAddress](Gap/PrivateAddress/README.md) | Advertise with a Random Static address or controller-managed RPA |
 | GAP | [AcceptList](Gap/AcceptList/README.md) | Restrict scan and connection requests with the controller Filter Accept List |
+| GAP | [DirectedAdvertising](Gap/DirectedAdvertising/README.md) | High/Low Duty Directed Advertising to one known central |
 | GAP | [ServiceData](Gap/ServiceData/README.md) | Broadcast binary Service Data without a connection |
 | GAP | [Scan](Gap/Scan/README.md) | Active scan and value-type results delivered from `update()` |
 | GAP | [Connect](Gap/Connect/README.md) | Asynchronous connection from a Scan Result with a stable connection ID |

@@ -48,6 +48,7 @@ uv run --env-file .env pytest
 | `peer/connection_parameters` | 初期connection parameter snapshot、更新要求、両peerの合意値、`update()`配送 |
 | `peer/local_identity` | Random Static / RPA、現在アドレス、−12/+9 dBmと電波上のTx Power |
 | `peer/accept_list` | 初期化前拒否、重複登録、一覧外Centralのcontroller拒否、`Any`変更後の接続と即時切断 |
+| `peer/directed_advertising` | 宛先CentralへのpayloadなしHigh Duty、接続・切断、1.28秒自動停止、Low Duty継続・明示停止 |
 | `peer/gatt_client` | Database snapshot、UUID/handle指定Characteristic操作、Descriptor Read/Write、Notification購読/解除、切断時無効化、`update()`配送 |
 | `peer/security_bond` | Just Works、暗号化GATT、bond保存、暗号化再接続、security callback、bond削除 |
 | `peer/security_passkey` | 静的passkey MITM、passkey表示、authenticated GATT、bond保存 |

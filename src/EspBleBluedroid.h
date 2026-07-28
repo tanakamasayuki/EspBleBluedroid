@@ -208,6 +208,12 @@ enum class EspBleAdvertisingFilterPolicy : uint8_t
   Both,
 };
 
+enum class EspBleDirectedAdvertisingMode : uint8_t
+{
+  HighDutyCycle = 0,
+  LowDutyCycle,
+};
+
 enum class EspBleGattOperation : uint8_t
 {
   Discover = 0,
@@ -436,6 +442,11 @@ public:
   void setConnectable(bool connectable);
   bool setInterval(uint16_t minMilliseconds, uint16_t maxMilliseconds);
   bool start(uint32_t durationSeconds = 0);
+  bool startDirected(
+    const char *peerAddress,
+    EspBleAddressType peerAddressType,
+    EspBleDirectedAdvertisingMode mode =
+      EspBleDirectedAdvertisingMode::HighDutyCycle);
   bool stop();
   bool isAdvertising() const;
 
@@ -444,6 +455,7 @@ private:
 
   explicit EspBleAdvertising(EspBleBluedroid *owner);
   void update();
+  bool applyOwnAddress();
 
   EspBleBluedroid *owner_;
   EspBleAdvertisingData data_;
@@ -455,6 +467,8 @@ private:
   uint16_t intervalMinMs_ = 0;
   uint16_t intervalMaxMs_ = 0;
   bool advertising_ = false;
+  bool directedAdvertising_ = false;
+  bool directedHighDutyCycle_ = false;
   uint32_t startedAtMs_ = 0;
   uint32_t durationMs_ = 0;
 };

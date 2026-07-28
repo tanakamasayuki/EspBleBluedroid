@@ -10,6 +10,7 @@ EspBleConnectionId	KEYWORD1
 EspBleRole	KEYWORD1
 EspBleScanConfig	KEYWORD1
 EspBleAdvertisingFilterPolicy	KEYWORD1
+EspBleDirectedAdvertisingMode	KEYWORD1
 EspBluedroidCapabilities	KEYWORD1
 EspBluedroidClassic	KEYWORD1
 EspBluedroidClassicInquiry	KEYWORD1
@@ -52,6 +53,7 @@ txPower	KEYWORD2
 localAddress	KEYWORD2
 localAddressType	KEYWORD2
 setFilterPolicy	KEYWORD2
+startDirected	KEYWORD2
 filterPolicy	KEYWORD2
 addToAcceptList	KEYWORD2
 removeFromAcceptList	KEYWORD2

@@ -38,6 +38,9 @@ transmit-power values observed over the air.
 `peer/accept_list` verifies pre-initialization rejection, idempotent entries,
 controller-side rejection of an unlisted central, connection after switching
 the advertising policy to `Any`, and clean disconnection.
+`peer/directed_advertising` verifies a payload-free High Duty packet addressed
+to the central, connection and clean disconnection, the 1.28-second High Duty
+limit, and persistent Low Duty advertising with explicit stop.
 `peer/gatt_client` verifies public asynchronous Characteristic and Descriptor Read, both Write
 modes, Notification subscription/unsubscription, binary-safe values,
 connection-scoped database snapshots, peer reception, disconnect invalidation,

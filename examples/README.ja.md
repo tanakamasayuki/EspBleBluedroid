@@ -10,6 +10,7 @@
 | GAP | [ScanResponse](Gap/ScanResponse/README.ja.md) | Advertising本体とScan Responseを個別に構成 |
 | GAP | [PrivateAddress](Gap/PrivateAddress/README.ja.md) | Random StaticまたはRPAでpublic addressを隠してAdvertising |
 | GAP | [AcceptList](Gap/AcceptList/README.ja.md) | controllerのFilter Accept Listでscan request・接続要求を制限 |
+| GAP | [DirectedAdvertising](Gap/DirectedAdvertising/README.ja.md) | 既知のCentral 1台へHigh/Low Duty Directed Advertising |
 | GAP | [ServiceData](Gap/ServiceData/README.ja.md) | 接続せずService UUID付きのbinary値を放送 |
 | GAP | [Scan](Gap/Scan/README.ja.md) | active scanと`update()` contextの値型Scan Result |
 | GAP | [Connect](Gap/Connect/README.ja.md) | Scan Resultから非同期接続し、安定したconnection IDを取得 |

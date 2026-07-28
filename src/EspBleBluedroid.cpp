@@ -1616,6 +1616,14 @@ struct EspBleConnectionImpl
       owner->acceptListOperationCompleted.store(
         true, std::memory_order_release);
     }
+    else if (event == ESP_GAP_BLE_ADV_START_COMPLETE_EVT)
+    {
+      owner->advertisingStartOperationSucceeded.store(
+        param->adv_start_cmpl.status == ESP_BT_STATUS_SUCCESS,
+        std::memory_order_release);
+      owner->advertisingStartOperationCompleted.store(
+        true, std::memory_order_release);
+    }
   }
 
   static EspBleConnectionImpl *customGapOwner;
@@ -2213,6 +2221,8 @@ struct EspBleConnectionImpl
   std::atomic<bool> privacyOperationSucceeded{false};
   std::atomic<bool> acceptListOperationCompleted{false};
   std::atomic<bool> acceptListOperationSucceeded{false};
+  std::atomic<bool> advertisingStartOperationCompleted{false};
+  std::atomic<bool> advertisingStartOperationSucceeded{false};
   EspBleConnectionId nextConnectionId = 1;
   Event events[EventCapacity];
   size_t eventHead = 0;
@@ -2538,6 +2548,82 @@ bool EspBleAdvertising::setInterval(
   return true;
 }
 
+bool EspBleAdvertising::applyOwnAddress()
+{
+  if (!owner_->activeRandomAddressPresent_) return true;
+
+  BLEAdvertising *backend = BLEDevice::getAdvertising();
+  EspBleConnectionImpl *operations = owner_->connectionImpl_;
+  const auto waitFor = [](std::atomic<bool> &completed) {
+    const uint32_t startedAt = millis();
+    while (!completed.load(std::memory_order_acquire) &&
+           static_cast<uint32_t>(millis() - startedAt) < 2000)
+    {
+      delay(1);
+    }
+    return completed.load(std::memory_order_acquire);
+  };
+  if (owner_->activeOwnAddressType_ ==
+      EspBleOwnAddressType::ResolvablePrivate)
+  {
+    operations->privacyOperationCompleted.store(
+      false, std::memory_order_release);
+    operations->privacyOperationSucceeded.store(
+      false, std::memory_order_release);
+    if (esp_ble_gap_config_local_privacy(false) != ESP_OK ||
+        !waitFor(operations->privacyOperationCompleted) ||
+        !operations->privacyOperationSucceeded.load(
+          std::memory_order_acquire))
+    {
+      owner_->setError(
+        EspBleError::BackendFailure,
+        "failed to disable BLE privacy before setting the identity");
+      return false;
+    }
+  }
+  esp_bd_addr_t address;
+  memcpy(
+    address, owner_->activeRandomAddress_,
+    sizeof(owner_->activeRandomAddress_));
+  const esp_ble_addr_type_t addressType =
+    owner_->activeOwnAddressType_ ==
+        EspBleOwnAddressType::ResolvablePrivate
+      ? BLE_ADDR_TYPE_RPA_RANDOM
+      : BLE_ADDR_TYPE_RANDOM;
+  operations->randomAddressOperationCompleted.store(
+    false, std::memory_order_release);
+  operations->randomAddressOperationSucceeded.store(
+    false, std::memory_order_release);
+  if (!backend->setDeviceAddress(address, addressType) ||
+      !waitFor(operations->randomAddressOperationCompleted) ||
+      !operations->randomAddressOperationSucceeded.load(
+        std::memory_order_acquire))
+  {
+    owner_->setError(
+      EspBleError::BackendFailure,
+      "failed to apply the advertising address");
+    return false;
+  }
+  if (owner_->activeOwnAddressType_ ==
+      EspBleOwnAddressType::ResolvablePrivate)
+  {
+    operations->privacyOperationCompleted.store(
+      false, std::memory_order_release);
+    operations->privacyOperationSucceeded.store(
+      false, std::memory_order_release);
+    if (esp_ble_gap_config_local_privacy(true) != ESP_OK ||
+        !waitFor(operations->privacyOperationCompleted) ||
+        !operations->privacyOperationSucceeded.load(
+          std::memory_order_acquire))
+    {
+      owner_->setError(
+        EspBleError::BackendFailure, "failed to enable BLE privacy");
+      return false;
+    }
+  }
+  return true;
+}
+
 bool EspBleAdvertising::start(uint32_t durationSeconds)
 {
   if (!owner_->initialized())
@@ -2584,77 +2670,7 @@ bool EspBleAdvertising::start(uint32_t durationSeconds)
       }
     }
   }
-  if (owner_->activeRandomAddressPresent_)
-  {
-    EspBleConnectionImpl *operations = owner_->connectionImpl_;
-    const auto waitFor = [](std::atomic<bool> &completed) {
-      const uint32_t startedAt = millis();
-      while (!completed.load(std::memory_order_acquire) &&
-             static_cast<uint32_t>(millis() - startedAt) < 2000)
-      {
-        delay(1);
-      }
-      return completed.load(std::memory_order_acquire);
-    };
-    if (owner_->activeOwnAddressType_ ==
-        EspBleOwnAddressType::ResolvablePrivate)
-    {
-      operations->privacyOperationCompleted.store(
-        false, std::memory_order_release);
-      operations->privacyOperationSucceeded.store(
-        false, std::memory_order_release);
-      if (esp_ble_gap_config_local_privacy(false) != ESP_OK ||
-          !waitFor(operations->privacyOperationCompleted) ||
-          !operations->privacyOperationSucceeded.load(
-            std::memory_order_acquire))
-      {
-        owner_->setError(
-          EspBleError::BackendFailure,
-          "failed to disable BLE privacy before setting the identity");
-        return false;
-      }
-    }
-    esp_bd_addr_t address;
-    memcpy(
-      address, owner_->activeRandomAddress_,
-      sizeof(owner_->activeRandomAddress_));
-    const esp_ble_addr_type_t addressType =
-      owner_->activeOwnAddressType_ ==
-          EspBleOwnAddressType::ResolvablePrivate
-        ? BLE_ADDR_TYPE_RPA_RANDOM
-        : BLE_ADDR_TYPE_RANDOM;
-    operations->randomAddressOperationCompleted.store(
-      false, std::memory_order_release);
-    operations->randomAddressOperationSucceeded.store(
-      false, std::memory_order_release);
-    if (!backend->setDeviceAddress(address, addressType) ||
-        !waitFor(operations->randomAddressOperationCompleted) ||
-        !operations->randomAddressOperationSucceeded.load(
-          std::memory_order_acquire))
-    {
-      owner_->setError(
-        EspBleError::BackendFailure,
-        "failed to apply the advertising address");
-      return false;
-    }
-    if (owner_->activeOwnAddressType_ ==
-        EspBleOwnAddressType::ResolvablePrivate)
-    {
-      operations->privacyOperationCompleted.store(
-        false, std::memory_order_release);
-      operations->privacyOperationSucceeded.store(
-        false, std::memory_order_release);
-      if (esp_ble_gap_config_local_privacy(true) != ESP_OK ||
-          !waitFor(operations->privacyOperationCompleted) ||
-          !operations->privacyOperationSucceeded.load(
-            std::memory_order_acquire))
-      {
-        owner_->setError(
-          EspBleError::BackendFailure, "failed to enable BLE privacy");
-        return false;
-      }
-    }
-  }
+  if (!applyOwnAddress()) return false;
 
   const auto buildPayload = [this](
     const EspBleAdvertisingData &source,
@@ -2872,8 +2888,124 @@ bool EspBleAdvertising::start(uint32_t durationSeconds)
   }
 
   advertising_ = true;
+  directedAdvertising_ = false;
+  directedHighDutyCycle_ = false;
   startedAtMs_ = millis();
   durationMs_ = durationSeconds == 0 ? 0 : durationSeconds * 1000UL;
+  owner_->clearError();
+  return true;
+}
+
+bool EspBleAdvertising::startDirected(
+  const char *peerAddress,
+  EspBleAddressType peerAddressType,
+  EspBleDirectedAdvertisingMode mode)
+{
+  if (!owner_->initialized())
+  {
+    owner_->setError(EspBleError::InvalidState, "BLE stack is not initialized");
+    return false;
+  }
+  if (!isValidBleAddress(peerAddress) ||
+      static_cast<uint8_t>(peerAddressType) >
+        static_cast<uint8_t>(EspBleAddressType::RandomIdentity) ||
+      static_cast<uint8_t>(mode) >
+        static_cast<uint8_t>(
+          EspBleDirectedAdvertisingMode::LowDutyCycle))
+  {
+    owner_->setError(
+      EspBleError::InvalidArgument,
+      "valid directed peer address, address type, and mode are required");
+    return false;
+  }
+  if (advertising_)
+  {
+    owner_->setError(
+      EspBleError::InvalidState,
+      "stop the active advertising operation before starting directed advertising");
+    return false;
+  }
+  if (!data_.isEmpty() || !scanResponseData_.isEmpty())
+  {
+    owner_->setError(
+      EspBleError::InvalidState,
+      "directed advertising cannot carry advertising or scan response data");
+    return false;
+  }
+  if (!applyOwnAddress()) return false;
+
+  esp_ble_adv_params_t parameters{};
+  if (mode == EspBleDirectedAdvertisingMode::HighDutyCycle)
+  {
+    parameters.adv_int_min = 0x0020;
+    parameters.adv_int_max = 0x0020;
+    parameters.adv_type = ADV_TYPE_DIRECT_IND_HIGH;
+  }
+  else
+  {
+    parameters.adv_int_min = intervalMinMs_ == 0
+      ? 0x0800
+      : static_cast<uint16_t>(
+          (static_cast<uint32_t>(intervalMinMs_) * 8) / 5);
+    parameters.adv_int_max = intervalMaxMs_ == 0
+      ? 0x0800
+      : static_cast<uint16_t>(
+          (static_cast<uint32_t>(intervalMaxMs_) * 8) / 5);
+    parameters.adv_type = ADV_TYPE_DIRECT_IND_LOW;
+  }
+  parameters.own_addr_type =
+    owner_->activeOwnAddressType_ == EspBleOwnAddressType::Public
+      ? BLE_ADDR_TYPE_PUBLIC
+      : (owner_->activeOwnAddressType_ ==
+             EspBleOwnAddressType::ResolvablePrivate
+           ? BLE_ADDR_TYPE_RPA_RANDOM
+           : BLE_ADDR_TYPE_RANDOM);
+  BLEAddress target(peerAddress);
+  memcpy(parameters.peer_addr, target.getNative(), sizeof(esp_bd_addr_t));
+  parameters.peer_addr_type =
+    peerAddressType == EspBleAddressType::Random ||
+        peerAddressType == EspBleAddressType::RandomIdentity
+      ? BLE_ADDR_TYPE_RANDOM
+      : BLE_ADDR_TYPE_PUBLIC;
+  parameters.channel_map = ADV_CHNL_ALL;
+  parameters.adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY;
+
+  EspBleConnectionImpl *operations = owner_->connectionImpl_;
+  operations->advertisingStartOperationCompleted.store(
+    false, std::memory_order_release);
+  operations->advertisingStartOperationSucceeded.store(
+    false, std::memory_order_release);
+  if (esp_ble_gap_start_advertising(&parameters) != ESP_OK)
+  {
+    owner_->setError(
+      EspBleError::BackendFailure,
+      "failed to request directed advertising");
+    return false;
+  }
+  const uint32_t requestedAt = millis();
+  while (!operations->advertisingStartOperationCompleted.load(
+           std::memory_order_acquire) &&
+         static_cast<uint32_t>(millis() - requestedAt) < 2000)
+  {
+    delay(1);
+  }
+  if (!operations->advertisingStartOperationCompleted.load(
+        std::memory_order_acquire) ||
+      !operations->advertisingStartOperationSucceeded.load(
+        std::memory_order_acquire))
+  {
+    owner_->setError(
+      EspBleError::BackendFailure,
+      "directed advertising did not start");
+    return false;
+  }
+
+  advertising_ = true;
+  directedAdvertising_ = true;
+  directedHighDutyCycle_ =
+    mode == EspBleDirectedAdvertisingMode::HighDutyCycle;
+  startedAtMs_ = millis();
+  durationMs_ = 0;
   owner_->clearError();
   return true;
 }
@@ -2896,6 +3028,8 @@ bool EspBleAdvertising::stop()
     return false;
   }
   advertising_ = false;
+  directedAdvertising_ = false;
+  directedHighDutyCycle_ = false;
   durationMs_ = 0;
   owner_->clearError();
   return true;
@@ -2908,6 +3042,17 @@ bool EspBleAdvertising::isAdvertising() const
 
 void EspBleAdvertising::update()
 {
+  if (advertising_ && directedAdvertising_ && directedHighDutyCycle_ &&
+      static_cast<uint32_t>(millis() - startedAtMs_) >= 1280)
+  {
+    // The controller stops high-duty directed advertising after at most
+    // 1.28 seconds. Keep the public state in sync without issuing a second
+    // stop request after the controller has already disabled it.
+    advertising_ = false;
+    directedAdvertising_ = false;
+    directedHighDutyCycle_ = false;
+    return;
+  }
   if (advertising_ && durationMs_ != 0 &&
       static_cast<uint32_t>(millis() - startedAtMs_) >= durationMs_)
   {

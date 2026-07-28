@@ -58,8 +58,10 @@ NimBLEより動的変更しやすい場合でも、既存objectの寿命やcallb
 
 ### GAPの未実装機能
 
-Directed Advertising、Central Scan側のFilter Accept List、接続開始時のパラメータ指定は
-未実装です。Advertising側のFilter Accept ListはScan Request・接続要求の両方に対応します。
+Central Scan側のFilter Accept Listと接続開始時のパラメータ指定は未実装です。
+Advertising側のFilter Accept ListはScan Request・接続要求の両方に対応します。
+Directed AdvertisingはBluedroid GAP APIを直接呼び、High/Low Dutyとpeer address typeを
+公開しています。これは現在EspBle側にないBluedroid固有の先行機能です。
 Legacy Advertisingのown address選択、Random Static、RPA、送信電力設定には対応しています。
 Scan Request側のown address typeはArduino wrapperがPublic固定のため、直接scan経路へ
 置き換えるまで未対応です。ただしBluedroidの
@@ -78,6 +80,10 @@ Bluetooth ClassicはNimBLE backendのEspBleにはない機能です。現在は�
 - active SPP sessionへ自動追従する`EspBluedroidSppSerial`
 - SSP Numeric Comparison / Passkey EntryとClassic bond管理
 - BLE Scan・GATT接続とSPP sessionの同時利用
+
+BLE側でも、Arduino wrapperがpeer addressを公開しないDirected Advertisingを
+ESP-IDF GAP APIの直接呼出しで補っています。Directed packetは仕様どおりpayloadなしとし、
+wrapper内部objectやprivate layoutには依存しません。
 
 今後Classic profileを追加する場合も、BLE connectionとClassic session、LE bondと
 Classic link keyを別の型・別のresourceとして扱います。
