@@ -2,13 +2,31 @@
 
 > English: [README.md](README.md)
 
-EspBleBluedroidの公開APIでLocal Name、Battery Service UUID、Manufacturer Dataを
-Legacy Advertisingへ掲載します。
+Local Name、Service UUID、Manufacturer DataをconnectableなLegacy Advertisingで送信します。
 
-```sh
-arduino-cli compile --profile esp32 examples/Gap/Advertise
+## 必要なもの
+
+- 無印ESP32 × 1
+- [Gap/Scan](../Scan/)または汎用BLE scanner
+
+## 動作
+
+- `begin()`前にGAP device nameを設定します
+- payloadへLocal Name、Battery Service UUID、Manufacturer Dataを追加します
+- `start()`でAdvertisingを開始し、`update()`を継続して呼びます
+
+## 主なAPI
+
+- `EspBleConfig::deviceName` — stackのdevice name
+- `advertising().setName()` — payloadのLocal Name
+- `addServiceUuid()` / `setManufacturerData()` — 公開する識別情報とbinary値
+- `advertising().start()` — payload検証と開始
+
+同じbit幅のService UUIDは1つのComplete Listへまとめられます。Advertisingまたは
+Scan Responseが31 byteを超えると`start()`は`InvalidArgument`で失敗します。
+
+## 期待されるSerial出力
+
+```text
+advertising
 ```
-
-`bluetooth.update()`はduration管理と今後追加されるevent配送に必要です。
-同じbit幅のService UUIDは単一のComplete Listへまとめられます。Legacy Advertising
-またはScan Responseが31 bytesを超える構成では`start()`が`InvalidArgument`で失敗します。

@@ -2,16 +2,32 @@
 
 > 日本語版: [README.ja.md](README.ja.md)
 
-Scans for a peripheral advertising the Battery Service (`180F`) and connects
-asynchronously. `connect()` only reports request acceptance; completion,
-failure, and disconnection callbacks are dispatched from `update()`. Use the
-stable `EspBleConnection::id`, not a backend handle, for subsequent operations.
+Scans for a Peripheral advertising Battery Service (`0x180F`) and connects
+asynchronously.
 
-The initial implementation supports one Central connection. GATT operations
-will be added later.
-Reconnecting after a disconnection issues a new connection ID. Unreachable-peer
-and backend failures after request acceptance arrive asynchronously through
-`onConnectionFailed()`.
-Calling `end()` during an in-flight request suppresses that request's completion
-callback and may wait for up to approximately one second while the current
-Bluedroid connection-wait slice is released.
+## Requirements
+
+- One original ESP32 running this Central sketch
+- A Peripheral advertising Battery Service
+
+## Behavior
+
+- Selects the peer by advertised Service UUID
+- Stops scanning and submits a connection request
+- Handles connection, asynchronous failure, and disconnection separately
+
+## Main APIs
+
+- `scanResult.advertisesService()` / `connect(scanResult)`
+- `onConnected()` / `onConnectionFailed()` / `onDisconnected()`
+- `EspBleConnection::id` / `disconnectReason`
+
+The current public API supports one Central connection. A reconnect receives a
+new connection ID.
+
+## Expected Serial output
+
+```text
+Connected: id=1 peer=00:11:22:33:44:55 mtu=23
+Disconnected: id=1
+```

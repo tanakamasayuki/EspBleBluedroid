@@ -6,13 +6,16 @@
 |---|---|---|
 | Build | [CompileSmoke](CompileSmoke/README.md) | Build-check the header, Bluedroid backend guard, and version macro |
 | GAP | [Advertise](Gap/Advertise/README.md) | Legacy advertising with a local name, service UUID, and manufacturer data |
+| GAP | [Beacon](Gap/Beacon/README.md) | Non-connectable Manufacturer Data beacon |
 | GAP | [ScanResponse](Gap/ScanResponse/README.md) | Compose advertising and scan-response payloads independently |
 | GAP | [ServiceData](Gap/ServiceData/README.md) | Broadcast binary Service Data without a connection |
 | GAP | [Scan](Gap/Scan/README.md) | Active scan and value-type results delivered from `update()` |
 | GAP | [Connect](Gap/Connect/README.md) | Asynchronous connection from a Scan Result with a stable connection ID |
 | GAP | [Mtu](Gap/Mtu/README.md) | Configure a preferred ATT MTU and observe the negotiated payload limit |
-| GATT | [Read](Gatt/Read/README.md) | Asynchronous Battery Characteristic Read after connection |
-| GATT | [Client](Gatt/Client/README.md) | Read, Write, and Notification subscription callback chain |
+| GATT Basics | [Client](Gatt/Basics/Client/README.md) | Database discovery, Read/Write, Descriptor access, and Notification subscription |
+| GATT Device | [BatteryClient](Gatt/Device/BatteryClient/README.md) | Standard Battery Level Read and Notification subscription |
+| Info | [ConnectionInspector](Info/ConnectionInspector/README.md) | Interactive connection, snapshot, bond, and counter diagnostics |
+| Info | [ScanDump](Info/ScanDump/README.md) | Print every public field extracted from advertising |
 | Security | [JustWorksClient](Security/JustWorksClient/README.md) | Just Works pairing, bonding, and encrypted reconnection |
 | Security | [StaticPasskeyClient](Security/StaticPasskeyClient/README.md) | Static passkey MITM pairing and authenticated connection state |
 | Security | [RuntimePasskeyClient](Security/RuntimePasskeyClient/README.md) | KeyboardOnly MITM pairing with a passkey supplied at runtime |

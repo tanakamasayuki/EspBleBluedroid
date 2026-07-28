@@ -1,11 +1,34 @@
 # ServiceData
 
-接続しないbroadcasterから、Service UUIDで意味づけたbinary値を放送する例です。
+> English: [README.md](README.md)
 
-Environmental Sensing Service（`0x181a`）の温度値を5秒ごとに更新します。同じUUIDの
-Service Dataを差し替え、Legacy Advertisingを再開します。
+接続しないbroadcasterから、Service UUIDで意味づけたbinary温度値を放送します。
 
-受信側は`EspBleScanResult::serviceDataFor()`で値を取得できます。変化を継続して
-受け取る場合は`EspBleScanConfig::wantDuplicates = true`を指定してください。
+## 必要なもの
 
-Service Dataにも31 byte上限が適用されます。128 bit UUIDはUUIDだけで16 byte消費します。
+- 無印ESP32 × 1
+- Service Dataを表示できるscanner
+
+## 動作
+
+- Environmental Sensing Service（`0x181A`）をAdvertisingします
+- 0.01度単位のsigned 16 bit値をlittle-endianで載せます
+- 5秒ごとに値を置換し、Legacy Advertisingを再開します
+
+## 主なAPI
+
+- `advertising().addServiceData()` — UUID付きbinary payloadを追加・置換
+- `setConnectable(false)` / `setScanResponseEnabled(false)` — pure broadcaster
+- `scanResult.serviceDataFor()` — 受信側でUUIDを指定して値を取得
+
+## 注意
+
+継続的な変化を受信するにはscannerで`wantDuplicates = true`を指定します。
+Service Dataも31 byte上限の対象で、128 bit UUIDはUUIDだけで16 byte使います。
+
+## 期待されるSerial出力
+
+```text
+Broadcasting 23.50 degC
+Broadcasting 23.75 degC
+```
