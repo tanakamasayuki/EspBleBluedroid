@@ -13,6 +13,7 @@
 | Advertising | `data()` / `scanResponse()`、name、service UUID/data、manufacturer data、appearance、Tx Power、connectable、interval、開始・停止 | 2面の独立構成、raw PDU、複数UUIDの集約、31 byte境界、時間停止を実機確認 |
 | Scan | active/passive、interval/window、duration、duplicate指定、rich result、開始・停止 | AdvertisingとScan Responseのaddress単位merge、Service Data・Appearance・Tx Power、値型copy、duration・明示停止、16件queue・overflow、`end()`時flushを確認 |
 | Event配送 | `EspBleScanner::onResult()` | stack callbackからqueueへcopyし、利用者callbackを`update()`から配送 |
+| Advertising identity / radio | `ownAddressType` / `localAddress()` / `setTxPower()` | Public、Random Static、RPA、−12/+9 dBmと電波上の値を確認 |
 | Central接続 | `connect()` / `disconnect()` / connection snapshot / lifecycle・MTU・parameter callback | non-blocking要求、再接続ID、MTU交換、接続パラメータ取得・更新、HCI切断理由、timeout分類、切断、再初期化 |
 | GATT Client | Database Discovery / UUID・handle指定Characteristic操作 / Descriptor Read・Write / Notification | connection単位snapshot、binary-safe値、CCCD、専用task、`update()`配送 |
 | BLE Security | Just Works / Static・Runtime Passkey / Numeric Comparison / Bond | 暗号化・認証必須attribute、保存bond再接続、passkey表示・入力・比較確認、bond管理 |
@@ -38,6 +39,9 @@ Central接続は`tests/peer/connect_disconnect`でlink確立とcallback配送を
 connection snapshotへ入ることと、Centralからinterval 80（100ms）、latency 0、
 timeout 200（2秒）を要求した後、公開callbackとraw Bluedroid Peripheralの双方が同じ
 合意値を報告することを確認している。callbackは`update()` contextから配送される。
+Local identityは`tests/peer/local_identity`でRandom Staticのsubtype、公開したaddressと
+scanで観測した値の一致、RPAのsubtype、および−12/+9 dBmの設定値とAdvertising上の
+Tx Power Levelが一致することを確認している。
 Classic Inquiryは`tests/peer/classic_inquiry`でBTDM初期化、discoverableなClassic peer、
 結果callback内からの停止、完了eventまで確認している。
 SPP Serverは`tests/peer/spp_server`でraw ESP-IDF Clientとの双方向binary data、
@@ -74,6 +78,9 @@ CCCD購読、notificationまで確認している。
 - 必須機能はPSRAMなしで動作する設計とし、build確認はgeneric `esp32` profileに集約する。
   PSRAM搭載moduleなど、同じESP32 SoC内のboard variant別matrixは作らない。
 - Legacy Advertisingのみ。Extended Advertisingには未対応。
+- Advertising own addressはPublic、Random Static、RPAに対応する。Scan Requestは現在
+  Public address固定。RPAはcontroller管理で、現在値を
+  返す公開GAP APIがないため`localAddress()`は空文字列を返す。
 - Advertising service UUID / service dataは各payloadで各4件、Scan Resultはservice UUID
   8件、service data 4件。超過したScan fieldの個数はまだ個別に報告しない。
 - Scan result queueは16件。overflowは`droppedResultCount()`で確認できる。

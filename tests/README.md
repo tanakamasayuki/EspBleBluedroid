@@ -33,6 +33,8 @@ stale events.
 `peer/connection_parameters` verifies initial interval/latency/timeout
 snapshots, a Central update request, matching negotiated values on both peers,
 and callback delivery from `update()`.
+`peer/local_identity` verifies Random Static and RPA advertising plus low/high
+transmit-power values observed over the air.
 `peer/gatt_client` verifies public asynchronous Characteristic and Descriptor Read, both Write
 modes, Notification subscription/unsubscription, binary-safe values,
 connection-scoped database snapshots, peer reception, disconnect invalidation,

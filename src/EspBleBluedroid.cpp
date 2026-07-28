@@ -34,6 +34,32 @@ constexpr size_t ClassicSecurityEventQueueCapacity = 8;
 constexpr size_t SppEventQueueCapacity = 8;
 constexpr size_t LegacyAdvertisingPayloadCapacity = 31;
 
+struct BleTxPowerLevel
+{
+  int8_t dBm;
+  esp_power_level_t backend;
+};
+
+constexpr BleTxPowerLevel BleTxPowerLevels[] = {
+  {-12, ESP_PWR_LVL_N12},
+  {-9, ESP_PWR_LVL_N9},
+  {-6, ESP_PWR_LVL_N6},
+  {-3, ESP_PWR_LVL_N3},
+  {0, ESP_PWR_LVL_N0},
+  {3, ESP_PWR_LVL_P3},
+  {6, ESP_PWR_LVL_P6},
+  {9, ESP_PWR_LVL_P9},
+};
+
+int8_t bleTxPowerDbm(esp_power_level_t level)
+{
+  for (const BleTxPowerLevel &candidate : BleTxPowerLevels)
+  {
+    if (candidate.backend == level) return candidate.dBm;
+  }
+  return INT8_MIN;
+}
+
 bool appendAdvertisingData(
   BLEAdvertisementData &payload, uint8_t type, const String &data)
 {
@@ -1506,17 +1532,35 @@ struct EspBleConnectionImpl
     esp_ble_gap_cb_param_t *param)
   {
     EspBleConnectionImpl *owner = customGapOwner;
-    if (owner == nullptr || param == nullptr ||
-        event != ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT)
+    if (owner == nullptr || param == nullptr)
     {
       return;
     }
-    owner->backendConnectionParametersUpdated(
-      param->update_conn_params.status,
-      param->update_conn_params.bda,
-      param->update_conn_params.conn_int,
-      param->update_conn_params.latency,
-      param->update_conn_params.timeout);
+    if (event == ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT)
+    {
+      owner->backendConnectionParametersUpdated(
+        param->update_conn_params.status,
+        param->update_conn_params.bda,
+        param->update_conn_params.conn_int,
+        param->update_conn_params.latency,
+        param->update_conn_params.timeout);
+    }
+    else if (event == ESP_GAP_BLE_SET_STATIC_RAND_ADDR_EVT)
+    {
+      owner->randomAddressOperationSucceeded.store(
+        param->set_rand_addr_cmpl.status == ESP_BT_STATUS_SUCCESS,
+        std::memory_order_release);
+      owner->randomAddressOperationCompleted.store(
+        true, std::memory_order_release);
+    }
+    else if (event == ESP_GAP_BLE_SET_LOCAL_PRIVACY_COMPLETE_EVT)
+    {
+      owner->privacyOperationSucceeded.store(
+        param->local_privacy_cmpl.status == ESP_BT_STATUS_SUCCESS,
+        std::memory_order_release);
+      owner->privacyOperationCompleted.store(
+        true, std::memory_order_release);
+    }
   }
 
   static EspBleConnectionImpl *customGapOwner;
@@ -2105,6 +2149,10 @@ struct EspBleConnectionImpl
   uint16_t pendingConnectionInterval = 0;
   uint16_t pendingConnectionLatency = 0;
   uint16_t pendingConnectionTimeout = 0;
+  std::atomic<bool> randomAddressOperationCompleted{false};
+  std::atomic<bool> randomAddressOperationSucceeded{false};
+  std::atomic<bool> privacyOperationCompleted{false};
+  std::atomic<bool> privacyOperationSucceeded{false};
   EspBleConnectionId nextConnectionId = 1;
   Event events[EventCapacity];
   size_t eventHead = 0;
@@ -2397,6 +2445,77 @@ bool EspBleAdvertising::start(uint32_t durationSeconds)
 
   BLEAdvertising *backend = BLEDevice::getAdvertising();
   backend->reset();
+  if (owner_->activeRandomAddressPresent_)
+  {
+    EspBleConnectionImpl *operations = owner_->connectionImpl_;
+    const auto waitFor = [](std::atomic<bool> &completed) {
+      const uint32_t startedAt = millis();
+      while (!completed.load(std::memory_order_acquire) &&
+             static_cast<uint32_t>(millis() - startedAt) < 2000)
+      {
+        delay(1);
+      }
+      return completed.load(std::memory_order_acquire);
+    };
+    if (owner_->activeOwnAddressType_ ==
+        EspBleOwnAddressType::ResolvablePrivate)
+    {
+      operations->privacyOperationCompleted.store(
+        false, std::memory_order_release);
+      operations->privacyOperationSucceeded.store(
+        false, std::memory_order_release);
+      if (esp_ble_gap_config_local_privacy(false) != ESP_OK ||
+          !waitFor(operations->privacyOperationCompleted) ||
+          !operations->privacyOperationSucceeded.load(
+            std::memory_order_acquire))
+      {
+        owner_->setError(
+          EspBleError::BackendFailure,
+          "failed to disable BLE privacy before setting the identity");
+        return false;
+      }
+    }
+    esp_bd_addr_t address;
+    memcpy(
+      address, owner_->activeRandomAddress_,
+      sizeof(owner_->activeRandomAddress_));
+    const esp_ble_addr_type_t addressType =
+      owner_->activeOwnAddressType_ ==
+          EspBleOwnAddressType::ResolvablePrivate
+        ? BLE_ADDR_TYPE_RPA_RANDOM
+        : BLE_ADDR_TYPE_RANDOM;
+    operations->randomAddressOperationCompleted.store(
+      false, std::memory_order_release);
+    operations->randomAddressOperationSucceeded.store(
+      false, std::memory_order_release);
+    if (!backend->setDeviceAddress(address, addressType) ||
+        !waitFor(operations->randomAddressOperationCompleted) ||
+        !operations->randomAddressOperationSucceeded.load(
+          std::memory_order_acquire))
+    {
+      owner_->setError(
+        EspBleError::BackendFailure,
+        "failed to apply the advertising address");
+      return false;
+    }
+    if (owner_->activeOwnAddressType_ ==
+        EspBleOwnAddressType::ResolvablePrivate)
+    {
+      operations->privacyOperationCompleted.store(
+        false, std::memory_order_release);
+      operations->privacyOperationSucceeded.store(
+        false, std::memory_order_release);
+      if (esp_ble_gap_config_local_privacy(true) != ESP_OK ||
+          !waitFor(operations->privacyOperationCompleted) ||
+          !operations->privacyOperationSucceeded.load(
+            std::memory_order_acquire))
+      {
+        owner_->setError(
+          EspBleError::BackendFailure, "failed to enable BLE privacy");
+        return false;
+      }
+    }
+  }
 
   const auto buildPayload = [this](
     const EspBleAdvertisingData &source,
@@ -4484,6 +4603,7 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
   {
     if (activeDeviceName_ != deviceName ||
         activePreferredMtu_ != config.preferredMtu ||
+        activeOwnAddressType_ != config.ownAddressType ||
         !sameSecurityConfig(activeSecurity_, config.security) ||
         !sameClassicSecurityConfig(
           activeClassicSecurity_, config.classicSecurity))
@@ -4507,6 +4627,12 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
   {
     setError(
       EspBleError::InvalidArgument, "preferred MTU must be between 23 and 517");
+    return false;
+  }
+  if (static_cast<uint8_t>(config.ownAddressType) >
+      static_cast<uint8_t>(EspBleOwnAddressType::ResolvablePrivate))
+  {
+    setError(EspBleError::InvalidArgument, "unsupported own address type");
     return false;
   }
   if (!config.security.enabled &&
@@ -4611,6 +4737,30 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
     setError(EspBleError::BackendFailure, "failed to set preferred MTU");
     return false;
   }
+  activeRandomAddressPresent_ = false;
+  memset(activeRandomAddress_, 0, sizeof(activeRandomAddress_));
+  if (config.ownAddressType != EspBleOwnAddressType::Public)
+  {
+    esp_bd_addr_t randomAddress;
+    if (esp_ble_gap_addr_create_static(randomAddress) != ESP_OK)
+    {
+      BLEDevice::setCustomGattcHandler(nullptr);
+      BLEDevice::setCustomGapHandler(nullptr);
+      EspBleConnectionImpl::customGattcOwner = nullptr;
+      EspBleConnectionImpl::customGapOwner = nullptr;
+      BLEDevice::deinit(false);
+      delete connectionImpl_;
+      connectionImpl_ = nullptr;
+      setError(
+        EspBleError::BackendFailure,
+        "failed to configure the BLE private address");
+      return false;
+    }
+    memcpy(
+      activeRandomAddress_, randomAddress,
+      sizeof(activeRandomAddress_));
+    activeRandomAddressPresent_ = true;
+  }
   if (!classic_.begin(deviceName, config.classicSecurity))
   {
     BLEDevice::setCustomGattcHandler(nullptr);
@@ -4690,6 +4840,7 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
 
   activeDeviceName_ = deviceName;
   activePreferredMtu_ = config.preferredMtu;
+  activeOwnAddressType_ = config.ownAddressType;
   activeSecurity_ = config.security;
   activeClassicSecurity_ = config.classicSecurity;
   initialized_ = true;
@@ -4745,6 +4896,9 @@ void EspBleBluedroid::end()
   EspBleConnectionImpl::customGattcOwner = nullptr;
   EspBleConnectionImpl::customGapOwner = nullptr;
   initialized_ = false;
+  activeOwnAddressType_ = EspBleOwnAddressType::Public;
+  activeRandomAddressPresent_ = false;
+  memset(activeRandomAddress_, 0, sizeof(activeRandomAddress_));
   activeClassicSecurity_ = EspBluedroidClassicSecurityConfig();
   delete connectionImpl_;
   connectionImpl_ = nullptr;
@@ -4764,6 +4918,66 @@ void EspBleBluedroid::update()
 bool EspBleBluedroid::initialized() const
 {
   return initialized_;
+}
+
+String EspBleBluedroid::localAddress() const
+{
+  if (!initialized_) return String();
+  esp_bd_addr_t address;
+  // ESP-IDF's public getter returns the identity address while a controller-
+  // generated RPA is on air. Returning it as the current address would be
+  // misleading, so report the address as unavailable in this mode.
+  if (activeOwnAddressType_ == EspBleOwnAddressType::ResolvablePrivate)
+    return String();
+  uint8_t addressType = 0;
+  if (esp_ble_gap_get_local_used_addr(address, &addressType) != ESP_OK)
+  {
+    return String();
+  }
+  return BLEAddress(address).toString();
+}
+
+EspBleAddressType EspBleBluedroid::localAddressType() const
+{
+  return activeOwnAddressType_ == EspBleOwnAddressType::Public
+    ? EspBleAddressType::Public
+    : EspBleAddressType::Random;
+}
+
+bool EspBleBluedroid::setTxPower(int8_t dBm)
+{
+  if (!initialized_)
+  {
+    setError(EspBleError::InvalidState, "BLE stack is not initialized");
+    return false;
+  }
+  const BleTxPowerLevel *nearest = &BleTxPowerLevels[0];
+  for (const BleTxPowerLevel &candidate : BleTxPowerLevels)
+  {
+    if (abs(static_cast<int>(candidate.dBm) - dBm) <
+        abs(static_cast<int>(nearest->dBm) - dBm))
+    {
+      nearest = &candidate;
+    }
+  }
+  if (esp_ble_tx_power_set(
+        ESP_BLE_PWR_TYPE_DEFAULT, nearest->backend) != ESP_OK ||
+      esp_ble_tx_power_set(
+        ESP_BLE_PWR_TYPE_ADV, nearest->backend) != ESP_OK ||
+      esp_ble_tx_power_set(
+        ESP_BLE_PWR_TYPE_SCAN, nearest->backend) != ESP_OK)
+  {
+    setError(EspBleError::BackendFailure, "failed to set BLE transmit power");
+    return false;
+  }
+  clearError();
+  return true;
+}
+
+int8_t EspBleBluedroid::txPower() const
+{
+  if (!initialized_) return INT8_MIN;
+  return bleTxPowerDbm(esp_ble_tx_power_get(ESP_BLE_PWR_TYPE_ADV));
 }
 
 EspBluedroidCapabilities EspBleBluedroid::capabilities() const

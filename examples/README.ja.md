@@ -8,6 +8,7 @@
 | GAP | [Advertise](Gap/Advertise/README.ja.md) | Local Name、Service UUID、Manufacturer DataのLegacy Advertising |
 | GAP | [Beacon](Gap/Beacon/README.ja.md) | non-connectableなManufacturer Data beacon |
 | GAP | [ScanResponse](Gap/ScanResponse/README.ja.md) | Advertising本体とScan Responseを個別に構成 |
+| GAP | [PrivateAddress](Gap/PrivateAddress/README.ja.md) | Random StaticまたはRPAでpublic addressを隠してAdvertising |
 | GAP | [ServiceData](Gap/ServiceData/README.ja.md) | 接続せずService UUID付きのbinary値を放送 |
 | GAP | [Scan](Gap/Scan/README.ja.md) | active scanと`update()` contextの値型Scan Result |
 | GAP | [Connect](Gap/Connect/README.ja.md) | Scan Resultから非同期接続し、安定したconnection IDを取得 |

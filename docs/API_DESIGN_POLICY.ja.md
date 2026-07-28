@@ -446,6 +446,11 @@ lifecycle、Advertising、Scan、`update()`からのcallback配送を確認済�
 詳細は[実装状況](STATUS.ja.md)を参照する。backend smokeの成立だけではEspBle互換APIの
 確定を意味しない。
 
+Arduino wrapperが機能や完了値を公開していない場合も、それだけを理由に対象外とは
+しない。Arduino-ESP32 3.3.11がリンク可能なESP-IDF/Bluedroid APIと完了eventで同じ意味を
+保証できるならadapter内から直接利用する。private memberやobject layoutには依存せず、
+公開APIの要求受付と非同期完了を区別してpeerテストする。
+
 ## 当面確定しない事項
 
 次はPeer試作とresource計測なしに固定しない。

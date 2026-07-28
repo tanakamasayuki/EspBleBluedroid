@@ -24,6 +24,7 @@ backendが違っても同じ意味にできる機能は、型名、操作の要�
 |---|---|---|
 | lifecycle | `begin()` / `end()` / `update()` | BLEとClassicで共有するcontroller/hostをrootが一括所有 |
 | Advertising / Scan | payload builder、scan result、開始・停止callback | Active ScanのAdvertisingとScan Responseの報告順が一定でないため、address単位で短時間merge |
+| local identity / Tx Power | Advertising own address種別、`localAddress()`、`setTxPower()` | Random Static、controller RPA、実送信電力をESP-IDF GAP APIから直接制御 |
 | Central接続 | 非同期`connect()`、connection ID、接続・切断callback | 現在は同時1接続。接続処理はworker taskへ隔離 |
 | 接続パラメータ | snapshot、`updateConnectionParameters()`、`onConnectionParametersUpdated()` | 初期値はcontrollerから読み、GAP完了eventの合意値だけを`update()`から配送 |
 | MTU | 既定247、`EspBleConnection::mtu`、`EspBleMtuChanged`、`onMtuChanged()` | 接続成立後にClientから明示的に交換を開始し、低レベル完了eventの合意値だけを公開 |
@@ -56,8 +57,12 @@ NimBLEより動的変更しやすい場合でも、既存objectの寿命やcallb
 
 ### GAPの未実装機能
 
-own address選択、RPA、Filter Accept List、Directed Advertising、接続開始時の
-パラメータ指定、送信電力設定は未実装です。接続後のパラメータ更新には対応しています。
+Filter Accept List、Directed Advertising、接続開始時のパラメータ指定は未実装です。
+Legacy Advertisingのown address選択、Random Static、RPA、送信電力設定には対応しています。
+Scan Request側のown address typeはArduino wrapperがPublic固定のため、直接scan経路へ
+置き換えるまで未対応です。ただしBluedroidの
+公開APIはcontrollerが現在送信中のRPA値を取得できないため、RPA利用時の
+`localAddress()`は空文字列を返します。接続後のパラメータ更新には対応しています。
 Legacy Advertisingのみを扱います。無印ESP32のcontroller
 制約によりExtended Advertising、Periodic Advertising、LE 2M/Coded PHYは追加できません。
 
@@ -75,10 +80,12 @@ Bluetooth ClassicはNimBLE backendのEspBleにはない機能です。現在は�
 今後Classic profileを追加する場合も、BLE connectionとClassic session、LE bondと
 Classic link keyを別の型・別のresourceとして扱います。
 
-Bluedroidの下位GAP/GATT eventからArduino wrapperが公開しない情報を取得できる場合は、
+Bluedroidの下位GAP/GATT eventやESP-IDF APIからArduino wrapperが公開しない情報・操作を
+取得できる場合は、
 BLE共通APIの意味を改善するために利用します。今回のMTU完了値とHCI切断理由がその例です。
-ただしprivate memberや未保証の内部object layoutには依存せず、Arduino-ESP32が公開する
-callbackまたはESP-IDF公開APIだけをadapter内で使用します。
+private memberや内部object layoutには依存せず、Arduino-ESP32 3.3.11が公開するcallback、
+リンク可能なESP-IDF API、完了eventをadapter内で使用します。wrapper非対応だけを理由に
+機能を対象外にはしません。
 
 ## 対応を追加する条件
 

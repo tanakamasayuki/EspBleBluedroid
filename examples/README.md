@@ -8,6 +8,7 @@
 | GAP | [Advertise](Gap/Advertise/README.md) | Legacy advertising with a local name, service UUID, and manufacturer data |
 | GAP | [Beacon](Gap/Beacon/README.md) | Non-connectable Manufacturer Data beacon |
 | GAP | [ScanResponse](Gap/ScanResponse/README.md) | Compose advertising and scan-response payloads independently |
+| GAP | [PrivateAddress](Gap/PrivateAddress/README.md) | Advertise with a Random Static address or controller-managed RPA |
 | GAP | [ServiceData](Gap/ServiceData/README.md) | Broadcast binary Service Data without a connection |
 | GAP | [Scan](Gap/Scan/README.md) | Active scan and value-type results delivered from `update()` |
 | GAP | [Connect](Gap/Connect/README.md) | Asynchronous connection from a Scan Result with a stable connection ID |

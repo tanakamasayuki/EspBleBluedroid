@@ -25,6 +25,8 @@ test-first.
 
 Peer coverage includes the initial BLE connection-parameter snapshot and
 post-connect interval, latency, and supervision-timeout updates.
+Random Static and controller-managed RPA advertising, local identity reporting,
+and configurable BLE transmit power are also covered over the air.
 
 See [tests/README.md](tests/README.md) for setup and usage.
 

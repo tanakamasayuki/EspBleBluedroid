@@ -18,12 +18,14 @@ automatically. This example assigns both payloads explicitly.
 
 - Places the Service UUID, Appearance, and Tx Power in the primary payload
 - Places the Local Name and Manufacturer Data in the Scan Response
+- Sets the actual BLE transmitter to 3 dBm
 - Gives passive scanners the primary side and active scanners both sides
 
 ## Main APIs
 
 - `advertising().data()` / `advertising().scanResponse()`
 - `setAppearance()` / `setTxPowerIncluded()`
+- `setTxPower()` / `txPower()`
 - `setName()` / `setManufacturerData()`
 
 ## Notes
@@ -34,5 +36,5 @@ the primary payload.
 ## Expected Serial output
 
 ```text
-Advertising with an explicit scan response
+Advertising with an explicit scan response at 3 dBm
 ```

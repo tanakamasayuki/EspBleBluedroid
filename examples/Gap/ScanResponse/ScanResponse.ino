@@ -21,6 +21,17 @@ void setup()
     return;
   }
 
+  // en: The radio rounds to a supported level. This affects both the actual
+  //     transmitter and the Tx Power AD field included below.
+  // ja: 無線が対応する値へ丸める。実際の送信電力と、下で追加する
+  //     Tx Power AD fieldの両方へ反映される。
+  if (!bluetooth.setTxPower(3))
+  {
+    Serial.printf("Tx Power failed: %s (%s)\n",
+      bluetooth.lastErrorName(), bluetooth.lastErrorDetail().c_str());
+    return;
+  }
+
   auto &advertising = bluetooth.advertising();
 
   // en: This side reaches passive and active scanners. Flags are automatic:
@@ -46,7 +57,8 @@ void setup()
       bluetooth.lastErrorName(), bluetooth.lastErrorDetail().c_str());
     return;
   }
-  Serial.println("Advertising with an explicit scan response");
+  Serial.printf("Advertising with an explicit scan response at %d dBm\n",
+    static_cast<int>(bluetooth.txPower()));
 }
 
 void loop()

@@ -312,7 +312,13 @@ RPAは一定時間ごとにアドレスを変えるので、外から見ると�
 
 ボンディング済みの相手を指す不変のアドレスを**Identity Address**と呼びます。Filter Accept Listがアドレスで照合する以上、RPAを使う相手を許可リストに載せられるのは、ボンディングしてIdentity Addressが効くようになってからです。
 
-EspBleBluedroidは現在、own addressの種別選択、`localAddress()`、RPA、Filter Accept Listを公開していません。この節の仕組みはBLE全体を理解するために重要ですが、現時点では利用可能なAPIの説明ではありません。Bluedroidのprivacy設定とbond済みpeerのidentity解決を実機で確認してから追加します。
+`EspBleConfig::ownAddressType`で`Public`、`RandomStatic`、
+`ResolvablePrivate`を選択できます。Random Staticは`localAddress()`で現在値を取得でき、
+RPAはcontrollerが生成・回転します。無印ESP32の公開GAP APIは現在のRPA値を返さないため、
+RPA利用時の`localAddress()`は空文字列です。設定例と使い分けは
+[Gap/PrivateAddress](../examples/Gap/PrivateAddress/)を参照してください。
+
+Filter Accept Listはまだ公開していません。
 
 ### 2.5 初期化時に決めること
 
@@ -329,7 +335,11 @@ GAPの締めくくりとして、通信を始める前に決めておく設定�
 
 希望MTUを大きくすると1回の転送効率は上がりますが、相手も対応している必要があります。既定247は希望値であり、相手が185までなら合意値は185になります。確保可能な最大packetを常時heapへ予約する設計ではないため、PSRAMは必要ありません。
 
-送信電力を変更する公開APIは未実装です。Advertisingへ現在値をTx Power Levelとして含めることと、受信したTx Power Levelを読むことはできます。
+`setTxPower(dBm)`で送信電力を要求し、`txPower()`で無線に適用された値を取得できます。
+無印ESP32が対応する−12〜+9 dBmの3 dB刻みへ丸められます。Advertisingへ
+`setTxPowerIncluded(true)`で載せるTx Power Levelにも同じ値が入り、scannerは
+`txPowerLevel`として受信できます。具体例は
+[Gap/ScanResponse](../examples/Gap/ScanResponse/)を参照してください。
 
 セキュリティには、確認なしでリンクを暗号化する**Just Works**と、6桁の数字で相手を確認する**Passkey認証**があります。目的が「盗聴を防ぐ」だけならJust Worksで足り、「意図しない相手との接続を防ぐ」までを求めるならPasskey認証が必要です。
 

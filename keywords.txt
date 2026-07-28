@@ -46,6 +46,10 @@ setManufacturerData	KEYWORD2
 addServiceData	KEYWORD2
 setAppearance	KEYWORD2
 setTxPowerIncluded	KEYWORD2
+setTxPower	KEYWORD2
+txPower	KEYWORD2
+localAddress	KEYWORD2
+localAddressType	KEYWORD2
 hasServiceData	KEYWORD2
 hasAppearance	KEYWORD2
 hasTxPowerLevel	KEYWORD2

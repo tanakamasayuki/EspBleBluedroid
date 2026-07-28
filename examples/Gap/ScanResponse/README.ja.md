@@ -17,6 +17,7 @@ Scan Responseを明示構成しない場合、長いdevice nameは自動的にSc
 ## 動作
 
 - Advertising本体へService UUID、Appearance、Tx Powerを載せます
+- 実際のBLE送信電力を3 dBmへ設定します
 - Scan ResponseへLocal NameとManufacturer Dataを載せます
 - Passive scannerには本体だけ、Active scannerには両面が届きます
 
@@ -25,6 +26,7 @@ Scan Responseを明示構成しない場合、長いdevice nameは自動的にSc
 - `advertising().data()` — Advertising本体のbuilder
 - `advertising().scanResponse()` — Scan Responseのbuilder
 - `setAppearance()` / `setTxPowerIncluded()` / `setName()` / `setManufacturerData()`
+- `setTxPower()` / `txPower()` — 無線へ要求し、実際に適用された離散値を取得
 
 ## 注意
 
@@ -34,5 +36,5 @@ FlagsはAdvertising本体へ自動追加されます。各AD構造にはlength�
 ## 期待されるSerial出力
 
 ```text
-Advertising with an explicit scan response
+Advertising with an explicit scan response at 3 dBm
 ```

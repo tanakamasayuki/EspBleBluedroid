@@ -31,6 +31,14 @@ enum class EspBleSecurityIoCapability : uint8_t
   DisplayYesNo,
 };
 
+// Which address Legacy Advertising presents to BLE peers.
+enum class EspBleOwnAddressType : uint8_t
+{
+  Public = 0,
+  RandomStatic,
+  ResolvablePrivate,
+};
+
 struct EspBleSecurityConfig
 {
   bool enabled = false;
@@ -69,6 +77,10 @@ struct EspBleConfig
   uint16_t preferredMtu = 247;
   EspBleSecurityConfig security;
   EspBluedroidClassicSecurityConfig classicSecurity;
+  // Advertising address privacy. RandomStatic hides the factory public address
+  // with one generated identity. ResolvablePrivate enables controller-managed
+  // RPA privacy and is useful with bonding so peers resolve address rotation.
+  EspBleOwnAddressType ownAddressType = EspBleOwnAddressType::Public;
 };
 
 struct EspBleScanConfig
@@ -673,6 +685,15 @@ public:
   void update();
 
   bool initialized() const;
+  // The current Public or Random Static address. Returns an empty String before
+  // begin() and for controller-managed RPA, whose on-air value is not exposed
+  // by the original ESP32 GAP API.
+  String localAddress() const;
+  EspBleAddressType localAddressType() const;
+  // Set the nearest supported BLE radio level (-12..+9 dBm in 3 dB steps on
+  // original ESP32). The applied advertising level is returned by txPower().
+  bool setTxPower(int8_t dBm);
+  int8_t txPower() const;
   EspBluedroidCapabilities capabilities() const;
   EspBleAdvertising &advertising();
   EspBleScanner &scanner();
@@ -891,6 +912,10 @@ private:
   bool initialized_ = false;
   String activeDeviceName_;
   uint16_t activePreferredMtu_ = 247;
+  EspBleOwnAddressType activeOwnAddressType_ =
+    EspBleOwnAddressType::Public;
+  uint8_t activeRandomAddress_[6] = {};
+  bool activeRandomAddressPresent_ = false;
   EspBleSecurityConfig activeSecurity_;
   EspBluedroidClassicSecurityConfig activeClassicSecurity_;
   EspBleError lastError_ = EspBleError::None;
