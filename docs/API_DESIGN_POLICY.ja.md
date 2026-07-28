@@ -287,7 +287,7 @@ Arduino-ESP32 3.3.11の同梱BLE APIはBluedroid/NimBLEで共通化されてい�
 | Subscribe | NimBLE専用`subscribe()`へ依存せず、Bluedroidのnotify登録とCCCD書込みをadapterで一つの非同期操作にする |
 | Notify/Write順 | notificationが同期write戻りより先に到着し得るため、相互に因果関係のないcallback順を公開保証しない |
 | Security permission | NimBLEのproperty flagを流用せず、Bluedroidのaccess permissionへ明示変換する |
-| MTU | role別callbackと交換開始条件を実機確認し、合意MTUだけをConnection snapshotへ公開する |
+| MTU | 新しいlinkを23で公開し、Centralは接続後に明示交換する。合意値だけを`onMtuChanged()`とConnection snapshotへ反映する |
 | Bond/Security | LEとClassicのstore、認証状態、callback contextを分離する。単一のbond一覧へ混在させない |
 | Discovery cache | backend objectを公開せず、EspBleと同じ固定容量のlibrary snapshotへcopyする |
 | Descriptor context | callbackにConnection情報が不足する場合、推測で埋めず、ESP-IDF event利用またはcontextなしの型で表す |

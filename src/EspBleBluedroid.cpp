@@ -1143,6 +1143,7 @@ struct EspBleConnectionImpl
     Connected,
     Disconnected,
     Failed,
+    MtuChanged,
     SecurityChanged,
     PasskeyDisplayed,
     NumericComparison,
@@ -1154,6 +1155,7 @@ struct EspBleConnectionImpl
     EventType type = EventType::Connected;
     EspBleConnection connection;
     EspBleConnectionFailure failure;
+    EspBleMtuChanged mtuChanged;
     EspBleSecurityChanged securityChanged;
     EspBlePasskeyDisplayed passkeyDisplayed;
     EspBleGattResult gattResult;
@@ -1183,7 +1185,8 @@ struct EspBleConnectionImpl
     }
     void onDisconnect(BLEClient *) override
     {
-      owner_->backendDisconnected();
+      // Arduino-ESP32's BLEClientCallbacks omits the HCI reason. The custom
+      // GATTC handler below receives the same event with its full payload.
     }
   private:
     EspBleConnectionImpl *owner_;
@@ -1348,25 +1351,46 @@ struct EspBleConnectionImpl
     connection.peerAddress = target.address;
     connection.peerAddressType = target.addressType;
     connection.localRole = EspBleRole::Central;
-    connection.mtu = connectedClient->getMTU();
+    // Every new ATT bearer starts at 23. BLEClient reuses its previous m_mtu
+    // value across reconnects, so getMTU() is stale until CFG_MTU completes.
+    connection.mtu = 23;
     Event event;
     event.type = EventType::Connected;
     event.connection = connection;
     pushEventLocked(event);
+    if (preferredMtu != 23)
+    {
+      connectedClient->setMTU(preferredMtu);
+    }
+    if (pendingMtuPresent && pendingMtuHandle == connection.handle)
+    {
+      Event mtuEvent;
+      mtuEvent.type = EventType::MtuChanged;
+      mtuEvent.mtuChanged.previousMtu = connection.mtu;
+      connection.mtu = pendingMtu;
+      mtuEvent.mtuChanged.connection = connection;
+      if (mtuEvent.mtuChanged.previousMtu != connection.mtu)
+      {
+        pushEventLocked(mtuEvent);
+      }
+      pendingMtuPresent = false;
+    }
   }
 
-  void backendDisconnected()
+  void backendDisconnected(uint16_t connectionHandle, int reason)
   {
     std::lock_guard<std::mutex> lock(mutex);
-    if (!active)
+    if (!active || connection.handle != connectionHandle)
     {
       return;
     }
     Event event;
     event.type = EventType::Disconnected;
+    connection.disconnectReason = reason;
     event.connection = connection;
     active = false;
     connection = EspBleConnection();
+    pendingMtuPresent = false;
     if (gattDatabase != nullptr)
     {
       gattDatabase->connectionId = 0;
@@ -1379,6 +1403,51 @@ struct EspBleConnectionImpl
       pushEventLocked(event);
     }
   }
+
+  void backendMtuChanged(
+    uint16_t connectionHandle, esp_gatt_status_t status, uint16_t mtu)
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (ending || status != ESP_GATT_OK)
+    {
+      return;
+    }
+    if (!active)
+    {
+      pendingMtuPresent = true;
+      pendingMtuHandle = connectionHandle;
+      pendingMtu = mtu;
+      return;
+    }
+    if (connection.handle != connectionHandle || connection.mtu == mtu) return;
+    Event event;
+    event.type = EventType::MtuChanged;
+    event.mtuChanged.previousMtu = connection.mtu;
+    connection.mtu = mtu;
+    event.mtuChanged.connection = connection;
+    pushEventLocked(event);
+  }
+
+  static void customGattcHandler(
+    esp_gattc_cb_event_t event,
+    esp_gatt_if_t,
+    esp_ble_gattc_cb_param_t *param)
+  {
+    EspBleConnectionImpl *owner = customGattcOwner;
+    if (owner == nullptr || param == nullptr) return;
+    if (event == ESP_GATTC_CFG_MTU_EVT)
+    {
+      owner->backendMtuChanged(
+        param->cfg_mtu.conn_id, param->cfg_mtu.status, param->cfg_mtu.mtu);
+    }
+    else if (event == ESP_GATTC_DISCONNECT_EVT)
+    {
+      owner->backendDisconnected(
+        param->disconnect.conn_id, param->disconnect.reason);
+    }
+  }
+
+  static EspBleConnectionImpl *customGattcOwner;
 
   void backendSecurityChanged(const esp_ble_auth_cmpl_t &result)
   {
@@ -1952,13 +2021,19 @@ struct EspBleConnectionImpl
   GattDatabaseSnapshot *gattDatabase = nullptr;
   EspBleScanResult target;
   uint32_t timeoutMilliseconds = 10000;
+  uint16_t preferredMtu = 247;
   EspBleConnection connection;
+  bool pendingMtuPresent = false;
+  uint16_t pendingMtuHandle = 0xffff;
+  uint16_t pendingMtu = 23;
   EspBleConnectionId nextConnectionId = 1;
   Event events[EventCapacity];
   size_t eventHead = 0;
   size_t eventCount = 0;
   size_t droppedEvents = 0;
 };
+
+EspBleConnectionImpl *EspBleConnectionImpl::customGattcOwner = nullptr;
 
 bool EspBleScanResult::hasName() const
 {
@@ -4437,8 +4512,14 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
     setError(EspBleError::BackendFailure, "BLEDevice::init failed");
     return false;
   }
+  EspBleConnectionImpl::customGattcOwner = connectionImpl_;
+  connectionImpl_->preferredMtu = config.preferredMtu;
+  BLEDevice::setCustomGattcHandler(
+    &EspBleConnectionImpl::customGattcHandler);
   if (BLEDevice::setMTU(config.preferredMtu) != ESP_OK)
   {
+    BLEDevice::setCustomGattcHandler(nullptr);
+    EspBleConnectionImpl::customGattcOwner = nullptr;
     BLEDevice::deinit(false);
     delete connectionImpl_;
     connectionImpl_ = nullptr;
@@ -4447,6 +4528,8 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
   }
   if (!classic_.begin(deviceName, config.classicSecurity))
   {
+    BLEDevice::setCustomGattcHandler(nullptr);
+    EspBleConnectionImpl::customGattcOwner = nullptr;
     BLEDevice::deinit(false);
     delete connectionImpl_;
     connectionImpl_ = nullptr;
@@ -4458,6 +4541,8 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
     if (connectionImpl_->securityBackend == nullptr)
     {
       classic_.end();
+      BLEDevice::setCustomGattcHandler(nullptr);
+      EspBleConnectionImpl::customGattcOwner = nullptr;
       BLEDevice::deinit(false);
       delete connectionImpl_;
       connectionImpl_ = nullptr;
@@ -4566,6 +4651,8 @@ void EspBleBluedroid::end()
   BLESecurity::setAuthenticationMode(false, false, false);
   BLESecurity::setForceAuthentication(false);
   BLEDevice::deinit(false);
+  BLEDevice::setCustomGattcHandler(nullptr);
+  EspBleConnectionImpl::customGattcOwner = nullptr;
   initialized_ = false;
   activeClassicSecurity_ = EspBluedroidClassicSecurityConfig();
   delete connectionImpl_;
@@ -4694,6 +4781,7 @@ bool EspBleBluedroid::connect(
     }
     connectionImpl_->target = scanResult;
     connectionImpl_->timeoutMilliseconds = timeoutMilliseconds;
+    connectionImpl_->pendingMtuPresent = false;
     connectionImpl_->connecting = true;
   }
 
@@ -5480,6 +5568,11 @@ void EspBleBluedroid::onConnectionFailed(ConnectionFailureCallback callback)
   connectionFailedCallback_ = std::move(callback);
 }
 
+void EspBleBluedroid::onMtuChanged(MtuChangedCallback callback)
+{
+  mtuChangedCallback_ = std::move(callback);
+}
+
 void EspBleBluedroid::onSecurityChanged(SecurityChangedCallback callback)
 {
   securityChangedCallback_ = std::move(callback);
@@ -5596,6 +5689,11 @@ void EspBleBluedroid::dispatchConnectionEvents()
              connectionFailedCallback_)
     {
       connectionFailedCallback_(event.failure);
+    }
+    else if (event.type == EspBleConnectionImpl::EventType::MtuChanged &&
+             mtuChangedCallback_)
+    {
+      mtuChangedCallback_(event.mtuChanged);
     }
     else if (
       event.type == EspBleConnectionImpl::EventType::SecurityChanged &&

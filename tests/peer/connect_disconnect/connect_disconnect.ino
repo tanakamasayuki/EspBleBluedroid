@@ -31,6 +31,7 @@ void setup()
     Serial.printf("BEGIN_FAILED %s\n", bluetooth.lastErrorName());
     return;
   }
+  Serial.printf("DEFAULT_MTU %u\n", EspBleConfig().preferredMtu);
   const bool invalidAccepted = bluetooth.connect(
     "not-a-ble-address", EspBleAddressType::Public, 1000);
   Serial.printf("INVALID_ADDRESS_REJECTED %u error=%s\n",
@@ -70,13 +71,29 @@ void setup()
         beganAgain ? 1 : 0);
       return;
     }
+  });
+  bluetooth.onMtuChanged([](const EspBleMtuChanged &event) {
+    EspBleConnection snapshot;
+    const bool stable =
+      bluetooth.connection(event.connection.id, snapshot) &&
+      snapshot.mtu == event.connection.mtu;
+    Serial.printf(
+      "MTU_CHANGED seq=%u id=%lu previous=%u mtu=%u payload=%u stable=%u\n",
+      connectedSequence,
+      static_cast<unsigned long>(event.connection.id),
+      event.previousMtu,
+      event.connection.mtu,
+      static_cast<unsigned>(
+        event.connection.maximumNotificationPayload()),
+      stable ? 1 : 0);
     Serial.printf("DISCONNECT_ACCEPTED %u\n",
-      bluetooth.disconnect(connection.id) ? 1 : 0);
+      bluetooth.disconnect(event.connection.id) ? 1 : 0);
   });
   bluetooth.onDisconnected([](const EspBleConnection &connection) {
-    Serial.printf("DISCONNECTED seq=%u id=%lu count=%u\n",
+    Serial.printf("DISCONNECTED seq=%u id=%lu reason=%d count=%u\n",
       connectedSequence,
       static_cast<unsigned long>(connection.id),
+      connection.disconnectReason,
       static_cast<unsigned>(bluetooth.connectionCount()));
     requestInFlight = false;
     if (connectedSequence == 1)

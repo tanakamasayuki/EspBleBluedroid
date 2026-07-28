@@ -13,7 +13,7 @@
 | Advertising | `data()` / `scanResponse()`、name、service UUID/data、manufacturer data、appearance、Tx Power、connectable、interval、開始・停止 | 2面の独立構成、raw PDU、複数UUIDの集約、31 byte境界、時間停止を実機確認 |
 | Scan | active/passive、interval/window、duration、duplicate指定、rich result、開始・停止 | AdvertisingとScan Responseのaddress単位merge、Service Data・Appearance・Tx Power、値型copy、duration・明示停止、16件queue・overflow、`end()`時flushを確認 |
 | Event配送 | `EspBleScanner::onResult()` | stack callbackからqueueへcopyし、利用者callbackを`update()`から配送 |
-| Central接続 | `connect()` / `disconnect()` / connection snapshot / lifecycle callback | non-blocking要求、再接続ID、timeout分類、切断、active link終了、再初期化 |
+| Central接続 | `connect()` / `disconnect()` / connection snapshot / lifecycle・MTU callback | non-blocking要求、再接続ID、MTU交換、HCI切断理由、timeout分類、切断、active link終了、再初期化 |
 | GATT Client | Database Discovery / UUID・handle指定Characteristic操作 / Descriptor Read・Write / Notification | connection単位snapshot、binary-safe値、CCCD、専用task、`update()`配送 |
 | BLE Security | Just Works / Static・Runtime Passkey / Numeric Comparison / Bond | 暗号化・認証必須attribute、保存bond再接続、passkey表示・入力・比較確認、bond管理 |
 | Capability | `capabilities()` | BLE、Classic、dual-mode、Classic Inquiry、SPPを初期化前に判定 |
@@ -30,8 +30,9 @@ BluedroidがAdvertisingだけを先に報告する場合があるため、短時
 Scan Responseをmergeしてから公開callbackへ配送する。Scanはduration停止、
 明示停止、16件queueへ18件を決定的に注入した16件配送・2件drop、未配送結果を残した
 `end()`と再初期化も確認している。
-Central接続は`tests/peer/connect_disconnect`でlink確立とcallback配送を分離し、切断後の
-再Advertising・再Scan・再接続、新しいID、Advertising停止peerへの厳密なtimeout、
+Central接続は`tests/peer/connect_disconnect`でlink確立とcallback配送を分離し、既定の
+希望MTU 247と23→185の交換event、HCI切断理由、切断後の再Advertising・再Scan・再接続、
+新しいID、Advertising停止peerへの厳密なtimeout、
 接続試行中と接続成立後の`end()`、peer切断、再初期化まで確認している。
 Classic Inquiryは`tests/peer/classic_inquiry`でBTDM初期化、discoverableなClassic peer、
 結果callback内からの停止、完了eventまで確認している。
@@ -87,6 +88,11 @@ CCCD購読、notificationまで確認している。
 - Connection IDは1回の`begin()`〜`end()` lifecycle内だけで有効。`end()`はactive linkと
   未配送eventを破棄し、利用者の`onDisconnected()`は配送しない。再初期化後はIDを再利用
   することがある。
+- 希望MTUの既定はEspBleと同じ247。各linkは23で接続し、Centralから明示的に交換を開始する。
+  合意値は`onMtuChanged()`で配送し、connection snapshotも同時に更新する。
+- `onDisconnected()`のsnapshotには低レベルGATTC eventから得たHCI切断理由を格納する。
+  Arduino-ESP32 3.3.11のBluedroid Clientはローカル切断理由の指定値をlink終了へ渡さない
+  ため、理由指定`disconnect()` overloadは公開しない。
 - Bluedroidの接続待機を1秒以下の区間に分けるため、接続試行中の`end()`は同期的に
   終了するが、復帰まで最大約1秒待つことがある。終了した試行のcallbackは配送しない。
 - GATT ClientはDatabase Discovery、Characteristic/Descriptor Read/Write、Subscribe/Unsubscribe。

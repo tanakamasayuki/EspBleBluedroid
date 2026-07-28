@@ -42,6 +42,8 @@ peerテストでは次を確認します。
 
 公開APIとBluetooth Classicを共存させる設計方針は
 [docs/API_DESIGN_POLICY.ja.md](docs/API_DESIGN_POLICY.ja.md)にまとめています。
+EspBle（NimBLE）との現在のBLE API差分は
+[docs/BLE_BACKEND_DIFFERENCES.ja.md](docs/BLE_BACKEND_DIFFERENCES.ja.md)を参照してください。
 利用方法は[BLE通信の入門ガイド](docs/GUIDE_BLE_BASICS.ja.md)と
 [Bluetooth Classic通信の入門ガイド](docs/GUIDE_CLASSIC_BASICS.ja.md)を参照してください。
 実装済み範囲と未対応機能は[docs/STATUS.ja.md](docs/STATUS.ja.md)を参照してください。

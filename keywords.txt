@@ -33,6 +33,7 @@ EspBluedroidSppSession	KEYWORD1
 EspBluedroidSppSessionId	KEYWORD1
 EspBleConfig	KEYWORD1
 EspBleError	KEYWORD1
+EspBleMtuChanged	KEYWORD1
 begin	KEYWORD2
 end	KEYWORD2
 update	KEYWORD2
@@ -83,6 +84,7 @@ disconnect	KEYWORD2
 onConnected	KEYWORD2
 onDisconnected	KEYWORD2
 onConnectionFailed	KEYWORD2
+onMtuChanged	KEYWORD2
 connectionCount	KEYWORD2
 onResult	KEYWORD2
 start	KEYWORD2

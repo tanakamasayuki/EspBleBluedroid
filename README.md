@@ -27,6 +27,8 @@ See [tests/README.md](tests/README.md) for setup and usage.
 
 The current API and Bluetooth Classic coexistence policy is documented in
 [Japanese](docs/API_DESIGN_POLICY.ja.md).
+Current BLE API differences from the NimBLE-based EspBle are documented in
+[Japanese](docs/BLE_BACKEND_DIFFERENCES.ja.md).
 Japanese introductory guides cover
 [BLE](docs/GUIDE_BLE_BASICS.ja.md) and
 [Bluetooth Classic](docs/GUIDE_CLASSIC_BASICS.ja.md) separately.

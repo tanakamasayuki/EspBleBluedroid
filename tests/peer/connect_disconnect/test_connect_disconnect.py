@@ -3,6 +3,7 @@ import re
 
 def test_connection_id_disconnect_and_deferred_callbacks(dut, peers):
     peripheral = peers["device"]
+    dut.expect_exact("DEFAULT_MTU 247", timeout=20)
     dut.expect_exact("INVALID_ADDRESS_REJECTED 1 error=InvalidArgument", timeout=20)
     dut.expect_exact("CENTRAL_READY", timeout=20)
     peripheral.expect_exact("PEER_READY", timeout=20)
@@ -24,12 +25,22 @@ def test_connection_id_disconnect_and_deferred_callbacks(dut, peers):
     )
     connection_id = int(connected.group(1))
     assert connection_id > 0
-    assert int(connected.group(2)) >= 23
+    assert int(connected.group(2)) == 23
+    mtu = dut.expect(
+        re.compile(
+            rb"MTU_CHANGED seq=1 id=(\d+) previous=23 mtu=185 "
+            rb"payload=182 stable=1"
+        ),
+        timeout=20,
+    )
+    assert int(mtu.group(1)) == connection_id
     dut.expect_exact("DISCONNECT_ACCEPTED 1", timeout=20)
     disconnected = dut.expect(
-        re.compile(rb"DISCONNECTED seq=1 id=(\d+) count=0"), timeout=20
+        re.compile(rb"DISCONNECTED seq=1 id=(\d+) reason=(\d+) count=0"),
+        timeout=20,
     )
     assert int(disconnected.group(1)) == connection_id
+    assert int(disconnected.group(2)) != 0
     peripheral.expect_exact("PEER_DISCONNECTED", timeout=20)
     peripheral.expect_exact("PEER_READVERTISING", timeout=20)
     dut.expect_exact("RECONNECT_COMMAND_READY", timeout=20)
@@ -48,11 +59,21 @@ def test_connection_id_disconnect_and_deferred_callbacks(dut, peers):
     )
     second_id = int(reconnected.group(1))
     assert second_id != connection_id
+    mtu = dut.expect(
+        re.compile(
+            rb"MTU_CHANGED seq=2 id=(\d+) previous=23 mtu=185 "
+            rb"payload=182 stable=1"
+        ),
+        timeout=20,
+    )
+    assert int(mtu.group(1)) == second_id
     dut.expect_exact("DISCONNECT_ACCEPTED 1", timeout=20)
     second_disconnected = dut.expect(
-        re.compile(rb"DISCONNECTED seq=2 id=(\d+) count=0"), timeout=20
+        re.compile(rb"DISCONNECTED seq=2 id=(\d+) reason=(\d+) count=0"),
+        timeout=20,
     )
     assert int(second_disconnected.group(1)) == second_id
+    assert int(second_disconnected.group(2)) != 0
     peripheral.expect_exact("PEER_DISCONNECTED", timeout=20)
     dut.expect_exact("TIMEOUT_COMMAND_READY", timeout=20)
     peripheral.expect_exact("PEER_READVERTISING", timeout=20)

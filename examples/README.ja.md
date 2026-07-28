@@ -10,6 +10,7 @@
 | GAP | [ServiceData](Gap/ServiceData/README.ja.md) | 接続せずService UUID付きのbinary値を放送 |
 | GAP | [Scan](Gap/Scan/README.ja.md) | active scanと`update()` contextの値型Scan Result |
 | GAP | [Connect](Gap/Connect/README.ja.md) | Scan Resultから非同期接続し、安定したconnection IDを取得 |
+| GAP | [Mtu](Gap/Mtu/README.ja.md) | 希望ATT MTUを設定し、交換前後の値とpayload上限を確認 |
 | GATT | [Read](Gatt/Read/README.ja.md) | 接続後の非同期Battery Characteristic Read |
 | GATT | [Client](Gatt/Client/README.ja.md) | Read、Write、Notification購読のcallback chain |
 | Security | [JustWorksClient](Security/JustWorksClient/README.ja.md) | Just Works pairing、bond保存、暗号化再接続 |

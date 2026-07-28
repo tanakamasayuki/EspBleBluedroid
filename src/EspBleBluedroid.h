@@ -66,7 +66,7 @@ struct EspBluedroidClassicBond
 struct EspBleConfig
 {
   const char *deviceName = "EspBleBluedroid";
-  uint16_t preferredMtu = 23;
+  uint16_t preferredMtu = 247;
   EspBleSecurityConfig security;
   EspBluedroidClassicSecurityConfig classicSecurity;
 };
@@ -143,9 +143,17 @@ struct EspBleConnection
   bool authenticated = false;
   bool bonded = false;
   uint8_t encryptionKeySize = 0;
+  // Meaningful in onDisconnected(): the HCI disconnection reason, or 0 when
+  // unavailable. It is 0 in onConnected() and onMtuChanged().
   int disconnectReason = 0;
 
   size_t maximumNotificationPayload() const;
+};
+
+struct EspBleMtuChanged
+{
+  EspBleConnection connection;
+  uint16_t previousMtu = 23;
 };
 
 struct EspBleConnectionFailure
@@ -644,6 +652,8 @@ public:
   using GattResultCallback = std::function<void(const EspBleGattResult &result)>;
   using SecurityChangedCallback =
     std::function<void(const EspBleSecurityChanged &event)>;
+  using MtuChangedCallback =
+    std::function<void(const EspBleMtuChanged &event)>;
   using PasskeyDisplayedCallback =
     std::function<void(const EspBlePasskeyDisplayed &event)>;
 
@@ -800,6 +810,7 @@ public:
   void onConnected(ConnectionCallback callback);
   void onDisconnected(ConnectionCallback callback);
   void onConnectionFailed(ConnectionFailureCallback callback);
+  void onMtuChanged(MtuChangedCallback callback);
   void onSecurityChanged(SecurityChangedCallback callback);
   void onPasskeyDisplayed(PasskeyDisplayedCallback callback);
   void onNumericComparison(PasskeyDisplayedCallback callback);
@@ -847,6 +858,7 @@ private:
   ConnectionCallback connectedCallback_;
   ConnectionCallback disconnectedCallback_;
   ConnectionFailureCallback connectionFailedCallback_;
+  MtuChangedCallback mtuChangedCallback_;
   SecurityChangedCallback securityChangedCallback_;
   PasskeyDisplayedCallback passkeyDisplayedCallback_;
   PasskeyDisplayedCallback numericComparisonCallback_;
@@ -861,7 +873,7 @@ private:
     notificationCallback_;
   bool initialized_ = false;
   String activeDeviceName_;
-  uint16_t activePreferredMtu_ = 23;
+  uint16_t activePreferredMtu_ = 247;
   EspBleSecurityConfig activeSecurity_;
   EspBluedroidClassicSecurityConfig activeClassicSecurity_;
   EspBleError lastError_ = EspBleError::None;

@@ -25,7 +25,8 @@ deterministic 16-result queue overflow/drop accounting through a test-only seam.
 `peer/advertise_payload` verifies raw AD structures, grouped UUIDs, the 31-byte
 boundary, and timed advertising stop behavior.
 `peer/connect_disconnect` verifies non-blocking connection requests, reconnect
-IDs, exact timeout classification against a non-advertising known peer,
+IDs, default and negotiated MTU events, HCI disconnection reasons, exact timeout
+classification against a non-advertising known peer,
 deferred callbacks, disconnection, bounded `end()` during an in-flight attempt
 and an established link, peer disconnection, and reinitialization without
 stale events.

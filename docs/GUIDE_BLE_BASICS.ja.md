@@ -266,17 +266,21 @@ BLEには「接続要求が来ました、承認しますか？」という問�
 
 もう1つ重要なのが**MTU**（Maximum Transmission Unit）です。1回のやり取りで運べるバイト数の上限で、接続時に両者が希望値を交換し、**小さい方**が採用されます。
 
-MTUの仕様上の最小値は23バイトです。このうち3バイトはプロトコルのヘッダが使うため、実際に運べるのは**20バイト**しかありません。現在のEspBleBluedroidの既定値は23です。`preferredMtu`で希望値を指定できますが、相手と交渉した小さい方が採用されます。
+MTUの仕様上の最小値は23バイトです。このうち3バイトはプロトコルのヘッダが使うため、実際に運べるのは**20バイト**しかありません。EspBleBluedroidの既定希望値はEspBleと同じ247です。`preferredMtu`で希望値を指定できますが、相手と交渉した小さい方が採用されます。
 
-交渉結果は `EspBleConnection::mtu`、1回で送れる実バイト数は `maximumNotificationPayload()` で確認できます。
+接続直後のMTUは23です。交換が完了すると`onMtuChanged()`へ`EspBleMtuChanged`が届き、`previousMtu`と更新後の`connection.mtu`を確認できます。現在値は `EspBleConnection::mtu`、1回で送れる実バイト数は `maximumNotificationPayload()` で確認できます。
 
-接続が切れると切断イベントが届きます。`EspBleConnection`には将来の共通化を見込んだ`disconnectReason`がありますが、現在のBluedroid実装は理由コードをまだ配送していません。`disconnect()`にも理由指定overloadはありません。同名フィールドが常に0のままにならないよう、次の接続API整理で意味を確定します。
+接続が切れると切断イベントが届きます。`onDisconnected()`へ渡される`EspBleConnection::disconnectReason`はHCIの切断理由で、理由を取得できない場合だけ0です。`onConnected()`と`onMtuChanged()`ではまだ切断されていないため0です。Bluedroidの公開経路ではローカルから送る任意の理由を正しく指定できないため、`disconnect()`に理由指定overloadはありません。
 
 #### 関連するexample
 
 | example | 内容 |
 |---|---|
 | [Gap/Connect](../examples/Gap/Connect/) | Service UUIDで絞り込んで接続し、接続・切断・失敗を受け取る |
+| [Gap/Mtu](../examples/Gap/Mtu/) | 希望MTU、交換event、Notification payload上限を確認する |
+
+EspBleとの現在の一致範囲とbackend固有の制約は
+[EspBle（NimBLE）とのBLE差分](BLE_BACKEND_DIFFERENCES.ja.md)にまとめています。
 
 ### 2.4 アドレスとプライバシー
 
@@ -311,11 +315,11 @@ GAPの締めくくりとして、通信を始める前に決めておく設定�
 | 設定 | 内容 | フィールド |
 |---|---|---|
 | **デバイス名** | アドバタイズや接続後に相手へ見せる名前 | `deviceName` |
-| **希望MTU** | 1回で運べるサイズ。現在の既定23 | `preferredMtu` |
+| **希望MTU** | 1回で運べるサイズ。既定247 | `preferredMtu` |
 | **BLEセキュリティ** | LE pairing・bondingの有効化と認証方式 | `security` |
 | **Classicセキュリティ** | Classic pairingとlink keyの設定。BLEとは独立 | `classicSecurity` |
 
-希望MTUを大きくすると1回の転送効率は上がりますが、相手も対応している必要があります。既定値をEspBleと同じ247へ変更するかは、BluedroidのMTU変更eventと実メモリ使用量をテストしてから確定します。
+希望MTUを大きくすると1回の転送効率は上がりますが、相手も対応している必要があります。既定247は希望値であり、相手が185までなら合意値は185になります。確保可能な最大packetを常時heapへ予約する設計ではないため、PSRAMは必要ありません。
 
 送信電力を変更する公開APIは未実装です。Advertisingへ現在値をTx Power Levelとして含めることと、受信したTx Power Levelを読むことはできます。
 
@@ -393,121 +397,3 @@ EspBleBluedroidではAdvertising側・Scan側とも公開APIが未実装です�
 #### アドバタイズチャネルの選択
 
 アドバタイズは3つのチャネル（37・38・39）を使いますが、そのうち一部だけを使う設定は**できません**。現在の公開APIはチャネルマップを扱わず、常にbackend既定の3チャネルを使います。
-
----
-
-## 3. GATT編 — データをやり取りする
-
-接続が成立したら、ここからはGATTの領域です。
-
-### 3.1 GATTの構造
-
-GATTでは、データが3階層で表現されます。
-
-- **Service** — 機能のまとまり。「電池」「心拍計」など
-- **Characteristic** — 個々の値。「電池残量」「心拍数」など。Serviceの中に複数入る
-- **Descriptor** — Characteristicに付随する補足情報。単位や説明、通知の有効・無効の設定など
-
-それぞれがUUIDという識別子を持ちます（4章で詳しく説明します）。
-
-ただし**UUIDは「型」であって「どれか」ではありません。** 仕様上、同じUUIDのServiceやCharacteristicを1台が複数持てます。HIDキーボードが複数のReport Characteristicを同じUUIDで並べるのが典型例です。Client側ではDiscovery snapshotから得た属性ハンドルを使うと、同じUUIDを持つ複数のCharacteristicも撃ち分けられます。GATT Serverの登録handle APIは未実装です。
-
-値のやり取りには次の方法があります。
-
-| 操作 | 向き | 説明 |
-|---|---|---|
-| **Read** | Client → Server | 値を読む |
-| **Write** | Client → Server | 値を書く。応答ありと応答なしがある |
-| **Notify** | Server → Client | 値の変化を送りつける。確認応答なし |
-| **Indicate** | Server → Client | 同上だが、Clientの確認応答を待つ |
-
-NotifyとIndicateは、Clientが事前に**購読**（subscribe）したものだけが届きます。購読の状態はDescriptorに記録されます。
-
-使い分けの基準は**取りこぼしが許されるか**です。秒間何度も更新されるセンサー値ならNotify（1つ落ちても次が来る）、確実に届けたい設定変更の結果ならIndicateです。
-
-### 3.2 Client側の手順
-
-Clientは相手のデータ構造を知りません。そこでまず**Discovery**（探索）を行い、目的のServiceとCharacteristicがどこにあるかを調べます。その後にRead・Write・購読を行います。
-
-1.3節で説明したとおり、これらはすべて非同期です。「Discoveryを頼む → 完了イベントの中でReadを頼む → 完了イベントの中でWriteを頼む」という連鎖で書きます。
-
-### 3.3 時系列で見る全体像
-
-```mermaid
-sequenceDiagram
-    participant C as Central（GATT Client）
-    participant P as Peripheral（GATT Server）
-    Note over C,P: 2章の手順で接続が確立している
-    C->>P: Service Discovery要求
-    P-->>C: Service / Characteristic の構成
-    Note over C: onServicesDiscovered<br/>snapshotを参照
-    C->>P: Read要求
-    P-->>C: 値
-    Note over C: onCharacteristicRead
-    C->>P: Write要求
-    P-->>C: 応答（Write with Responseの場合）
-    Note over C: onCharacteristicWritten
-    C->>P: 購読の登録
-    loop 値が変わるたび
-        P-->>C: Notify（確認応答なし）
-        Note over C: onNotification
-    end
-    P-->>C: Indicate（確認応答あり）
-    C->>P: 確認応答
-```
-
-すべてのイベントは `loop()` の `bluetooth.update()` から配送されます。要求を出した直後ではなく、**次に `update()` を呼んだとき**にコールバックが呼ばれます。
-
-### 3.4 関連するexample
-
-| example | 内容 |
-|---|---|
-| [Gatt/Read](../examples/Gatt/Read/) | Discovery後にBattery Characteristicを読む |
-| [Gatt/Client](../examples/Gatt/Client/) | Read → Write → Notification購読の連鎖 |
-
-GATT Server、ServerからのNotify/Indicate送出、NUS Serverは未実装です。
-
----
-
-## 4. UUIDを理解する
-
-### 4.1 UUIDは「機能の型」を表す名札
-
-ServiceやCharacteristicが何であるかは、**UUID**（Universally Unique IDentifier）で表されます。128ビット（16バイト）の、世界で一意な識別子です。
-
-```
-5266f727-49d7-4eaf-a6f1-636f6e6e6563   （8-4-4-4-12桁の16進数）
-```
-
-たとえば「電池残量」というCharacteristicには決まったUUIDが割り当てられており、どのメーカーの機器でも同じ値を使います。だから相手の機種を知らなくても「このUUIDを読めば電池残量が分かる」と決め打ちできます。
-
-UUIDは名前ではなく**型（種類）を表す名札**だと考えてください。
-
-### 4.2 標準UUIDと独自UUID
-
-- **標準UUID** — Bluetooth SIGが割り当てたもの。電池、心拍計、HIDなど、仕様で決まった機能に対応する
-- **独自UUID** — 自分のアプリ専用。ランダムに128ビットを生成して使う
-
-### 4.3 フル形と短縮形
-
-標準UUIDには**16ビットの短縮形**があります。たとえば電池サービスは `180F` です。
-
-これは次の**Base UUID**の中に短縮形を差し込んだ128ビットUUIDの、省略表記にすぎません。
-
-```
-Base UUID:  0000____-0000-1000-8000-00805F9B34FB
-                ↑ここに16ビット短縮形が入る
-180F の実体: 0000180F-0000-1000-8000-00805F9B34FB
-```
-
-つまり**短縮形とフル形は同じUUIDを指す別表記**です。EspBleBluedroidはUUIDを**値として**比較する（内部で短縮形をBase UUIDへ展開する）ので、`180F` と `0000180f-0000-1000-8000-00805f9b34fb` はどちらで書いても同じ相手に一致します。大文字小文字も区別しません。
-
-ただし**文字列としては別物**です。スキャン結果に入っているUUIDを自分で文字列比較するのではなく、値として比較する仕組みを使ってください。
-
-### 4.4 気をつける点
-
-1. **独自サービスは必ず128ビットのフル形で書く。** 短縮形はSIGが割り当てた標準UUID専用の表記です。自作サービスに勝手に16ビット値を使ってはいけません。
-2. **桁とハイフンの位置は正確に。** 大文字小文字は無視されますが、`8-4-4-4-12` の形が崩れると別のUUIDになります。
-3. **アドバタイズに出ていない＝そのServiceが無い、ではない。** 31バイトの制限のため、Service UUIDを全部載せられるとは限りません。確実に知りたいときは接続後のDiscoveryで確認します。
-4. **Service UUIDを一切載せない機器もある。** iBeaconのようにManufacturer Dataだけの機器は、UUIDでは絞り込めません。アドレスやManufacturer Dataの中身で判定します。
-5. **短縮形が意味を持つのはSIG登録済みの値だけ。** 未登録の16ビット値に決まった意味はありません。

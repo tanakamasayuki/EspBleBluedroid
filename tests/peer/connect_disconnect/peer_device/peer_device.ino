@@ -26,6 +26,7 @@ void setup()
   Serial.begin(115200);
   delay(500);
   BLEDevice::init("Bluedroid Connection Peer");
+  BLEDevice::setMTU(185);
   BLEServer *server = BLEDevice::createServer();
   server->setCallbacks(&callbacks);
   server->createService(SERVICE_UUID)->start();
