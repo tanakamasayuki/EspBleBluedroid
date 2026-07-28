@@ -25,9 +25,10 @@ backendが違っても同じ意味にできる機能は、型名、操作の要�
 | lifecycle | `begin()` / `end()` / `update()` | BLEとClassicで共有するcontroller/hostをrootが一括所有 |
 | Advertising / Scan | payload builder、scan result、開始・停止callback | Active ScanのAdvertisingとScan Responseの報告順が一定でないため、address単位で短時間merge |
 | local identity / Tx Power | Advertising own address種別、`localAddress()`、`setTxPower()` | Random Static、controller RPA、実送信電力をESP-IDF GAP APIから直接制御 |
+| Advertising Filter Accept List | 一覧管理とScan Request・接続要求policy | 開始時にESP-IDF GAP APIでcontroller一覧を同期し、Arduino wrapperへfilter policyだけを設定 |
 | Central接続 | 非同期`connect()`、connection ID、接続・切断callback | 現在は同時1接続。接続処理はworker taskへ隔離 |
 | 接続パラメータ | snapshot、`updateConnectionParameters()`、`onConnectionParametersUpdated()` | 初期値はcontrollerから読み、GAP完了eventの合意値だけを`update()`から配送 |
-| MTU | 既定247、`EspBleConnection::mtu`、`EspBleMtuChanged`、`onMtuChanged()` | 接続成立後にClientから明示的に交換を開始し、低レベル完了eventの合意値だけを公開 |
+| MTU | 既定247、`EspBleConnection::mtu`、`EspBleMtuChanged`、`onMtuChanged()` | local値を初期化時に設定し、接続worker完了後に`update()`から1回だけ交換して低レベル完了eventの合意値を公開 |
 | 切断 | `disconnect()`と`onDisconnected()` | Arduino callbackが捨てるHCI reasonを低レベルGATTC eventから補完 |
 | GATT Client | Discovery、Characteristic/Descriptor Read・Write、Subscribe | Bluedroidの同期wrapperを専用taskへ隔離し、完了は`update()`から配送 |
 | BLE Security | Just Works、Passkey、Numeric Comparison、Bond | backend callbackへの同期回答は期限付きmailboxで受け、結果callbackとは分離 |
@@ -57,7 +58,8 @@ NimBLEより動的変更しやすい場合でも、既存objectの寿命やcallb
 
 ### GAPの未実装機能
 
-Filter Accept List、Directed Advertising、接続開始時のパラメータ指定は未実装です。
+Directed Advertising、Central Scan側のFilter Accept List、接続開始時のパラメータ指定は
+未実装です。Advertising側のFilter Accept ListはScan Request・接続要求の両方に対応します。
 Legacy Advertisingのown address選択、Random Static、RPA、送信電力設定には対応しています。
 Scan Request側のown address typeはArduino wrapperがPublic固定のため、直接scan経路へ
 置き換えるまで未対応です。ただしBluedroidの

@@ -246,7 +246,7 @@ BLEには「接続要求が来ました、承認しますか？」という問�
 
 | 手段 | 効果 | 使うAPI |
 |---|---|---|
-| **Filter Accept List** | 許可リストに載っていない相手の接続要求をコントローラが黙って捨てる。EspBleBluedroidでは未実装 | 現在は利用不可 |
+| **Filter Accept List** | 許可リストに載っていない相手の接続要求をコントローラが黙って捨てる | `addToAcceptList()`と`advertising().setFilterPolicy()` |
 | **接続後に切断する** | 相手を見て切断する。一度は接続が成立してしまう | `onConnected()` の中で `disconnect()` |
 | **属性を暗号化で守る** | 接続は許すが、値の読み書きにペアリングを要求する | Characteristicの `encryptedRead` / `encryptedWrite` |
 
@@ -285,6 +285,7 @@ MTUの仕様上の最小値は23バイトです。このうち3バイトはプ�
 | example | 内容 |
 |---|---|
 | [Gap/Connect](../examples/Gap/Connect/) | Service UUIDで絞り込んで接続し、接続・切断・失敗を受け取る |
+| [Gap/AcceptList](../examples/Gap/AcceptList/) | Peripheral側で接続要求をcontrollerから制限する |
 | [Gap/Mtu](../examples/Gap/Mtu/) | 希望MTU、交換event、Notification payload上限を確認する |
 
 EspBleとの現在の一致範囲とbackend固有の制約は
@@ -318,7 +319,11 @@ RPAはcontrollerが生成・回転します。無印ESP32の公開GAP APIは現�
 RPA利用時の`localAddress()`は空文字列です。設定例と使い分けは
 [Gap/PrivateAddress](../examples/Gap/PrivateAddress/)を参照してください。
 
-Filter Accept Listはまだ公開していません。
+Filter Accept Listへは`addToAcceptList(address, addressType)`で最大8件を登録し、
+Advertisingの`setFilterPolicy()`で接続要求、Scan Request、または両方を制限できます。
+一覧とpolicyは次の`advertising().start()`時にcontrollerへ反映されます。制限policyで
+一覧が空なら対象要求をすべて破棄します。使い方と4種類のpolicyは
+[Gap/AcceptList](../examples/Gap/AcceptList/)を参照してください。
 
 ### 2.5 初期化時に決めること
 
@@ -382,7 +387,9 @@ BLEの仕様にはあるが、EspBleBluedroidでは使えない機能です。�
 
 EspBleBluedroidでは**送信できません**。現在使用しているArduino-ESP32のAdvertising wrapperは送信先アドレスを公開APIから受け取らず、EspBleBluedroidにも指定APIがないためです。
 
-Filter Accept Listも未実装なので、現在の代替は通常のAdvertisingを行い、接続成立後にpeerを確認して不要な接続を切る方法です。一度は接続が成立するため、Directed Advertisingと同等ではありません。
+接続相手だけを制限するならFilter Accept Listを利用できます。ただし通常のAdvertising
+自体は周囲全体へ送られ、接続先1台へ直接送信するDirected Advertisingとは異なります。
+また、接続成立後にpeerを確認して不要な接続を切る方法もありますが、一度は接続が成立します。
 
 **受信側の挙動**は次のとおりです。
 
@@ -404,7 +411,9 @@ BLE 5.0で追加された、255バイトまでのペイロードを扱う仕組�
 
 Filter Accept Listは、アドバタイズ側（誰の接続を受けるか）だけでなく、**スキャン側**（誰のアドバタイズを受け取るか）にも適用できる仕組みが仕様上あります。
 
-EspBleBluedroidではAdvertising側・Scan側とも公開APIが未実装です。スキャン結果の絞り込みは、受け取った後にapplication側で判定します。
+EspBleBluedroidはAdvertising側のScan Request・接続要求filterに対応しています。
+Centralが行うScan自体へcontroller filterを適用する公開APIは未実装です。スキャン結果の
+絞り込みは、受け取った後にapplication側で判定します。
 
 #### 接続時のパラメータ指定
 

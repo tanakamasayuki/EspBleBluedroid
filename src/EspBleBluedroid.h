@@ -200,6 +200,14 @@ struct EspBleBond
   EspBleAddressType peerAddressType = EspBleAddressType::Public;
 };
 
+enum class EspBleAdvertisingFilterPolicy : uint8_t
+{
+  Any = 0,
+  ScanRequestFromAcceptList,
+  ConnectionFromAcceptList,
+  Both,
+};
+
 enum class EspBleGattOperation : uint8_t
 {
   Discover = 0,
@@ -423,6 +431,8 @@ public:
     const char *uuid, const uint8_t *data, size_t length);
   void setAppearance(uint16_t appearance);
   void setScanResponseEnabled(bool enabled);
+  void setFilterPolicy(EspBleAdvertisingFilterPolicy policy);
+  EspBleAdvertisingFilterPolicy filterPolicy() const;
   void setConnectable(bool connectable);
   bool setInterval(uint16_t minMilliseconds, uint16_t maxMilliseconds);
   bool start(uint32_t durationSeconds = 0);
@@ -439,6 +449,8 @@ private:
   EspBleAdvertisingData data_;
   EspBleAdvertisingData scanResponseData_;
   bool scanResponseEnabled_ = true;
+  EspBleAdvertisingFilterPolicy filterPolicy_ =
+    EspBleAdvertisingFilterPolicy::Any;
   bool connectable_ = true;
   uint16_t intervalMinMs_ = 0;
   uint16_t intervalMaxMs_ = 0;
@@ -837,6 +849,14 @@ public:
   bool requestSecurity(EspBleConnectionId connectionId);
   bool providePasskey(uint32_t passkey);
   bool confirmNumericComparison(bool accept);
+  static constexpr size_t MaxAcceptListEntries = 8;
+  bool addToAcceptList(
+    const char *address, EspBleAddressType addressType);
+  bool removeFromAcceptList(
+    const char *address, EspBleAddressType addressType);
+  void clearAcceptList();
+  size_t acceptListCount() const;
+  bool acceptListEntry(size_t index, EspBleBond &entry) const;
   size_t bondCount() const;
   bool bond(size_t index, EspBleBond &bond) const;
   bool deleteBond(const EspBleBond &bond);
@@ -918,6 +938,8 @@ private:
   bool activeRandomAddressPresent_ = false;
   EspBleSecurityConfig activeSecurity_;
   EspBluedroidClassicSecurityConfig activeClassicSecurity_;
+  EspBleBond acceptList_[MaxAcceptListEntries];
+  size_t acceptListCount_ = 0;
   EspBleError lastError_ = EspBleError::None;
   String lastErrorDetail_;
 };

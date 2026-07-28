@@ -14,6 +14,7 @@
 | Scan | active/passive、interval/window、duration、duplicate指定、rich result、開始・停止 | AdvertisingとScan Responseのaddress単位merge、Service Data・Appearance・Tx Power、値型copy、duration・明示停止、16件queue・overflow、`end()`時flushを確認 |
 | Event配送 | `EspBleScanner::onResult()` | stack callbackからqueueへcopyし、利用者callbackを`update()`から配送 |
 | Advertising identity / radio | `ownAddressType` / `localAddress()` / `setTxPower()` | Public、Random Static、RPA、−12/+9 dBmと電波上の値を確認 |
+| Advertising accept list | `addToAcceptList()` / 一覧管理 / `setFilterPolicy()` | controller一覧同期、一覧外接続の拒否、`Any`へ変更後の接続・切断 |
 | Central接続 | `connect()` / `disconnect()` / connection snapshot / lifecycle・MTU・parameter callback | non-blocking要求、再接続ID、MTU交換、接続パラメータ取得・更新、HCI切断理由、timeout分類、切断、再初期化 |
 | GATT Client | Database Discovery / UUID・handle指定Characteristic操作 / Descriptor Read・Write / Notification | connection単位snapshot、binary-safe値、CCCD、専用task、`update()`配送 |
 | BLE Security | Just Works / Static・Runtime Passkey / Numeric Comparison / Bond | 暗号化・認証必須attribute、保存bond再接続、passkey表示・入力・比較確認、bond管理 |
@@ -42,6 +43,9 @@ timeout 200（2秒）を要求した後、公開callbackとraw Bluedroid Periphe
 Local identityは`tests/peer/local_identity`でRandom Staticのsubtype、公開したaddressと
 scanで観測した値の一致、RPAのsubtype、および−12/+9 dBmの設定値とAdvertising上の
 Tx Power Levelが一致することを確認している。
+Advertising Filter Accept Listは`tests/peer/accept_list`で初期化前操作、重複追加、
+controllerによる一覧外Centralの接続拒否、`Any`へのpolicy変更後の接続と正常切断を
+確認している。変更はAdvertising開始時にcontrollerへ同期する。
 Classic Inquiryは`tests/peer/classic_inquiry`でBTDM初期化、discoverableなClassic peer、
 結果callback内からの停止、完了eventまで確認している。
 SPP Serverは`tests/peer/spp_server`でraw ESP-IDF Clientとの双方向binary data、
@@ -81,6 +85,8 @@ CCCD購読、notificationまで確認している。
 - Advertising own addressはPublic、Random Static、RPAに対応する。Scan Requestは現在
   Public address固定。RPAはcontroller管理で、現在値を
   返す公開GAP APIがないため`localAddress()`は空文字列を返す。
+- Advertising側のFilter Accept Listは最大8件で、Scan Requestと接続要求を個別または
+  同時に制限できる。Central Scan側のcontroller filterは未実装。
 - Advertising service UUID / service dataは各payloadで各4件、Scan Resultはservice UUID
   8件、service data 4件。超過したScan fieldの個数はまだ個別に報告しない。
 - Scan result queueは16件。overflowは`droppedResultCount()`で確認できる。
@@ -99,8 +105,10 @@ CCCD購読、notificationまで確認している。
 - Connection IDは1回の`begin()`〜`end()` lifecycle内だけで有効。`end()`はactive linkと
   未配送eventを破棄し、利用者の`onDisconnected()`は配送しない。再初期化後はIDを再利用
   することがある。
-- 希望MTUの既定はEspBleと同じ247。各linkは23で接続し、Centralから明示的に交換を開始する。
-  合意値は`onMtuChanged()`で配送し、connection snapshotも同時に更新する。
+- 希望MTUの既定はEspBleと同じ247。各linkは23で接続し、接続worker完了後に
+  `update()`から1回だけ交換を開始する。Bluedroid callback内からは要求しない。
+  交換中の`disconnect()`は要求を受理してMTU完了後まで内部で遅延する。合意値は
+  `onMtuChanged()`で配送し、connection snapshotも同時に更新する。
 - `onDisconnected()`のsnapshotには低レベルGATTC eventから得たHCI切断理由を格納する。
   Arduino-ESP32 3.3.11のBluedroid Clientはローカル切断理由の指定値をlink終了へ渡さない
   ため、理由指定`disconnect()` overloadは公開しない。

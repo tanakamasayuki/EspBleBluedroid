@@ -1405,10 +1405,12 @@ struct EspBleConnectionImpl
     event.type = EventType::Connected;
     event.connection = connection;
     pushEventLocked(event);
-    if (preferredMtu != 23)
-    {
-      connectedClient->setMTU(preferredMtu);
-    }
+    // Request the exchange later from update(), after BLEClient::connect() has
+    // completely returned. Calling setMTU() here re-enters Bluedroid's GATT
+    // command queue from its BTU callback and can overflow BTU_TASK on close.
+    mtuRequestPending = preferredMtu != 23;
+    mtuRequestInFlight = false;
+    disconnectPending = false;
     if (pendingMtuPresent && pendingMtuHandle == connection.handle)
     {
       Event mtuEvent;
@@ -1437,6 +1439,9 @@ struct EspBleConnectionImpl
     event.connection = connection;
     active = false;
     connection = EspBleConnection();
+    mtuRequestPending = false;
+    mtuRequestInFlight = false;
+    disconnectPending = false;
     peerBdaPresent = false;
     pendingMtuPresent = false;
     if (gattDatabase != nullptr)
@@ -1456,6 +1461,10 @@ struct EspBleConnectionImpl
     uint16_t connectionHandle, esp_gatt_status_t status, uint16_t mtu)
   {
     std::lock_guard<std::mutex> lock(mutex);
+    if (active && connection.handle == connectionHandle)
+    {
+      mtuRequestInFlight = false;
+    }
     if (ending || status != ESP_GATT_OK)
     {
       return;
@@ -1496,6 +1505,44 @@ struct EspBleConnectionImpl
   }
 
   static EspBleConnectionImpl *customGattcOwner;
+
+  void requestPreferredMtu()
+  {
+    BLEClient *connectedClient = nullptr;
+    uint16_t requestedMtu = 23;
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      if (!mtuRequestPending || connecting || !active || client == nullptr)
+      {
+        return;
+      }
+      mtuRequestPending = false;
+      mtuRequestInFlight = true;
+      connectedClient = client;
+      requestedMtu = preferredMtu;
+    }
+    if (!connectedClient->setMTU(requestedMtu))
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      mtuRequestInFlight = false;
+    }
+  }
+
+  void requestPendingDisconnect()
+  {
+    BLEClient *connectedClient = nullptr;
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      if (!disconnectPending || mtuRequestInFlight || !active ||
+          client == nullptr)
+      {
+        return;
+      }
+      disconnectPending = false;
+      connectedClient = client;
+    }
+    connectedClient->disconnect();
+  }
 
   void backendConnectionParametersUpdated(
     esp_bt_status_t status,
@@ -1559,6 +1606,14 @@ struct EspBleConnectionImpl
         param->local_privacy_cmpl.status == ESP_BT_STATUS_SUCCESS,
         std::memory_order_release);
       owner->privacyOperationCompleted.store(
+        true, std::memory_order_release);
+    }
+    else if (event == ESP_GAP_BLE_UPDATE_WHITELIST_COMPLETE_EVT)
+    {
+      owner->acceptListOperationSucceeded.store(
+        param->update_whitelist_cmpl.status == ESP_BT_STATUS_SUCCESS,
+        std::memory_order_release);
+      owner->acceptListOperationCompleted.store(
         true, std::memory_order_release);
     }
   }
@@ -2139,6 +2194,9 @@ struct EspBleConnectionImpl
   uint32_t timeoutMilliseconds = 10000;
   uint16_t preferredMtu = 247;
   EspBleConnection connection;
+  bool mtuRequestPending = false;
+  bool mtuRequestInFlight = false;
+  bool disconnectPending = false;
   bool pendingMtuPresent = false;
   uint16_t pendingMtuHandle = 0xffff;
   uint16_t pendingMtu = 23;
@@ -2153,6 +2211,8 @@ struct EspBleConnectionImpl
   std::atomic<bool> randomAddressOperationSucceeded{false};
   std::atomic<bool> privacyOperationCompleted{false};
   std::atomic<bool> privacyOperationSucceeded{false};
+  std::atomic<bool> acceptListOperationCompleted{false};
+  std::atomic<bool> acceptListOperationSucceeded{false};
   EspBleConnectionId nextConnectionId = 1;
   Event events[EventCapacity];
   size_t eventHead = 0;
@@ -2162,6 +2222,37 @@ struct EspBleConnectionImpl
 
 EspBleConnectionImpl *EspBleConnectionImpl::customGattcOwner = nullptr;
 EspBleConnectionImpl *EspBleConnectionImpl::customGapOwner = nullptr;
+
+namespace
+{
+bool waitForAcceptListOperation(EspBleConnectionImpl *impl)
+{
+  const uint32_t startedAt = millis();
+  while (!impl->acceptListOperationCompleted.load(std::memory_order_acquire) &&
+         static_cast<uint32_t>(millis() - startedAt) < 2000)
+  {
+    delay(1);
+  }
+  return
+    impl->acceptListOperationCompleted.load(std::memory_order_acquire) &&
+    impl->acceptListOperationSucceeded.load(std::memory_order_acquire);
+}
+
+void prepareAcceptListOperation(EspBleConnectionImpl *impl)
+{
+  impl->acceptListOperationCompleted.store(false, std::memory_order_release);
+  impl->acceptListOperationSucceeded.store(false, std::memory_order_release);
+}
+
+esp_ble_wl_addr_type_t acceptListBackendAddressType(
+  EspBleAddressType type)
+{
+  return type == EspBleAddressType::Random ||
+      type == EspBleAddressType::RandomIdentity
+    ? BLE_WL_ADDR_TYPE_RANDOM
+    : BLE_WL_ADDR_TYPE_PUBLIC;
+}
+} // namespace
 
 bool EspBleScanResult::hasName() const
 {
@@ -2341,6 +2432,7 @@ void EspBleAdvertising::clear()
   data_.clear();
   scanResponseData_.clear();
   scanResponseEnabled_ = true;
+  filterPolicy_ = EspBleAdvertisingFilterPolicy::Any;
   connectable_ = true;
   intervalMinMs_ = 0;
   intervalMaxMs_ = 0;
@@ -2413,6 +2505,17 @@ void EspBleAdvertising::setScanResponseEnabled(bool enabled)
   scanResponseEnabled_ = enabled;
 }
 
+void EspBleAdvertising::setFilterPolicy(
+  EspBleAdvertisingFilterPolicy policy)
+{
+  filterPolicy_ = policy;
+}
+
+EspBleAdvertisingFilterPolicy EspBleAdvertising::filterPolicy() const
+{
+  return filterPolicy_;
+}
+
 void EspBleAdvertising::setConnectable(bool connectable)
 {
   connectable_ = connectable;
@@ -2442,9 +2545,45 @@ bool EspBleAdvertising::start(uint32_t durationSeconds)
     owner_->setError(EspBleError::InvalidState, "BLE stack is not initialized");
     return false;
   }
+  if (static_cast<uint8_t>(filterPolicy_) >
+      static_cast<uint8_t>(EspBleAdvertisingFilterPolicy::Both))
+  {
+    owner_->setError(
+      EspBleError::InvalidArgument,
+      "unsupported advertising filter policy");
+    return false;
+  }
 
   BLEAdvertising *backend = BLEDevice::getAdvertising();
   backend->reset();
+  if (filterPolicy_ != EspBleAdvertisingFilterPolicy::Any)
+  {
+    prepareAcceptListOperation(owner_->connectionImpl_);
+    if (esp_ble_gap_clear_whitelist() != ESP_OK ||
+        !waitForAcceptListOperation(owner_->connectionImpl_))
+    {
+      owner_->setError(
+        EspBleError::BackendFailure, "failed to clear the BLE accept list");
+      return false;
+    }
+    for (size_t index = 0; index < owner_->acceptListCount_; ++index)
+    {
+      BLEAddress address(owner_->acceptList_[index].peerAddress);
+      prepareAcceptListOperation(owner_->connectionImpl_);
+      if (esp_ble_gap_update_whitelist(
+            true,
+            address.getNative(),
+            acceptListBackendAddressType(
+              owner_->acceptList_[index].peerAddressType)) != ESP_OK ||
+          !waitForAcceptListOperation(owner_->connectionImpl_))
+      {
+        owner_->setError(
+          EspBleError::BackendFailure,
+          "failed to write the BLE accept list");
+        return false;
+      }
+    }
+  }
   if (owner_->activeRandomAddressPresent_)
   {
     EspBleConnectionImpl *operations = owner_->connectionImpl_;
@@ -2710,6 +2849,15 @@ bool EspBleAdvertising::start(uint32_t durationSeconds)
   backend->setAdvertisementType(
     connectable_ ? ADV_TYPE_IND
       : (scanResponseEnabled_ ? ADV_TYPE_SCAN_IND : ADV_TYPE_NONCONN_IND));
+  const bool filterScanRequests =
+    filterPolicy_ ==
+      EspBleAdvertisingFilterPolicy::ScanRequestFromAcceptList ||
+    filterPolicy_ == EspBleAdvertisingFilterPolicy::Both;
+  const bool filterConnections =
+    filterPolicy_ ==
+      EspBleAdvertisingFilterPolicy::ConnectionFromAcceptList ||
+    filterPolicy_ == EspBleAdvertisingFilterPolicy::Both;
+  backend->setScanFilter(filterScanRequests, filterConnections);
   if (intervalMinMs_ != 0 && intervalMaxMs_ != 0)
   {
     backend->setMinInterval(static_cast<uint16_t>(
@@ -4907,6 +5055,11 @@ void EspBleBluedroid::end()
 void EspBleBluedroid::update()
 {
   advertising_.update();
+  if (connectionImpl_ != nullptr)
+  {
+    connectionImpl_->requestPreferredMtu();
+    connectionImpl_->requestPendingDisconnect();
+  }
   expireGattOperation();
   // Dispatch connection completions before Scan Results. A connect() accepted
   // from a Scan callback can therefore never complete in that same update().
@@ -5087,6 +5240,9 @@ bool EspBleBluedroid::connect(
     connectionImpl_->target = scanResult;
     connectionImpl_->timeoutMilliseconds = timeoutMilliseconds;
     connectionImpl_->pendingMtuPresent = false;
+    connectionImpl_->mtuRequestPending = false;
+    connectionImpl_->mtuRequestInFlight = false;
+    connectionImpl_->disconnectPending = false;
     connectionImpl_->pendingConnectionParametersPresent = false;
     connectionImpl_->connecting = true;
   }
@@ -5142,6 +5298,12 @@ bool EspBleBluedroid::disconnect(EspBleConnectionId connectionId)
     }
     client = connectionImpl_->client;
     connectionImpl_->securityInputCancelled = true;
+    if (connectionImpl_->mtuRequestInFlight)
+    {
+      connectionImpl_->disconnectPending = true;
+      clearError();
+      return true;
+    }
   }
   if (client == nullptr || client->disconnect() != ESP_OK)
   {
@@ -5725,6 +5887,100 @@ bool EspBleBluedroid::confirmNumericComparison(bool accept)
     connectionImpl_->numericComparisonConfirmed = true;
   }
   clearError();
+  return true;
+}
+
+bool EspBleBluedroid::addToAcceptList(
+  const char *address, EspBleAddressType addressType)
+{
+  if (!initialized_)
+  {
+    setError(EspBleError::InvalidState, "BLE stack is not initialized");
+    return false;
+  }
+  if (!isValidBleAddress(address) ||
+      static_cast<uint8_t>(addressType) >
+        static_cast<uint8_t>(EspBleAddressType::RandomIdentity))
+  {
+    setError(
+      EspBleError::InvalidArgument,
+      "a valid accept list address and address type are required");
+    return false;
+  }
+  for (size_t index = 0; index < acceptListCount_; ++index)
+  {
+    if (acceptList_[index].peerAddressType == addressType &&
+        acceptList_[index].peerAddress.equalsIgnoreCase(address))
+    {
+      clearError();
+      return true;
+    }
+  }
+  if (acceptListCount_ == MaxAcceptListEntries)
+  {
+    setError(EspBleError::ResourceExhausted, "accept list is full");
+    return false;
+  }
+  acceptList_[acceptListCount_].peerAddress = address;
+  acceptList_[acceptListCount_].peerAddressType = addressType;
+  ++acceptListCount_;
+  clearError();
+  return true;
+}
+
+bool EspBleBluedroid::removeFromAcceptList(
+  const char *address, EspBleAddressType addressType)
+{
+  if (!initialized_)
+  {
+    setError(EspBleError::InvalidState, "BLE stack is not initialized");
+    return false;
+  }
+  if (!isValidBleAddress(address) ||
+      static_cast<uint8_t>(addressType) >
+        static_cast<uint8_t>(EspBleAddressType::RandomIdentity))
+  {
+    setError(
+      EspBleError::InvalidArgument,
+      "a valid accept list address and address type are required");
+    return false;
+  }
+  for (size_t index = 0; index < acceptListCount_; ++index)
+  {
+    if (acceptList_[index].peerAddressType != addressType ||
+        !acceptList_[index].peerAddress.equalsIgnoreCase(address))
+      continue;
+    for (size_t next = index + 1; next < acceptListCount_; ++next)
+    {
+      acceptList_[next - 1] = acceptList_[next];
+    }
+    acceptList_[--acceptListCount_] = EspBleBond();
+    clearError();
+    return true;
+  }
+  setError(EspBleError::NotFound, "accept list entry was not found");
+  return false;
+}
+
+void EspBleBluedroid::clearAcceptList()
+{
+  for (size_t index = 0; index < acceptListCount_; ++index)
+  {
+    acceptList_[index] = EspBleBond();
+  }
+  acceptListCount_ = 0;
+}
+
+size_t EspBleBluedroid::acceptListCount() const
+{
+  return acceptListCount_;
+}
+
+bool EspBleBluedroid::acceptListEntry(
+  size_t index, EspBleBond &entry) const
+{
+  if (index >= acceptListCount_) return false;
+  entry = acceptList_[index];
   return true;
 }
 
