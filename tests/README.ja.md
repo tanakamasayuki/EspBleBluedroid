@@ -3,6 +3,7 @@
 `pytest-embedded`とArduino CLI backendを利用するEspBleBluedroidの実機テストです。
 
 ```text
+unit/   backend非依存のcodec、parser、状態変換（実機不要）
 peer/   無印ESP32 2台のBluedroid BLE / Classic接続自動テスト
 ```
 

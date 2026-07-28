@@ -168,10 +168,24 @@ CCCD購読、notificationまで確認している。
 - GATT Server、HIDおよびSPP以外のClassic profileは公開API未実装。
 - Advertisingの時間指定停止は`update()`で処理するため、継続的な`update()`呼出しが必要。
 
+## BLE直接バックエンド移行
+
+Arduino BLE wrapperを撤去する作業は
+[BLE直接バックエンド移行計画](BLE_DIRECT_BACKEND_MIGRATION.ja.md)に従って進めている。
+現在は第1段階のBLE address、UUID、Legacy Advertising Data codecを内部実装へ移し、
+backend非依存unit testと既存Advertising / Scan peer試験を通している。
+
+次のGATTC直接化に向けて、application登録、接続要求、cancel競合、切断、再接続、
+古い操作generationの無視を表す内部状態機械とunit testを追加済みである。
+公開接続・GATT Client経路はまだ`BLEClient` / `BLERemote*`を利用しており、
+直接GATTC eventへ切り替わったとは扱わない。
+
 ## 次のテストスライス
 
-1. BLE GATT/SPP dual-modeの長時間soakとround境界なしの連続飽和時fairness。
-2. 異なるSCNを使うincoming Serverとoutgoing Clientの同時sessionを2台fixtureで検証する。
+1. GATTC application登録と直接接続をtest seamへ接続し、OPEN成功、失敗、cancel競合、
+   timeout、`end()`、再接続を既存peer scenarioで固定する。
+2. BLE GATT/SPP dual-modeの長時間soakとround境界なしの連続飽和時fairness。
+3. 異なるSCNを使うincoming Serverとoutgoing Clientの同時sessionを2台fixtureで検証する。
    公開実装は、session別RX/write/fairness/cleanupを失敗するテストとして先に固定できた
    場合だけ開始する。同じServer serviceへの複数client試験には3台目のpeerが必要。
 

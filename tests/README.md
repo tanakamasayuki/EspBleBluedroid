@@ -1,8 +1,9 @@
 # Tests
 
 EspBleBluedroid uses `pytest-embedded` with its Arduino CLI backend for
-hardware tests. The initial test connects two original ESP32 boards over BLE
-using the bundled Bluedroid API.
+hardware tests. `unit/` contains backend-independent codec and state tests that
+do not require hardware. `peer/` connects two original ESP32 boards using the
+bundled Bluedroid stack.
 
 ```sh
 cd tests

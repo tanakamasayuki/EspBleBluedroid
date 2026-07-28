@@ -1,4 +1,5 @@
 #include "EspBleBluedroid.h"
+#include "internal/EspBleBluedroidCodec.h"
 
 #include <BLEAdvertising.h>
 #include <BLEClient.h>
@@ -10,7 +11,6 @@
 #include <BLEScan.h>
 #include <BLEUtils.h>
 #include <atomic>
-#include <cctype>
 #include <cstring>
 #include <mutex>
 #include <new>
@@ -32,7 +32,6 @@ constexpr size_t ScanQueueCapacity = 16;
 constexpr size_t ClassicInquiryQueueCapacity = 16;
 constexpr size_t ClassicSecurityEventQueueCapacity = 8;
 constexpr size_t SppEventQueueCapacity = 8;
-constexpr size_t LegacyAdvertisingPayloadCapacity = 31;
 
 struct BleTxPowerLevel
 {
@@ -60,34 +59,9 @@ int8_t bleTxPowerDbm(esp_power_level_t level)
   return INT8_MIN;
 }
 
-bool appendAdvertisingData(
-  BLEAdvertisementData &payload, uint8_t type, const String &data)
-{
-  const size_t previousLength = payload.getPayload().length();
-  const size_t fieldLength = data.length() + 2;
-  if (data.length() > 0xfe ||
-      previousLength + fieldLength > LegacyAdvertisingPayloadCapacity)
-  {
-    return false;
-  }
-
-  const char header[2] = {
-    static_cast<char>(data.length() + 1), static_cast<char>(type)};
-  payload.addData(String(header, sizeof(header)) + data);
-  return payload.getPayload().length() == previousLength + fieldLength;
-}
-
 bool uuidEquals(const String &left, const char *right)
 {
-  if (right == nullptr || right[0] == '\0' || left.isEmpty())
-  {
-    return false;
-  }
-  if (left.equalsIgnoreCase(right))
-  {
-    return true;
-  }
-  return BLEUUID(left.c_str()).equals(BLEUUID(right));
+  return espblebluedroid::internal::uuidEquals(left.c_str(), right);
 }
 
 BLERemoteCharacteristic *findCharacteristicByHandle(
@@ -137,22 +111,8 @@ bool sameClassicSecurityConfig(
 
 bool isValidBleAddress(const char *address)
 {
-  if (address == nullptr || strlen(address) != 17)
-  {
-    return false;
-  }
-  for (size_t index = 0; index < 17; ++index)
-  {
-    if ((index + 1) % 3 == 0)
-    {
-      if (address[index] != ':') return false;
-    }
-    else if (!std::isxdigit(static_cast<unsigned char>(address[index])))
-    {
-      return false;
-    }
-  }
-  return true;
+  uint8_t parsed[6] = {};
+  return espblebluedroid::internal::parseBleAddress(address, parsed);
 }
 } // namespace
 
@@ -2654,11 +2614,19 @@ bool EspBleAdvertising::start(uint32_t durationSeconds)
     }
     for (size_t index = 0; index < owner_->acceptListCount_; ++index)
     {
-      BLEAddress address(owner_->acceptList_[index].peerAddress);
+      esp_bd_addr_t address = {};
+      if (!espblebluedroid::internal::parseBleAddress(
+            owner_->acceptList_[index].peerAddress.c_str(), address))
+      {
+        owner_->setError(
+          EspBleError::InvalidArgument,
+          "invalid BLE accept list address");
+        return false;
+      }
       prepareAcceptListOperation(owner_->connectionImpl_);
       if (esp_ble_gap_update_whitelist(
             true,
-            address.getNative(),
+            address,
             acceptListBackendAddressType(
               owner_->acceptList_[index].peerAddressType)) != ESP_OK ||
           !waitForAcceptListOperation(owner_->connectionImpl_))
@@ -2677,9 +2645,13 @@ bool EspBleAdvertising::start(uint32_t durationSeconds)
     BLEAdvertisementData &destination,
     bool includeFlags,
     const char *payloadName) {
-    const auto append = [this, &destination, payloadName](
+    espblebluedroid::internal::LegacyAdvertisingData raw;
+    const auto append = [this, &raw, payloadName](
       uint8_t type, const String &value, const char *field) {
-      if (appendAdvertisingData(destination, type, value))
+      if (raw.append(
+            type,
+            reinterpret_cast<const uint8_t *>(value.c_str()),
+            value.length()))
       {
         return true;
       }
@@ -2726,20 +2698,28 @@ bool EspBleAdvertising::start(uint32_t durationSeconds)
       String uuids128;
       for (size_t index = 0; index < source.serviceUuidCount_; ++index)
       {
-        BLEUUID uuid(source.serviceUuids_[index].c_str());
-        switch (uuid.bitSize())
+        espblebluedroid::internal::BleUuid uuid;
+        if (!espblebluedroid::internal::parseBleUuid(
+              source.serviceUuids_[index].c_str(), uuid))
+        {
+          owner_->setError(
+            EspBleError::InvalidArgument,
+            "invalid advertising service UUID");
+          return false;
+        }
+        switch (uuid.bitSize)
         {
         case 16:
           uuids16 += String(reinterpret_cast<const char *>(
-            &uuid.getNative()->uuid.uuid16), 2);
+            uuid.bytes.data()), 2);
           break;
         case 32:
           uuids32 += String(reinterpret_cast<const char *>(
-            &uuid.getNative()->uuid.uuid32), 4);
+            uuid.bytes.data()), 4);
           break;
         case 128:
           uuids128 += String(reinterpret_cast<const char *>(
-            uuid.getNative()->uuid.uuid128), 16);
+            uuid.bytes.data()), 16);
           break;
         default:
           owner_->setError(
@@ -2777,25 +2757,32 @@ bool EspBleAdvertising::start(uint32_t durationSeconds)
     for (size_t index = 0; index < source.serviceDataCount_; ++index)
     {
       const EspBleServiceData &block = source.serviceData_[index];
-      BLEUUID uuid(block.uuid.c_str());
+      espblebluedroid::internal::BleUuid uuid;
+      if (!espblebluedroid::internal::parseBleUuid(
+            block.uuid.c_str(), uuid))
+      {
+        owner_->setError(
+          EspBleError::InvalidArgument, "invalid service data UUID");
+        return false;
+      }
       String encodedUuid;
       uint8_t type = 0;
-      switch (uuid.bitSize())
+      switch (uuid.bitSize)
       {
       case 16:
         type = ESP_BLE_AD_TYPE_SERVICE_DATA;
         encodedUuid = String(reinterpret_cast<const char *>(
-          &uuid.getNative()->uuid.uuid16), 2);
+          uuid.bytes.data()), 2);
         break;
       case 32:
         type = ESP_BLE_AD_TYPE_32SERVICE_DATA;
         encodedUuid = String(reinterpret_cast<const char *>(
-          &uuid.getNative()->uuid.uuid32), 4);
+          uuid.bytes.data()), 4);
         break;
       case 128:
         type = ESP_BLE_AD_TYPE_128SERVICE_DATA;
         encodedUuid = String(reinterpret_cast<const char *>(
-          uuid.getNative()->uuid.uuid128), 16);
+          uuid.bytes.data()), 16);
         break;
       default:
         owner_->setError(
@@ -2810,6 +2797,15 @@ bool EspBleAdvertising::start(uint32_t durationSeconds)
     if (!source.name_.isEmpty() &&
         !append(ESP_BLE_AD_TYPE_NAME_CMPL, source.name_, "name"))
     {
+      return false;
+    }
+    destination.addData(String(
+      reinterpret_cast<const char *>(raw.data()), raw.size()));
+    if (destination.getPayload().length() != raw.size())
+    {
+      owner_->setError(
+        EspBleError::BackendFailure,
+        "failed to build legacy advertising payload");
       return false;
     }
     return true;
@@ -2960,8 +2956,13 @@ bool EspBleAdvertising::startDirected(
              EspBleOwnAddressType::ResolvablePrivate
            ? BLE_ADDR_TYPE_RPA_RANDOM
            : BLE_ADDR_TYPE_RANDOM);
-  BLEAddress target(peerAddress);
-  memcpy(parameters.peer_addr, target.getNative(), sizeof(esp_bd_addr_t));
+  if (!espblebluedroid::internal::parseBleAddress(
+        peerAddress, parameters.peer_addr))
+  {
+    owner_->setError(
+      EspBleError::InvalidArgument, "invalid directed peer address");
+    return false;
+  }
   parameters.peer_addr_type =
     peerAddressType == EspBleAddressType::Random ||
         peerAddressType == EspBleAddressType::RandomIdentity
@@ -5232,7 +5233,8 @@ String EspBleBluedroid::localAddress() const
   {
     return String();
   }
-  return BLEAddress(address).toString();
+  return String(
+    espblebluedroid::internal::formatBleAddress(address).c_str());
 }
 
 EspBleAddressType EspBleBluedroid::localAddressType() const
@@ -6150,7 +6152,9 @@ bool EspBleBluedroid::bond(size_t index, EspBleBond &bond) const
     index < static_cast<size_t>(listed);
   if (success)
   {
-    bond.peerAddress = BLEAddress(bonds[index].bd_addr).toString();
+    bond.peerAddress = String(
+      espblebluedroid::internal::formatBleAddress(
+        bonds[index].bd_addr).c_str());
     bond.peerAddressType =
       static_cast<EspBleAddressType>(bonds[index].bd_addr_type);
   }
@@ -6195,8 +6199,10 @@ bool EspBleBluedroid::deleteBond(const EspBleBond &bond)
   }
   for (int index = 0; index < listed; ++index)
   {
-    if (BLEAddress(bonds[index].bd_addr).toString().equalsIgnoreCase(
-          bond.peerAddress) &&
+    if (String(
+          espblebluedroid::internal::formatBleAddress(
+            bonds[index].bd_addr).c_str()).equalsIgnoreCase(
+              bond.peerAddress) &&
         static_cast<uint8_t>(bond.peerAddressType) ==
           static_cast<uint8_t>(bonds[index].bd_addr_type))
     {

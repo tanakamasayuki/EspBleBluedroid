@@ -1,5 +1,8 @@
 # 開発方針
 
+BLE実装をArduino BLE wrapperからESP-IDF Bluedroid APIへ移す作業は
+[BLE直接バックエンド移行計画](BLE_DIRECT_BACKEND_MIGRATION.ja.md)に従う。
+
 ## テストファースト
 
 公開動作を実装・変更するときはRed-Green-Refactorを基本とする。

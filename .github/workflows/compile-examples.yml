@@ -5,12 +5,14 @@ on:
     branches: [main]
     paths:
       - "src/**"
+      - "tests/unit/**"
       - "examples/**"
       - "library.properties"
       - ".github/workflows/compile-examples.yml"
   pull_request:
     paths:
       - "src/**"
+      - "tests/unit/**"
       - "examples/**"
       - "library.properties"
       - ".github/workflows/compile-examples.yml"
@@ -33,6 +35,16 @@ jobs:
           path: ~/.arduino15
           key: arduino-esp32-${{ hashFiles('examples/CompileSmoke/sketch.yaml') }}
 
+      - name: Run backend-independent unit tests
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            -Isrc/internal \
+            tests/unit/codec_test.cpp \
+            src/internal/EspBleBluedroidCodec.cpp \
+            src/internal/EspBleBluedroidGattcState.cpp \
+            -o /tmp/espblebluedroid-unit
+          /tmp/espblebluedroid-unit
+
       - name: Compile all examples (original ESP32 / Bluedroid)
         run: |
           set -euo pipefail
@@ -46,4 +58,3 @@ jobs:
             echo "::endgroup::"
           done
           exit "${status}"
-
