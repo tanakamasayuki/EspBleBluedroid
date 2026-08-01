@@ -385,8 +385,10 @@ BLEに等価概念がなく、Classic profileとして独立させるもの。
 
 ## Classic機能の追加順
 
-HID、MIDI、AudioとUSB/BLE bridgeを含む具体的な段階、共通値型、複数device契約は
-[HID・MIDI・Audio profileとbridgeの整備計画](PROFILE_BRIDGE_ROADMAP.ja.md)を正本とする。
+HID、MIDI、Audioの具体的な段階、共通値型、複数device契約は
+[HID・MIDI・Audio profileのAPI整備計画](PROFILE_BRIDGE_ROADMAP.ja.md)を正本とする。
+Classic各profileの対応可否と優先度は
+[Bluetooth Classic profile対応表](CLASSIC_PROFILE_SUPPORT.ja.md)を参照する。
 
 Classic対応は「buildで有効だから一括公開」せず、profileごとに設計・Peerテストを
 完了して追加する。

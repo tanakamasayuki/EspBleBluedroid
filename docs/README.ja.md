@@ -4,7 +4,9 @@
   Security、GATT Client / Server、UUID
 - [Bluetooth Classic通信の入門ガイド](GUIDE_CLASSIC_BASICS.ja.md) —
   Inquiry、SPP、Serial/Stream、BLEとの同時利用
-- [HID・MIDI・Audio profileとbridgeの整備計画](PROFILE_BRIDGE_ROADMAP.ja.md) —
+- [Bluetooth Classic profile対応表](CLASSIC_PROFILE_SUPPORT.ja.md) —
+  SPP、Audio、HID/GamePadなど主要profileの対応可否、build制約、優先度
+- [HID・MIDI・Audio profileのAPI整備計画](PROFILE_BRIDGE_ROADMAP.ja.md) —
   EspBle・EspUsbHost・EspUsbDeviceと揃える値型、複数device、Classic Audioの段階計画
 - [EspBle（NimBLE）とのBLE差分](BLE_BACKEND_DIFFERENCES.ja.md) —
   共通API、Bluedroid固有の実装差、意図的に一致させない機能

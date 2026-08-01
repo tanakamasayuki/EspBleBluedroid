@@ -174,7 +174,8 @@ CCCD購読、notificationまで確認している。
   RX ring保持を確認している。BLE connection event queue満杯時はNotificationより
   接続・Security・GATT完了などの制御eventを優先する。長時間soakとround境界なしの
   連続飽和状態でのfairnessは未確認。
-- HID、BLE MIDIおよびSPP以外のClassic profileは公開API未実装。
+- Classic profileの公開APIは現在SPPのみ対応済み。HID、A2DP、AVRCP、HFPなど主要profileの
+  backend制約と優先度は[Bluetooth Classic profile対応表](CLASSIC_PROFILE_SUPPORT.ja.md)に記載する。
 - Advertisingの時間指定停止は`update()`で処理するため、継続的な`update()`呼出しが必要。
 
 ## BLE直接バックエンド移行

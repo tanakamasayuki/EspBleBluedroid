@@ -15,6 +15,9 @@ EspBleBluedroid、EspBle、EspUsbHost、EspUsbDeviceの間で、HID・MIDI・Aud
 ブリッジ処理そのものは別ライブラリの責務とし、このライブラリではブリッジから扱いやすい
 一貫したAPI、値型、接続識別、lifecycleを提供するところまでを範囲とする。
 
+Classic各profileの現在の対応可否、build制約、優先度は
+[Bluetooth Classic profile対応表](CLASSIC_PROFILE_SUPPORT.ja.md)を正本とする。
+
 ## 現在確認できる前提
 
 Arduino-ESP32 3.3.11の無印ESP32 buildでは、A2DP、AVRCP、HFP Client/AG、SPPは

@@ -194,3 +194,6 @@ dual modeではBLEとClassicを同時に利用できますが、radio、heap、c
 
 A2DP、AVRCP、Classic HIDは現在の公開APIに含まれません。追加する場合も
 `classic()`配下の独立profileとし、BLE connectionやSPP sessionへ混ぜません。
+
+主要profileの対応可否、Arduino-ESP32のbuild制約、実装優先度は
+[Bluetooth Classic profile対応表](CLASSIC_PROFILE_SUPPORT.ja.md)を参照してください。
