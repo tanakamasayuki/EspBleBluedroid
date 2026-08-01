@@ -469,6 +469,7 @@ struct EspBluedroidClassicInquiryComplete
 
 using EspBluedroidSppSessionId = uint32_t;
 using EspBluedroidA2dpSessionId = uint32_t;
+using EspBluedroidHfpSessionId = uint32_t;
 
 enum class EspBluedroidAvrcpCommand : uint8_t
 {
@@ -603,6 +604,80 @@ struct EspBluedroidA2dpConnectionFailure
   String detail;
 };
 
+enum class EspBluedroidHfpRole : uint8_t
+{
+  HandsFree = 0,
+  AudioGateway,
+};
+
+enum class EspBluedroidHfpCodec : uint8_t
+{
+  Unknown = 0,
+  Cvsd,
+  Msbc,
+};
+
+struct EspBluedroidHfpPcmFormat
+{
+  uint32_t sampleRate = 0;
+  uint8_t channels = 1;
+  uint8_t bytesPerSample = 2;
+  uint8_t bitsPerSample = 16;
+  bool interleaved = true;
+};
+
+struct EspBluedroidHfpSession
+{
+  EspBluedroidHfpSessionId id = 0;
+  String peerAddress;
+  EspBluedroidHfpRole role = EspBluedroidHfpRole::HandsFree;
+  bool incoming = false;
+  bool audioConnected = false;
+  EspBluedroidHfpCodec codec = EspBluedroidHfpCodec::Unknown;
+  EspBluedroidHfpPcmFormat format;
+};
+
+struct EspBluedroidHfpAudioChanged
+{
+  EspBluedroidHfpSessionId sessionId = 0;
+  bool connected = false;
+  EspBluedroidHfpCodec codec = EspBluedroidHfpCodec::Unknown;
+  EspBluedroidHfpPcmFormat format;
+};
+
+struct EspBluedroidHfpPcmData
+{
+  EspBluedroidHfpSessionId sessionId = 0;
+  EspBluedroidHfpPcmFormat format;
+  const uint8_t *data = nullptr;
+  size_t length = 0;
+};
+
+struct EspBluedroidHfpPcmRequest
+{
+  EspBluedroidHfpSessionId sessionId = 0;
+  EspBluedroidHfpPcmFormat format;
+  uint8_t *data = nullptr;
+  size_t capacity = 0;
+  size_t written = 0;
+};
+
+struct EspBluedroidHfpStartResult
+{
+  EspBluedroidHfpRole role = EspBluedroidHfpRole::HandsFree;
+  bool success = false;
+  EspBleError error = EspBleError::None;
+  String detail;
+};
+
+struct EspBluedroidHfpConnectionFailure
+{
+  String peerAddress;
+  EspBluedroidHfpRole role = EspBluedroidHfpRole::HandsFree;
+  EspBleError error = EspBleError::BackendFailure;
+  String detail;
+};
+
 enum class EspBluedroidSppSecurity : uint8_t
 {
   None = 0,
@@ -681,6 +756,7 @@ struct EspBluedroidSppImpl;
 struct EspBluedroidA2dpImpl;
 struct EspBluedroidAvrcpControllerImpl;
 struct EspBluedroidAvrcpTargetImpl;
+struct EspBluedroidHfpImpl;
 struct EspBluedroidClassicImpl;
 
 class EspBleAdvertisingData
@@ -1112,6 +1188,112 @@ private:
   PcmRequestCallback pcmRequestCallback_;
 };
 
+class EspBluedroidHfpHandsFree
+{
+public:
+  using SessionCallback =
+    std::function<void(const EspBluedroidHfpSession &session)>;
+  using AudioCallback =
+    std::function<void(const EspBluedroidHfpAudioChanged &event)>;
+  using PcmDataCallback =
+    std::function<void(const EspBluedroidHfpPcmData &data)>;
+  using PcmRequestCallback =
+    std::function<void(EspBluedroidHfpPcmRequest &request)>;
+  using StartCallback =
+    std::function<void(const EspBluedroidHfpStartResult &result)>;
+  using ConnectionFailureCallback = std::function<void(
+    const EspBluedroidHfpConnectionFailure &failure)>;
+
+  bool start();
+  bool stop();
+  bool started() const;
+  bool connect(const char *peerAddress);
+  bool disconnect(EspBluedroidHfpSessionId sessionId);
+  bool connectAudio(EspBluedroidHfpSessionId sessionId);
+  bool disconnectAudio(EspBluedroidHfpSessionId sessionId);
+  bool session(EspBluedroidHfpSession &session) const;
+  size_t droppedEventCount() const;
+  void onStarted(StartCallback callback);
+  void onConnected(SessionCallback callback);
+  void onDisconnected(SessionCallback callback);
+  void onConnectionFailed(ConnectionFailureCallback callback);
+  void onAudioChanged(AudioCallback callback);
+  // Both PCM callbacks run synchronously on the HFP stack task. Buffers are
+  // valid only during the callback; return quickly and do not retain them.
+  void onPcmData(PcmDataCallback callback);
+  void onPcmRequested(PcmRequestCallback callback);
+
+private:
+  friend class EspBluedroidClassic;
+  friend struct EspBluedroidHfpImpl;
+  explicit EspBluedroidHfpHandsFree(EspBleBluedroid *owner);
+  ~EspBluedroidHfpHandsFree();
+  void end();
+  void update();
+
+  EspBleBluedroid *owner_;
+  EspBluedroidHfpImpl *impl_ = nullptr;
+  StartCallback startedCallback_;
+  SessionCallback connectedCallback_;
+  SessionCallback disconnectedCallback_;
+  ConnectionFailureCallback connectionFailureCallback_;
+  AudioCallback audioCallback_;
+  PcmDataCallback pcmDataCallback_;
+  PcmRequestCallback pcmRequestCallback_;
+};
+
+class EspBluedroidHfpAudioGateway
+{
+public:
+  using SessionCallback =
+    std::function<void(const EspBluedroidHfpSession &session)>;
+  using AudioCallback =
+    std::function<void(const EspBluedroidHfpAudioChanged &event)>;
+  using PcmDataCallback =
+    std::function<void(const EspBluedroidHfpPcmData &data)>;
+  using PcmRequestCallback =
+    std::function<void(EspBluedroidHfpPcmRequest &request)>;
+  using StartCallback =
+    std::function<void(const EspBluedroidHfpStartResult &result)>;
+  using ConnectionFailureCallback = std::function<void(
+    const EspBluedroidHfpConnectionFailure &failure)>;
+
+  bool start();
+  bool stop();
+  bool started() const;
+  bool connect(const char *peerAddress);
+  bool disconnect(EspBluedroidHfpSessionId sessionId);
+  bool connectAudio(EspBluedroidHfpSessionId sessionId);
+  bool disconnectAudio(EspBluedroidHfpSessionId sessionId);
+  bool session(EspBluedroidHfpSession &session) const;
+  size_t droppedEventCount() const;
+  void onStarted(StartCallback callback);
+  void onConnected(SessionCallback callback);
+  void onDisconnected(SessionCallback callback);
+  void onConnectionFailed(ConnectionFailureCallback callback);
+  void onAudioChanged(AudioCallback callback);
+  void onPcmData(PcmDataCallback callback);
+  void onPcmRequested(PcmRequestCallback callback);
+
+private:
+  friend class EspBluedroidClassic;
+  friend struct EspBluedroidHfpImpl;
+  explicit EspBluedroidHfpAudioGateway(EspBleBluedroid *owner);
+  ~EspBluedroidHfpAudioGateway();
+  void end();
+  void update();
+
+  EspBleBluedroid *owner_;
+  EspBluedroidHfpImpl *impl_ = nullptr;
+  StartCallback startedCallback_;
+  SessionCallback connectedCallback_;
+  SessionCallback disconnectedCallback_;
+  ConnectionFailureCallback connectionFailureCallback_;
+  AudioCallback audioCallback_;
+  PcmDataCallback pcmDataCallback_;
+  PcmRequestCallback pcmRequestCallback_;
+};
+
 class EspBluedroidAvrcpController
 {
 public:
@@ -1209,6 +1391,8 @@ public:
   EspBluedroidA2dpSource &a2dpSource();
   EspBluedroidAvrcpController &avrcpController();
   EspBluedroidAvrcpTarget &avrcpTarget();
+  EspBluedroidHfpHandsFree &hfpHandsFree();
+  EspBluedroidHfpAudioGateway &hfpAudioGateway();
   EspBluedroidClassicProfileSupport profileSupport(
     EspBluedroidClassicProfile profile) const;
   void onSecurityChanged(SecurityChangedCallback callback);
@@ -1241,6 +1425,8 @@ private:
   EspBluedroidA2dpSource a2dpSource_;
   EspBluedroidAvrcpController avrcpController_;
   EspBluedroidAvrcpTarget avrcpTarget_;
+  EspBluedroidHfpHandsFree hfpHandsFree_;
+  EspBluedroidHfpAudioGateway hfpAudioGateway_;
   SecurityChangedCallback securityChangedCallback_;
   NumericComparisonCallback numericComparisonCallback_;
   PasskeyDisplayedCallback passkeyDisplayedCallback_;
@@ -1501,6 +1687,9 @@ private:
   friend class EspBluedroidA2dpSource;
   friend class EspBluedroidAvrcpController;
   friend class EspBluedroidAvrcpTarget;
+  friend class EspBluedroidHfpHandsFree;
+  friend class EspBluedroidHfpAudioGateway;
+  friend struct EspBluedroidHfpImpl;
 
   void setError(EspBleError error, const char *detail = nullptr);
   bool startGattOperation(

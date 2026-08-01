@@ -40,8 +40,8 @@ P1ですが、現在はplatform buildに阻まれているため保留扱いで�
 | AVRCP Target | 再生操作・absolute volumeの受信 | `CONFIG_BT_AVRCP_ENABLED=y` | 対応済み（基本操作） | P1 | `classic().avrcpTarget()`。対応command filter、volume状態・要求を公開。metadata/play-status応答はCore public APIがないため非対応 |
 | HID Device | Keyboard、Mouse、GamePad等として動作 | **`CONFIG_BT_HID_ENABLED`無効** | **非対応** | P1（保留） | GamePadは独立profileではなくHID report descriptorで表現できる。ただし現状の標準buildではlink可能な実装を保証できない |
 | HID Host | Keyboard、Mouse、GamePad等を受信 | **`CONFIG_BT_HID_ENABLED`無効** | **非対応** | P1（保留） | `esp_hidh_api.h`は存在するがheaderだけでは対応扱いにしない。HID-enabled platformと実機testが必要 |
-| HFP Hands-Free | Headset側、通話制御、CVSD/mSBC音声 | `CONFIG_BT_HFP_CLIENT_ENABLE=y` | 未対応 | P2 | サウンド系。A2DPの後にcall controlと同期audio data pathを分離して追加する |
-| HFP Audio Gateway | Phone側、通話制御、CVSD/mSBC音声 | `CONFIG_BT_HFP_AG_ENABLE=y` | 未対応 | P2 | Hands-Freeとrole別objectにする。HCI audio data pathとWBSが現在のbuildで有効 |
+| HFP Hands-Free | Headset側、通話制御、CVSD/mSBC音声 | `CONFIG_BT_HFP_CLIENT_ENABLE=y` | 対応中（音声基盤済み） | P2 | `classic().hfpHandsFree()`でSLC/SCO、session、双方向PCMを公開・実機確認済み。call controlは整備中 |
+| HFP Audio Gateway | Phone側、通話制御、CVSD/mSBC音声 | `CONFIG_BT_HFP_AG_ENABLE=y` | 対応中（音声基盤済み） | P2 | `classic().hfpAudioGateway()`で着信SLC、SCO、双方向PCMを公開・実機確認済み。indicator/call controlは整備中 |
 | HSP | 旧式Headset profile | 専用public APIなし | 非対応 | 対象外 | HFPを優先する。互換性要求とbackend保証が確認できるまで追加しない |
 | PAN | IP network、PANU/NAP/GN | public profile APIなし | 非対応 | P3 | BNEP/PANを安定して公開できるbackendを確保できた場合だけ再評価する |
 | PBAP Client | 電話帳受信、PCE | **`CONFIG_BT_PBAC_ENABLED`無効** | 非対応 | P3 | `esp_pbac_api.h`は存在するが、現状buildでは無効。HIDと同様にheaderだけでは対応扱いにしない |
@@ -117,6 +117,23 @@ Arduino-ESP32 3.3.11のTarget public APIにはmetadata responseおよびGetPlayS
 applicationから返す関数がありません。callback型だけを作っても相互運用できないため、これらは
 `CoreApiUnavailable`相当の個別制約として未対応にします。Cover Art、Browsing、player application
 settingsも、独立した実機fixtureとdata ownership設計ができるまで公開しません。
+
+## HFPのCore制約
+
+Arduino-ESP32 3.3.11標準buildではHFP HF/AG、HCI audio data path、WBSが有効ですが、
+`CONFIG_BT_HFP_USE_EXTERNAL_CODEC`は無効です。新しいencoded audio buffer APIではなく、
+Core内蔵CVSD/mSBC codecにつながるlegacy PCM callbackを使用します。
+
+- CVSDは8 kHz、mSBCは16 kHz、いずれもmono 16-bit PCMとして公開する
+- `onPcmData()` / `onPcmRequested()`はHFP stack task上で同期実行する
+- SLC、SCO、接続・切断・audio状態は`update()`から配送する
+- legacy経路ではCoreの`preferred_frame_size`が0になるため、callbackの実byte数をframe境界とする
+- AGはSLC確立に必要な既定CIND/COPS応答をlibraryが返す。application固有indicator APIは整備中
+- call controlが揃うまではprofile全体を「対応済み」とせず、machine-readable対応表も
+  `LibraryNotImplemented`を返す
+
+HFP PCMのfield名はA2DPおよびEspUsbHost/EspUsbDeviceのaudio formatへ揃えています。
+bridge、queue、resamplingは別libraryの責務です。
 
 ## 完了の定義
 

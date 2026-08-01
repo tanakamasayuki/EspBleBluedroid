@@ -67,6 +67,7 @@ uv run --env-file .env pytest
 | `peer/spp_passkey` | Classic DisplayOnly/KeyboardOnlyの両方向Passkey表示・入力、未回答timeout・遅延入力拒否・retry・入力待ち終了、認証・暗号化SPP、I/O capability変更再初期化 |
 | `peer/a2dp_sink` | 公開A2DP Sink/AVRCP Controllerとraw Source/Target、PCM、Play Press/Release、absolute volume、callback context、切断・終了 |
 | `peer/a2dp_source` | 公開A2DP Source/AVRCP Targetとraw Sink/Controller、PCM、Pause Press/Release、absolute volume、callback context、切断・終了 |
+| `peer/hfp_backend` | 公開HFP Hands-Free/Audio Gateway間のSLC、SCO、CVSD/mSBC mono PCM双方向data、切断 |
 | `peer/dual_mode_scan_spp` | active SPP session中のBLE Scan・GATT接続、Discovery、Read/Write、同一接続で64→128→256通知、round別BLE event drop集計、配送済み通知のSPP往復・RX ring保持、満杯時のGATT完了優先配送 |
 
 特定のテストだけを実行する場合はパスを追加できます。

@@ -113,6 +113,9 @@ contexts, disconnection, and shutdown.
 `peer/a2dp_source` verifies the public A2DP Source and AVRCP Target against a
 raw Sink/Controller, including PCM, Pause press/release, absolute volume,
 callback contexts, disconnection, and shutdown.
+`peer/hfp_backend` verifies public HFP Hands-Free and Audio Gateway roles
+end-to-end, including SLC, SCO, bidirectional mono PCM through the built-in
+CVSD/mSBC codec, and disconnection.
 
 ## Future EspBle interoperability suite
 

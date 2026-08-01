@@ -262,7 +262,37 @@ Controller/Targetの接続はA2DP接続に追従し、独自の`connect()`は持
 `update()`から配送されます。Target metadata/play-status応答はCore public APIがないため
 未対応です。詳細は[対応表](CLASSIC_PROFILE_SUPPORT.ja.md#avrcpのcore制約)を参照してください。
 
-## 7. BLEとの同時利用
+## 7. HFP
+
+HFPは通話向けprofileです。Headset側は`hfpHandsFree()`、電話側は
+`hfpAudioGateway()`を使います。A2DPと違いmono音声で、CVSDは8 kHz、mSBCは16 kHzです。
+
+```cpp
+auto &handsFree = bluetooth.classic().hfpHandsFree();
+handsFree.onConnected([](const EspBluedroidHfpSession &session) {
+  bluetooth.classic().hfpHandsFree().connectAudio(session.id);
+});
+handsFree.onPcmRequested([](EspBluedroidHfpPcmRequest &request) {
+  request.written = microphoneQueue.read(request.data, request.capacity);
+});
+handsFree.start();
+handsFree.connect("aa:bb:cc:dd:ee:ff");
+```
+
+PCM formatは`sampleRate`、`channels`、`bytesPerSample`、`bitsPerSample`を持ち、
+A2DPやUSB Audioと同じfield名です。PCM callbackだけはHFP stack task上で同期実行され、
+SLC/SCOの状態callbackは`update()`から配送されます。Coreのlegacy PCM経路は推奨frame長を
+返さないため、各callbackの`length` / `capacity`をその要求の境界として扱います。
+
+現段階ではSLC、SCO、CVSD/mSBC PCMまでが実装済みです。発着信、応答、DTMF、indicator等の
+call-control APIは整備中なので、対応表ではHFP全体をまだ「対応済み」にしていません。
+
+関連example:
+
+- [HfpHandsFree](../examples/Classic/HfpHandsFree/README.ja.md)
+- [HfpAudioGateway](../examples/Classic/HfpAudioGateway/README.ja.md)
+
+## 8. BLEとの同時利用
 
 dual modeではBLEとClassicを同時に利用できますが、radio、heap、callback queueは
 共有資源です。SPP通信中も`update()`を短い間隔で呼び続けます。
@@ -280,7 +310,7 @@ dual modeではBLEとClassicを同時に利用できますが、radio、heap、c
 
 - [ScanWhileSpp](../examples/DualMode/ScanWhileSpp/README.ja.md)
 
-AVRCPとClassic HIDは現在の公開APIに含まれず、追加時も`classic()`配下の独立profileとして
+Classic HIDはCore buildで無効です。将来追加する場合も`classic()`配下の独立profileとして
 BLE connectionやSPP sessionへ混ぜません。
 
 主要profileの対応可否、Arduino-ESP32のbuild制約、実装優先度は

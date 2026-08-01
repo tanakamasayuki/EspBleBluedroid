@@ -177,7 +177,8 @@ CCCD購読、notificationまで確認している。
 - Classic profileはSPP、A2DP Sink/Source、AVRCP Controller/Target基本操作に対応済み。A2DPはCore内蔵SBC codecへ接続する
   16-bit interleaved PCM callback、session、stream制御を公開し、Sink/Source双方の実機testを
   持つ。AVRCPはpassthroughとabsolute volumeを両roleで実機確認済み。Target metadata/
-  play-status応答、HID、HFPなどのbackend制約と優先度は
+  play-status応答とHIDは非対応。HFP HF/AGはSLC、SCO、Core内蔵CVSD/mSBC codec経由の
+  双方向mono PCMまで公開・実機確認済みで、call controlは整備中。backend制約と優先度は
   [Bluetooth Classic profile対応表](CLASSIC_PROFILE_SUPPORT.ja.md)に記載する。
 - Advertisingの時間指定停止は`update()`で処理するため、継続的な`update()`呼出しが必要。
 

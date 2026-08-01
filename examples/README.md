@@ -31,6 +31,8 @@
 | Classic | [ProfileSupport](Classic/ProfileSupport/README.md) | Report each major profile status and the reason for Core limitations before initialization |
 | Classic | [A2dpSink](Classic/A2dpSink/README.md) | Receive 16-bit PCM decoded from SBC by the Core through a synchronous callback |
 | Classic | [A2dpSource](Classic/A2dpSource/README.md) | Supply synchronous PCM requests for the Core's built-in SBC encoder |
+| Classic | [HfpHandsFree](Classic/HfpHandsFree/README.md) | Hands-Free SLC/SCO and bidirectional PCM through the built-in CVSD/mSBC codec |
+| Classic | [HfpAudioGateway](Classic/HfpAudioGateway/README.md) | Incoming Audio Gateway SLC/SCO sessions and bidirectional call PCM |
 | Classic | [SppServer](Classic/SppServer/README.md) | Binary-safe SPP Server sessions with deferred connect, data, and disconnect callbacks |
 | Classic | [SppClient](Classic/SppClient/README.md) | Asynchronous SDP/RFCOMM connection using the shared SPP session API |
 | Classic | [SppSerialServer](Classic/SppSerialServer/README.md) | Serial-style bridge that automatically follows the active SPP Server session |

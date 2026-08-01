@@ -4833,7 +4833,8 @@ void EspBluedroidSpp::update()
 EspBluedroidClassic::EspBluedroidClassic(EspBleBluedroid *owner)
     : owner_(owner), inquiry_(owner), spp_(owner),
       a2dpSink_(owner), a2dpSource_(owner),
-      avrcpController_(owner), avrcpTarget_(owner)
+      avrcpController_(owner), avrcpTarget_(owner),
+      hfpHandsFree_(owner), hfpAudioGateway_(owner)
 {
 }
 
@@ -4871,6 +4872,16 @@ EspBluedroidAvrcpController &EspBluedroidClassic::avrcpController()
 EspBluedroidAvrcpTarget &EspBluedroidClassic::avrcpTarget()
 {
   return avrcpTarget_;
+}
+
+EspBluedroidHfpHandsFree &EspBluedroidClassic::hfpHandsFree()
+{
+  return hfpHandsFree_;
+}
+
+EspBluedroidHfpAudioGateway &EspBluedroidClassic::hfpAudioGateway()
+{
+  return hfpAudioGateway_;
 }
 
 EspBluedroidClassicProfileSupport EspBluedroidClassic::profileSupport(
@@ -4954,7 +4965,7 @@ EspBluedroidClassicProfileSupport EspBluedroidClassic::profileSupport(
     case EspBluedroidClassicProfile::HfpHandsFree:
 #if defined(CONFIG_BT_HFP_CLIENT_ENABLE)
       notImplemented(
-        "CONFIG_BT_HFP_CLIENT_ENABLE is enabled; EspBleBluedroid API is not implemented yet");
+        "HFP Hands-Free SLC, SCO, and built-in-codec PCM APIs are available; call control is still being implemented");
 #else
       coreDisabled(
         "CONFIG_BT_HFP_CLIENT_ENABLE is disabled by the Core build");
@@ -4963,7 +4974,7 @@ EspBluedroidClassicProfileSupport EspBluedroidClassic::profileSupport(
     case EspBluedroidClassicProfile::HfpAudioGateway:
 #if defined(CONFIG_BT_HFP_AG_ENABLE)
       notImplemented(
-        "CONFIG_BT_HFP_AG_ENABLE is enabled; EspBleBluedroid API is not implemented yet");
+        "HFP Audio Gateway SLC, SCO, and built-in-codec PCM APIs are available; call control is still being implemented");
 #else
       coreDisabled("CONFIG_BT_HFP_AG_ENABLE is disabled by the Core build");
 #endif
@@ -5497,6 +5508,8 @@ void EspBluedroidClassic::end()
     esp_bt_gap_ssp_passkey_reply(pendingPasskeyAddress, false, 0);
   }
 #endif
+  hfpAudioGateway_.end();
+  hfpHandsFree_.end();
   avrcpTarget_.end();
   avrcpController_.end();
   a2dpSource_.end();
@@ -5628,6 +5641,8 @@ void EspBluedroidClassic::update()
   a2dpSource_.update();
   avrcpController_.update();
   avrcpTarget_.update();
+  hfpHandsFree_.update();
+  hfpAudioGateway_.update();
 }
 
 EspBleBluedroid::EspBleBluedroid()
