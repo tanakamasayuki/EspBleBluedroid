@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <esp_a2dp_api.h>
+#include <esp_avrc_api.h>
 #include <esp_bt_device.h>
 #include <esp_gap_bt_api.h>
 #include <esp_bt_main.h>
@@ -11,6 +12,44 @@ esp_a2d_conn_hdl_t connectionHandle = 0;
 volatile uint32_t pcmRequestCount = 0;
 volatile int32_t lastPcmRequestLength = 0;
 volatile bool pcmRequestObserved = false;
+
+bool configureAvrcpTarget()
+{
+  esp_avrc_psth_bit_mask_t allowed = {};
+  esp_avrc_psth_bit_mask_t supported = {};
+  if (esp_avrc_tg_get_psth_cmd_filter(
+        ESP_AVRC_PSTH_FILTER_ALLOWED_CMD, &allowed) != ESP_OK)
+    return false;
+  if (esp_avrc_psth_bit_mask_operation(
+        ESP_AVRC_BIT_MASK_OP_TEST, &allowed, ESP_AVRC_PT_CMD_PLAY))
+    esp_avrc_psth_bit_mask_operation(
+      ESP_AVRC_BIT_MASK_OP_SET, &supported, ESP_AVRC_PT_CMD_PLAY);
+  return esp_avrc_tg_set_psth_cmd_filter(
+    ESP_AVRC_PSTH_FILTER_SUPPORTED_CMD, &supported) == ESP_OK;
+}
+
+void avrcpTargetCallback(
+  esp_avrc_tg_cb_event_t event, esp_avrc_tg_cb_param_t *parameter)
+{
+  if (parameter == nullptr) return;
+  if (event == ESP_AVRC_TG_CONNECTION_STATE_EVT && parameter->conn_stat.connected)
+  {
+    Serial.printf("AVRCP_RAW_TG_CONNECTED configured=%u\n",
+      configureAvrcpTarget() ? 1 : 0);
+  }
+  else if (event == ESP_AVRC_TG_PASSTHROUGH_CMD_EVT)
+    Serial.printf("AVRCP_RAW_TG_COMMAND command=%u state=%u\n",
+      parameter->psth_cmd.key_code, parameter->psth_cmd.key_state);
+  else if (event == ESP_AVRC_TG_SET_ABSOLUTE_VOLUME_CMD_EVT)
+    Serial.printf("AVRCP_RAW_TG_VOLUME volume=%u\n",
+      parameter->set_abs_vol.volume);
+}
+
+bool initializeAvrcpTarget()
+{
+  return esp_avrc_tg_init() == ESP_OK &&
+    esp_avrc_tg_register_callback(avrcpTargetCallback) == ESP_OK;
+}
 
 void gapCallback(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *parameter)
 {
@@ -126,6 +165,7 @@ void initializeSource()
         ESP_BT_SP_IOCAP_MODE, &capability, sizeof(capability))
     : ESP_ERR_INVALID_STATE;
   const esp_err_t a2dpCallbackStatus = security == ESP_OK
+    && initializeAvrcpTarget()
     ? esp_a2d_register_callback(a2dpCallback) : ESP_ERR_INVALID_STATE;
   const esp_err_t dataCallbackStatus = a2dpCallbackStatus == ESP_OK
     ? esp_a2d_source_register_data_callback(pcmDataCallback)

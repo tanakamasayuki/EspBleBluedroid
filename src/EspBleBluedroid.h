@@ -470,6 +470,48 @@ struct EspBluedroidClassicInquiryComplete
 using EspBluedroidSppSessionId = uint32_t;
 using EspBluedroidA2dpSessionId = uint32_t;
 
+enum class EspBluedroidAvrcpCommand : uint8_t
+{
+  Select = 0x00,
+  Up = 0x01,
+  Down = 0x02,
+  Left = 0x03,
+  Right = 0x04,
+  VolumeUp = 0x41,
+  VolumeDown = 0x42,
+  Mute = 0x43,
+  Play = 0x44,
+  Stop = 0x45,
+  Pause = 0x46,
+  Rewind = 0x48,
+  FastForward = 0x49,
+  Next = 0x4b,
+  Previous = 0x4c,
+};
+
+enum class EspBluedroidAvrcpKeyState : uint8_t
+{
+  Pressed = 0,
+  Released = 1,
+};
+
+struct EspBluedroidAvrcpConnection
+{
+  String peerAddress;
+};
+
+struct EspBluedroidAvrcpCommandEvent
+{
+  EspBluedroidAvrcpCommand command = EspBluedroidAvrcpCommand::Play;
+  EspBluedroidAvrcpKeyState state = EspBluedroidAvrcpKeyState::Released;
+  bool accepted = true;
+};
+
+struct EspBluedroidAvrcpVolumeEvent
+{
+  uint8_t volume = 0;
+};
+
 enum class EspBluedroidA2dpRole : uint8_t
 {
   Sink = 0,
@@ -637,6 +679,8 @@ struct EspBleGattServerImpl;
 struct EspBluedroidClassicInquiryImpl;
 struct EspBluedroidSppImpl;
 struct EspBluedroidA2dpImpl;
+struct EspBluedroidAvrcpControllerImpl;
+struct EspBluedroidAvrcpTargetImpl;
 struct EspBluedroidClassicImpl;
 
 class EspBleAdvertisingData
@@ -1068,6 +1112,85 @@ private:
   PcmRequestCallback pcmRequestCallback_;
 };
 
+class EspBluedroidAvrcpController
+{
+public:
+  using ConnectionCallback =
+    std::function<void(const EspBluedroidAvrcpConnection &connection)>;
+  using CommandCallback =
+    std::function<void(const EspBluedroidAvrcpCommandEvent &event)>;
+  using VolumeCallback =
+    std::function<void(const EspBluedroidAvrcpVolumeEvent &event)>;
+
+  bool start();
+  bool stop();
+  bool started() const;
+  bool connected() const;
+  String peerAddress() const;
+  bool sendCommand(
+    EspBluedroidAvrcpCommand command,
+    EspBluedroidAvrcpKeyState state);
+  bool click(EspBluedroidAvrcpCommand command);
+  bool setAbsoluteVolume(uint8_t volume);
+  size_t droppedEventCount() const;
+  void onConnected(ConnectionCallback callback);
+  void onDisconnected(ConnectionCallback callback);
+  void onCommandResponse(CommandCallback callback);
+  void onAbsoluteVolumeChanged(VolumeCallback callback);
+
+private:
+  friend class EspBluedroidClassic;
+  explicit EspBluedroidAvrcpController(EspBleBluedroid *owner);
+  ~EspBluedroidAvrcpController();
+  void end();
+  void update();
+
+  EspBleBluedroid *owner_;
+  EspBluedroidAvrcpControllerImpl *impl_ = nullptr;
+  ConnectionCallback connectedCallback_;
+  ConnectionCallback disconnectedCallback_;
+  CommandCallback commandCallback_;
+  VolumeCallback volumeCallback_;
+};
+
+class EspBluedroidAvrcpTarget
+{
+public:
+  using ConnectionCallback =
+    std::function<void(const EspBluedroidAvrcpConnection &connection)>;
+  using CommandCallback =
+    std::function<void(const EspBluedroidAvrcpCommandEvent &event)>;
+  using VolumeCallback =
+    std::function<void(const EspBluedroidAvrcpVolumeEvent &event)>;
+
+  bool start();
+  bool stop();
+  bool started() const;
+  bool connected() const;
+  String peerAddress() const;
+  bool setAbsoluteVolume(uint8_t volume);
+  uint8_t absoluteVolume() const;
+  size_t droppedEventCount() const;
+  void onConnected(ConnectionCallback callback);
+  void onDisconnected(ConnectionCallback callback);
+  void onCommand(CommandCallback callback);
+  void onAbsoluteVolumeRequested(VolumeCallback callback);
+
+private:
+  friend class EspBluedroidClassic;
+  explicit EspBluedroidAvrcpTarget(EspBleBluedroid *owner);
+  ~EspBluedroidAvrcpTarget();
+  void end();
+  void update();
+
+  EspBleBluedroid *owner_;
+  EspBluedroidAvrcpTargetImpl *impl_ = nullptr;
+  ConnectionCallback connectedCallback_;
+  ConnectionCallback disconnectedCallback_;
+  CommandCallback commandCallback_;
+  VolumeCallback volumeCallback_;
+};
+
 class EspBluedroidClassic
 {
 public:
@@ -1084,6 +1207,8 @@ public:
   EspBluedroidSpp &spp();
   EspBluedroidA2dpSink &a2dpSink();
   EspBluedroidA2dpSource &a2dpSource();
+  EspBluedroidAvrcpController &avrcpController();
+  EspBluedroidAvrcpTarget &avrcpTarget();
   EspBluedroidClassicProfileSupport profileSupport(
     EspBluedroidClassicProfile profile) const;
   void onSecurityChanged(SecurityChangedCallback callback);
@@ -1114,6 +1239,8 @@ private:
   EspBluedroidSpp spp_;
   EspBluedroidA2dpSink a2dpSink_;
   EspBluedroidA2dpSource a2dpSource_;
+  EspBluedroidAvrcpController avrcpController_;
+  EspBluedroidAvrcpTarget avrcpTarget_;
   SecurityChangedCallback securityChangedCallback_;
   NumericComparisonCallback numericComparisonCallback_;
   PasskeyDisplayedCallback passkeyDisplayedCallback_;
@@ -1372,6 +1499,8 @@ private:
   friend class EspBluedroidSpp;
   friend class EspBluedroidA2dpSink;
   friend class EspBluedroidA2dpSource;
+  friend class EspBluedroidAvrcpController;
+  friend class EspBluedroidAvrcpTarget;
 
   void setError(EspBleError error, const char *detail = nullptr);
   bool startGattOperation(

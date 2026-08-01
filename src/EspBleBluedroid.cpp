@@ -4832,7 +4832,8 @@ void EspBluedroidSpp::update()
 
 EspBluedroidClassic::EspBluedroidClassic(EspBleBluedroid *owner)
     : owner_(owner), inquiry_(owner), spp_(owner),
-      a2dpSink_(owner), a2dpSource_(owner)
+      a2dpSink_(owner), a2dpSource_(owner),
+      avrcpController_(owner), avrcpTarget_(owner)
 {
 }
 
@@ -4860,6 +4861,16 @@ EspBluedroidA2dpSink &EspBluedroidClassic::a2dpSink()
 EspBluedroidA2dpSource &EspBluedroidClassic::a2dpSource()
 {
   return a2dpSource_;
+}
+
+EspBluedroidAvrcpController &EspBluedroidClassic::avrcpController()
+{
+  return avrcpController_;
+}
+
+EspBluedroidAvrcpTarget &EspBluedroidClassic::avrcpTarget()
+{
+  return avrcpTarget_;
 }
 
 EspBluedroidClassicProfileSupport EspBluedroidClassic::profileSupport(
@@ -4925,8 +4936,8 @@ EspBluedroidClassicProfileSupport EspBluedroidClassic::profileSupport(
     case EspBluedroidClassicProfile::AvrcpController:
     case EspBluedroidClassicProfile::AvrcpTarget:
 #if defined(CONFIG_BT_AVRCP_ENABLED)
-      notImplemented(
-        "CONFIG_BT_AVRCP_ENABLED is enabled; EspBleBluedroid API is not implemented yet");
+      supported(
+        "AVRCP Controller and Target passthrough and absolute-volume APIs are available");
 #else
       coreDisabled("CONFIG_BT_AVRCP_ENABLED is disabled by the Core build");
 #endif
@@ -5486,6 +5497,8 @@ void EspBluedroidClassic::end()
     esp_bt_gap_ssp_passkey_reply(pendingPasskeyAddress, false, 0);
   }
 #endif
+  avrcpTarget_.end();
+  avrcpController_.end();
   a2dpSource_.end();
   a2dpSink_.end();
   spp_.end();
@@ -5613,6 +5626,8 @@ void EspBluedroidClassic::update()
   spp_.update();
   a2dpSink_.update();
   a2dpSource_.update();
+  avrcpController_.update();
+  avrcpTarget_.update();
 }
 
 EspBleBluedroid::EspBleBluedroid()

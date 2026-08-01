@@ -38,6 +38,20 @@ void initializeBluetooth()
   }
 
   auto &sink = bluetooth.classic().a2dpSink();
+  auto &controller = bluetooth.classic().avrcpController();
+  controller.onConnected([](const EspBluedroidAvrcpConnection &connection) {
+    Serial.printf("AVRCP_CT_CONNECTED address=%s context=%s\n",
+      connection.peerAddress.c_str(), contextName());
+  });
+  controller.onCommandResponse([](const EspBluedroidAvrcpCommandEvent &event) {
+    Serial.printf("AVRCP_CT_RESPONSE command=%u state=%u accepted=%u context=%s\n",
+      static_cast<unsigned>(event.command), static_cast<unsigned>(event.state),
+      event.accepted ? 1 : 0, contextName());
+  });
+  controller.onAbsoluteVolumeChanged([](const EspBluedroidAvrcpVolumeEvent &event) {
+    Serial.printf("AVRCP_CT_VOLUME volume=%u context=%s\n", event.volume, contextName());
+  });
+  Serial.printf("AVRCP_CT_START_ACCEPTED %u\n", controller.start() ? 1 : 0);
   sink.onStarted([](const EspBluedroidA2dpStartResult &result) {
     Serial.printf("A2DP_SINK_STARTED success=%u address=%s context=%s\n",
       result.success ? 1 : 0, localClassicAddress().c_str(), contextName());
@@ -94,6 +108,13 @@ void loop()
     if (command == 'i') initializeBluetooth();
     else if (command == 'd' && sessionId != 0)
       bluetooth.classic().a2dpSink().disconnect(sessionId);
+    else if (command == 'p')
+      Serial.printf("AVRCP_CT_PLAY_ACCEPTED %u\n",
+        bluetooth.classic().avrcpController().click(
+          EspBluedroidAvrcpCommand::Play) ? 1 : 0);
+    else if (command == 'v')
+      Serial.printf("AVRCP_CT_VOLUME_ACCEPTED %u\n",
+        bluetooth.classic().avrcpController().setAbsoluteVolume(73) ? 1 : 0);
     else if (command == 'e')
     {
       bluetooth.end();

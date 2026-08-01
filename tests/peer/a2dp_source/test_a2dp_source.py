@@ -14,6 +14,7 @@ def test_public_a2dp_source_supplies_pcm_and_queues_control_events(dut, peers):
     dut.expect_exact(
         "A2DP_SOURCE_PREBEGIN_REJECTED 1 error=InvalidState", timeout=30
     )
+    dut.expect_exact("AVRCP_TG_START_ACCEPTED 1", timeout=30)
     dut.expect_exact("A2DP_SOURCE_START_ACCEPTED 1", timeout=30)
     dut.expect(
         re.compile(
@@ -46,6 +47,16 @@ def test_public_a2dp_source_supplies_pcm_and_queues_control_events(dut, peers):
     sink.expect(
         re.compile(rb"A2DP_RAW_SINK_PCM length=\d+ zero=1"), timeout=30
     )
+    dut.expect(
+        re.compile(rb"AVRCP_TG_CONNECTED address=[0-9a-f:]{17} context=loop"),
+        timeout=30,
+    )
+    sink.expect_exact("AVRCP_RAW_CT_CONNECTED", timeout=30)
+    sink.write("p")
+    dut.expect_exact("AVRCP_TG_COMMAND command=70 state=0 context=loop", timeout=30)
+    dut.expect_exact("AVRCP_TG_COMMAND command=70 state=1 context=loop", timeout=30)
+    sink.write("v")
+    dut.expect_exact("AVRCP_TG_VOLUME volume=91 context=loop", timeout=30)
 
     dut.write("d")
     dut.expect(

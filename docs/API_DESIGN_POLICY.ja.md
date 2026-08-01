@@ -407,7 +407,8 @@ Classic対応は「buildで有効だから一括公開」せず、profileごと�
    RX ring保持を確認済み。満杯時のGATT完了優先配送も決定的に確認済み。
    長時間soakとround境界なしの連続飽和時fairnessは未確認。
 4. Classic HID Host/Device。HOGPと共有できるusage/report codecだけを共通化する。
-5. A2DP/AVRCP。A2DP PCM data pathは実装・実機確認済み。次にAVRCP control planeを追加する。
+5. A2DP/AVRCP。PCM data pathとpassthrough/absolute-volume control planeは実装・実機確認済み。
+   Core public APIにないTarget metadata/play-status応答は未対応理由を明示する。
 6. HFP。同期音声linkを含むため、別途resource/latency設計を行う。
 
 最初のClassic公開対象はSPPを推奨する。Arduinoの`Stream`利用形に馴染みがあり、2台の

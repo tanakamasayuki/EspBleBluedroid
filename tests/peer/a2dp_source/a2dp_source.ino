@@ -38,6 +38,21 @@ void initializeBluetooth()
   }
 
   auto &source = bluetooth.classic().a2dpSource();
+  auto &target = bluetooth.classic().avrcpTarget();
+  target.onConnected([](const EspBluedroidAvrcpConnection &connection) {
+    Serial.printf("AVRCP_TG_CONNECTED address=%s context=%s\n",
+      connection.peerAddress.c_str(), contextName());
+  });
+  target.onCommand([](const EspBluedroidAvrcpCommandEvent &event) {
+    Serial.printf("AVRCP_TG_COMMAND command=%u state=%u context=%s\n",
+      static_cast<unsigned>(event.command), static_cast<unsigned>(event.state),
+      contextName());
+  });
+  target.onAbsoluteVolumeRequested([](const EspBluedroidAvrcpVolumeEvent &event) {
+    Serial.printf("AVRCP_TG_VOLUME volume=%u context=%s\n",
+      event.volume, contextName());
+  });
+  Serial.printf("AVRCP_TG_START_ACCEPTED %u\n", target.start() ? 1 : 0);
   source.onStarted([](const EspBluedroidA2dpStartResult &result) {
     Serial.printf("A2DP_SOURCE_STARTED success=%u address=%s context=%s\n",
       result.success ? 1 : 0, localClassicAddress().c_str(), contextName());

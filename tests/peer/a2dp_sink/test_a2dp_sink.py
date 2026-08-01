@@ -13,6 +13,7 @@ def test_public_a2dp_sink_receives_pcm_and_queues_control_events(dut, peers):
     dut.expect_exact(
         "A2DP_SINK_PREBEGIN_REJECTED 1 error=InvalidState", timeout=30
     )
+    dut.expect_exact("AVRCP_CT_START_ACCEPTED 1", timeout=30)
     dut.expect_exact("A2DP_SINK_START_ACCEPTED 1", timeout=30)
     started = dut.expect(
         re.compile(
@@ -42,6 +43,18 @@ def test_public_a2dp_sink_receives_pcm_and_queues_control_events(dut, peers):
         ),
         timeout=30,
     )
+    dut.expect(
+        re.compile(rb"AVRCP_CT_CONNECTED address=[0-9a-f:]{17} context=loop"),
+        timeout=30,
+    )
+    source.expect_exact("AVRCP_RAW_TG_CONNECTED configured=1", timeout=30)
+    dut.write("p")
+    dut.expect_exact("AVRCP_CT_PLAY_ACCEPTED 1", timeout=30)
+    source.expect_exact("AVRCP_RAW_TG_COMMAND command=68 state=0", timeout=30)
+    source.expect_exact("AVRCP_RAW_TG_COMMAND command=68 state=1", timeout=30)
+    dut.write("v")
+    dut.expect_exact("AVRCP_CT_VOLUME_ACCEPTED 1", timeout=30)
+    source.expect_exact("AVRCP_RAW_TG_VOLUME volume=73", timeout=30)
 
     dut.write("d")
     dut.expect(re.compile(rb"A2DP_SINK_DISCONNECTED id=\d+ context=loop"), timeout=30)

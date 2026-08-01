@@ -8,5 +8,7 @@ PCM callbackはA2DP stack task上で同期実行されます。pointerはcallbac
 copyし、別taskでI2SやUSB Audioへ渡してください。
 
 接続、切断、stream状態などのcontrol callbackは`bluetooth.update()`から呼ばれます。
+この例はAVRCP ControllerもA2DPより先に開始します。接続後は`click(Play)`などの
+passthrough操作と`setAbsoluteVolume()`を利用できます。
 Arduino-ESP32 3.3.11標準buildの制約は
 [Classic profile対応表](../../../docs/CLASSIC_PROFILE_SUPPORT.ja.md#a2dpのcore制約)を参照してください。

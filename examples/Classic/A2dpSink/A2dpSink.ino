@@ -15,6 +15,17 @@ void setup()
   }
 
   auto &sink = bluetooth.classic().a2dpSink();
+  auto &controller = bluetooth.classic().avrcpController();
+  controller.onConnected([](const EspBluedroidAvrcpConnection &) {
+    Serial.println("AVRCP Controller connected");
+  });
+  controller.onCommandResponse([](const EspBluedroidAvrcpCommandEvent &event) {
+    Serial.printf("AVRCP response: command=%u state=%u accepted=%u\n",
+      static_cast<unsigned>(event.command), static_cast<unsigned>(event.state),
+      event.accepted ? 1 : 0);
+  });
+  if (!controller.start())
+    Serial.printf("AVRCP error: %s\n", bluetooth.lastErrorDetail().c_str());
   sink.onConnected([](const EspBluedroidA2dpSession &session) {
     Serial.printf("Connected: %s, session=%u\n",
       session.peerAddress.c_str(), static_cast<unsigned>(session.id));

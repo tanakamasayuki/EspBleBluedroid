@@ -9,5 +9,6 @@ PCM callbackはA2DP stack task上で同期実行されます。実際のapplicat
 application側のqueueやresampler状態を破棄します。
 
 この例のPCMは16-bit interleavedです。sample rateとchannel数は`request.format`で確認できます。
+AVRCP TargetもA2DPより先に開始し、再生commandとabsolute volume要求を受け取ります。
 Arduino-ESP32 3.3.11標準buildの制約は
 [Classic profile対応表](../../../docs/CLASSIC_PROFILE_SUPPORT.ja.md#a2dpのcore制約)を参照してください。

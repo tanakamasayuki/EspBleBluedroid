@@ -15,6 +15,16 @@ void setup()
   }
 
   auto &source = bluetooth.classic().a2dpSource();
+  auto &target = bluetooth.classic().avrcpTarget();
+  target.onCommand([](const EspBluedroidAvrcpCommandEvent &event) {
+    Serial.printf("AVRCP command: command=%u state=%u\n",
+      static_cast<unsigned>(event.command), static_cast<unsigned>(event.state));
+  });
+  target.onAbsoluteVolumeRequested([](const EspBluedroidAvrcpVolumeEvent &event) {
+    Serial.printf("AVRCP volume: %u\n", event.volume);
+  });
+  if (!target.start())
+    Serial.printf("AVRCP error: %s\n", bluetooth.lastErrorDetail().c_str());
   source.onPcmRequested([](EspBluedroidA2dpPcmRequest &request) {
     if (request.flush) return;
     // Replace this silence with PCM read from a bounded audio queue.

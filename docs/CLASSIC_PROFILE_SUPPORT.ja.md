@@ -36,8 +36,8 @@ P1ですが、現在はplatform buildに阻まれているため保留扱いで�
 | SPP | RFCOMM上のbinary serial、Server/Client | `CONFIG_BT_SPP_ENABLED=y` | 対応済み | P0 | Server/Client、session、binary I/O、`Stream` adapter、Security、実機testあり。絶対に維持する |
 | A2DP Sink | 音楽受信、SBCをCoreで復号したPCM | `CONFIG_BT_A2DP_ENABLE=y` | 対応済み | P1 | `classic().a2dpSink()`。16-bit interleaved PCM、codec設定、session、stream状態を公開。PCM callbackはstack task上で同期実行する |
 | A2DP Source | PCMをCoreでSBC encodeして音楽送信 | `CONFIG_BT_A2DP_ENABLE=y` | 対応済み | P1 | `classic().a2dpSource()`。PCM要求callback、session、stream制御を公開。Sink/Sourceの同時利用と複数A2DP接続はCore制約により非対応 |
-| AVRCP Controller | 再生・停止・選曲・音量操作 | `CONFIG_BT_AVRCP_ENABLED=y` | 未対応 | P1 | A2DPと同時に整備する。audio dataではなくcontrol planeとして分離する |
-| AVRCP Target | 再生状態、metadata、absolute volume | `CONFIG_BT_AVRCP_ENABLED=y` | 未対応 | P1 | A2DPと同時に整備する。Controller/Targetのroleを混同しない |
+| AVRCP Controller | 再生・停止・選曲・音量操作 | `CONFIG_BT_AVRCP_ENABLED=y` | 対応済み（基本操作） | P1 | `classic().avrcpController()`。passthrough commandとabsolute volume、responseを公開。A2DPより先に開始する |
+| AVRCP Target | 再生操作・absolute volumeの受信 | `CONFIG_BT_AVRCP_ENABLED=y` | 対応済み（基本操作） | P1 | `classic().avrcpTarget()`。対応command filter、volume状態・要求を公開。metadata/play-status応答はCore public APIがないため非対応 |
 | HID Device | Keyboard、Mouse、GamePad等として動作 | **`CONFIG_BT_HID_ENABLED`無効** | **非対応** | P1（保留） | GamePadは独立profileではなくHID report descriptorで表現できる。ただし現状の標準buildではlink可能な実装を保証できない |
 | HID Host | Keyboard、Mouse、GamePad等を受信 | **`CONFIG_BT_HID_ENABLED`無効** | **非対応** | P1（保留） | `esp_hidh_api.h`は存在するがheaderだけでは対応扱いにしない。HID-enabled platformと実機testが必要 |
 | HFP Hands-Free | Headset側、通話制御、CVSD/mSBC音声 | `CONFIG_BT_HFP_CLIENT_ENABLE=y` | 未対応 | P2 | サウンド系。A2DPの後にcall controlと同期audio data pathを分離して追加する |
@@ -100,6 +100,23 @@ Source送信が`ESP_FAIL`となり、Sinkへencoded callbackも配送されな�
 
 この制約はUSB Audio等とのbridgeを本ライブラリへ実装するものではありません。別libraryは
 PCM formatを見てqueue、resample、channel変換を明示的に構成します。
+
+## AVRCPのCore制約
+
+AVRCPはA2DPから分離したcontrol planeですが、Core仕様上は単独動作せず、A2DPより先に
+初期化する必要があります。ControllerとTargetは独立objectで、同じ機器が両roleを開始できます。
+
+現在対応する標準機能:
+
+- Controller: Play、Pause、Stop、Next、Previous、seek、volume等のPress/Releaseとclick
+- Controller: 0–127 absolute volume要求とresponse
+- Target: 対応passthrough commandの受信
+- Target: absolute volume要求の受信、現在値、volume change notification
+
+Arduino-ESP32 3.3.11のTarget public APIにはmetadata responseおよびGetPlayStatus responseを
+applicationから返す関数がありません。callback型だけを作っても相互運用できないため、これらは
+`CoreApiUnavailable`相当の個別制約として未対応にします。Cover Art、Browsing、player application
+settingsも、独立した実機fixtureとdata ownership設計ができるまで公開しません。
 
 ## 完了の定義
 

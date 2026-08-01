@@ -229,6 +229,39 @@ PCM queueやresampler状態を破棄します。
 - [A2dpSink](../examples/Classic/A2dpSink/README.ja.md)
 - [A2dpSource](../examples/Classic/A2dpSource/README.ja.md)
 
+### 6.1 AVRCP
+
+AVRCPは再生操作とvolumeを扱い、audio dataは流しません。Core要件によりAVRCPをA2DPより
+先に開始します。Controllerから1回の操作を送る場合は`click()`がPress/Releaseを送信します。
+
+```cpp
+auto &controller = bluetooth.classic().avrcpController();
+controller.onConnected([](const EspBluedroidAvrcpConnection &) {
+  bluetooth.classic().avrcpController().click(
+    EspBluedroidAvrcpCommand::Play);
+});
+controller.start();
+bluetooth.classic().a2dpSink().start();
+```
+
+操作を受ける側はTargetです。
+
+```cpp
+auto &target = bluetooth.classic().avrcpTarget();
+target.onCommand([](const EspBluedroidAvrcpCommandEvent &event) {
+  if (event.command == EspBluedroidAvrcpCommand::Pause &&
+      event.state == EspBluedroidAvrcpKeyState::Released) {
+    pausePlayback();
+  }
+});
+target.start();
+bluetooth.classic().a2dpSource().start();
+```
+
+Controller/Targetの接続はA2DP接続に追従し、独自の`connect()`は持ちません。callbackは
+`update()`から配送されます。Target metadata/play-status応答はCore public APIがないため
+未対応です。詳細は[対応表](CLASSIC_PROFILE_SUPPORT.ja.md#avrcpのcore制約)を参照してください。
+
 ## 7. BLEとの同時利用
 
 dual modeではBLEとClassicを同時に利用できますが、radio、heap、callback queueは

@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <esp_a2dp_api.h>
+#include <esp_avrc_api.h>
 #include <esp_bt_device.h>
 #include <esp_gap_bt_api.h>
 #include <esp_bt_main.h>
@@ -8,6 +9,18 @@
 
 volatile uint32_t pcmBytes = 0;
 volatile bool pcmObserved = false;
+volatile bool avrcpConnected = false;
+
+void avrcpControllerCallback(
+  esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *parameter)
+{
+  if (parameter == nullptr) return;
+  if (event == ESP_AVRC_CT_CONNECTION_STATE_EVT && parameter->conn_stat.connected)
+  {
+    avrcpConnected = true;
+    Serial.println("AVRCP_RAW_CT_CONNECTED");
+  }
+}
 
 void gapCallback(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *parameter)
 {
@@ -79,6 +92,8 @@ void initializeSink()
         ESP_BT_SP_IOCAP_MODE, &capability, sizeof(capability))
     : ESP_ERR_INVALID_STATE;
   const esp_err_t callback = security == ESP_OK
+    && esp_avrc_ct_init() == ESP_OK &&
+      esp_avrc_ct_register_callback(avrcpControllerCallback) == ESP_OK
     ? esp_a2d_register_callback(a2dpCallback) : ESP_ERR_INVALID_STATE;
   const esp_err_t data = callback == ESP_OK
     ? esp_a2d_sink_register_data_callback(pcmDataCallback)
@@ -120,6 +135,19 @@ void loop()
       static_cast<unsigned>(pcmBytes));
     reported = true;
   }
-  if (Serial.available() && Serial.read() == 'i') initializeSink();
+  if (Serial.available())
+  {
+    const char command = Serial.read();
+    if (command == 'i') initializeSink();
+    else if (command == 'p' && avrcpConnected)
+    {
+      esp_avrc_ct_send_passthrough_cmd(
+        1, ESP_AVRC_PT_CMD_PAUSE, ESP_AVRC_PT_CMD_STATE_PRESSED);
+      esp_avrc_ct_send_passthrough_cmd(
+        2, ESP_AVRC_PT_CMD_PAUSE, ESP_AVRC_PT_CMD_STATE_RELEASED);
+    }
+    else if (command == 'v' && avrcpConnected)
+      esp_avrc_ct_send_set_absolute_volume_cmd(3, 91);
+  }
   delay(1);
 }

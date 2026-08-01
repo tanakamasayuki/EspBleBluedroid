@@ -172,6 +172,10 @@ headerだけ存在する状態や、常に`Unsupported`を返す見せかけのA
 接続・stream state・codec configを扱う。AVRCP Controller/Targetはaudio data pathへ混ぜず、
 再生操作、absolute volume、metadata eventのcontrol planeとして分離する。
 
+A2DP PCM data pathと、AVRCPのpassthrough/absolute-volume control planeは実装・両方向実機確認済み。
+Target metadata/play-status応答はArduino Coreのpublic response APIがないため非対応とし、
+独自protocolや内部Bluedroid symbolでは補わない。
+
 Arduino-ESP32 3.3.11標準buildでは`CONFIG_BT_A2DP_USE_EXTERNAL_CODEC`が無効であり、
 新しいencoded audio buffer APIは実動しない。実機検証の結果に基づき、root libraryの正本は
 Core内蔵SBC codecがdecode/encodeする16-bit interleaved PCMとする。resampleとchannel変換は
