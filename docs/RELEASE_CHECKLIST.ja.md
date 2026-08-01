@@ -40,6 +40,14 @@ done
 - Classic実装後は各profileとdual-mode suiteも複数回実行する。
 - 接続反復後のheap低下、task残留、bond/link key storeの不整合がないことを確認する。
 
+### EspBle cross-stack suite（実装確定後）
+
+- `../EspBle`や開発branchではなく、version/checksum固定のEspBleリリースパッケージを使う。
+- EspBleBluedroid側でAPIとwire動作が確定した機能だけを対象にする。
+- build、flash、接続、data照合、切断、timeout、cleanupを無人実行できるscenarioだけを追加する。
+- 対象EspBle versionは自動更新せず、更新時は差分と全相互接続結果をreviewする。
+- 自動化できない相互運用確認をcross-stack suiteの合格条件へ混ぜない。
+
 ## 手動相互運用
 
 実装済みの機能だけを対象に、実施日と相手機器/OS versionを記録する。

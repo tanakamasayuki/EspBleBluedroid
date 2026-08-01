@@ -454,6 +454,28 @@ lifecycle、Advertising、Scan、`update()`からのcallback配送を確認済�
 詳細は[実装状況](STATUS.ja.md)を参照する。backend smokeの成立だけではEspBle互換APIの
 確定を意味しない。
 
+### EspBleリリースパッケージとの相互接続試験
+
+EspBleとのcross-stack試験は、EspBleBluedroid側の対象APIとwire動作が固まってから、
+他stackとの相互接続試験としてこのrepositoryへ追加する。開発中の`../EspBle`、EspBleの
+default branch、未release commitは基準にしない。公開済みEspBleリリースパッケージを取得し、
+試験定義へversionとartifact checksumを固定する。
+
+対象は無人で合否を決定できるscenarioだけとする。
+
+- Arduino CLIで両firmwareを再現可能にbuild・flashできる
+- 2台のESP間で接続から切断までをcommandとSerial出力で制御できる
+- data、callback順、Security状態、切断、再接続などの期待値をpytestで判定できる
+- timeoutとcleanupを自動化でき、失敗後も次の試験を開始できる
+
+スマートフォン操作、GUI確認、音の主観評価、手動pairing操作など、人の判断や操作が必要な
+scenarioはこのcross-stack自動試験へ含めない。実施する場合はrelease checklistの手動相互運用へ
+分離する。
+
+試験codeとEspBleBluedroid側fixtureは本repositoryの`tests/`で管理する。EspBle package自体を
+変更したりrepository checkoutへpatchを当てたりせず、公開packageを一方のpeer firmwareとして
+そのまま利用する。package更新は自動追従させず、version更新PRで差分と試験結果を確認する。
+
 Arduino wrapperが機能や完了値を公開していない場合も、それだけを理由に対象外とは
 しない。Arduino-ESP32 3.3.11がリンク可能なESP-IDF/Bluedroid APIと完了eventで同じ意味を
 保証できるならadapter内から直接利用する。private memberやobject layoutには依存せず、

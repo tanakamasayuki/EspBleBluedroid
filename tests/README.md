@@ -113,3 +113,15 @@ contexts, disconnection, and shutdown.
 `peer/a2dp_source` verifies the public A2DP Source and AVRCP Target against a
 raw Sink/Controller, including PCM, Pause press/release, absolute volume,
 callback contexts, disconnection, and shutdown.
+
+## Future EspBle interoperability suite
+
+After the EspBleBluedroid-side API is stable, cross-stack tests against EspBle
+(NimBLE) will live in this `tests/` tree. They will consume a released EspBle
+package pinned by version and artifact checksum, never `../EspBle` or a
+development branch.
+
+Only scenarios that pytest can build, flash, drive, assert, time out, and clean
+up without human interaction are in scope. Smartphone UI, manual pairing, and
+subjective audio checks remain outside this suite. Package updates are explicit
+reviewed changes rather than automatic latest-release tracking.

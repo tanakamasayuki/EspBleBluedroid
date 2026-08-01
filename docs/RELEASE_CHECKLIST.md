@@ -32,6 +32,19 @@ done
 - After Classic support is added, run each profile suite and the BLE/Classic
   dual-mode suite.
 
+### Future EspBle cross-stack suite
+
+- Use a released EspBle package pinned by version and artifact checksum, not a
+  sibling checkout or development branch.
+- Add scenarios only after the corresponding EspBleBluedroid API and wire
+  behavior are stable.
+- Include only scenarios whose build, flash, connection, assertions, timeout,
+  and cleanup can run unattended.
+- Do not track the latest EspBle release automatically; review package updates
+  together with the complete interoperability result.
+- Keep manual UI, pairing, and subjective audio checks outside this automated
+  cross-stack suite.
+
 ## Release
 
 - Check whitespace, links, generated artifacts, and local `.env` exclusion.

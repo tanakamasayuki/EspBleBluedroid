@@ -74,3 +74,14 @@ uv run --env-file .env pytest
 ```sh
 uv run --env-file .env pytest peer/stack_smoke/ -v
 ```
+
+## 将来のEspBle相互接続suite
+
+EspBleBluedroid側の実装確定後、EspBle（NimBLE）との相互接続を他stack試験として
+この`tests/`へ追加します。兄弟directoryや開発branchは参照せず、versionとchecksumを固定した
+公開済みEspBleリリースパッケージをpeer firmwareの依存に使用します。
+
+追加対象は、build、2台へのflash、接続操作、期待値判定、timeout、cleanupまでpytestから
+自動実行できるscenarioだけです。スマートフォン、GUI、聴感確認など手動操作を必要とするものは
+このsuiteへ含めません。対象versionの更新は明示的な変更としてreviewし、自動でlatest releaseへ
+追従させません。
