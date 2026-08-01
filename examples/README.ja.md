@@ -28,6 +28,9 @@
 | Security | [RuntimePasskeyClient](Security/RuntimePasskeyClient/README.ja.md) | 実行時入力passkeyによるKeyboardOnlyのMITM pairing |
 | Security | [NumericComparisonClient](Security/NumericComparisonClient/README.ja.md) | DisplayYesNoの比較確認によるMITM pairing |
 | Classic | [Inquiry](Classic/Inquiry/README.ja.md) | capability確認とname、Class of Device、RSSIを含むClassic機器探索 |
+| Classic | [ProfileSupport](Classic/ProfileSupport/README.ja.md) | 主要profileの対応状態とCore制約の理由を初期化前に表示 |
+| Classic | [A2dpSink](Classic/A2dpSink/README.ja.md) | CoreがSBCから復号した16-bit PCMを同期callbackで受信 |
+| Classic | [A2dpSource](Classic/A2dpSource/README.ja.md) | 同期PCM要求を満たしてCore内蔵SBC codecから音楽送信 |
 | Classic | [SppServer](Classic/SppServer/README.ja.md) | binary-safe SPP Server sessionと接続・data・切断callback |
 | Classic | [SppClient](Classic/SppClient/README.ja.md) | 共通SPP session APIによる非同期SDP/RFCOMM接続 |
 | Classic | [SppSerialServer](Classic/SppSerialServer/README.ja.md) | active SPP Server sessionへ自動追従するSerial形式bridge |

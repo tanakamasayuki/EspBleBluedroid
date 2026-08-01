@@ -22,7 +22,7 @@
 | GATT Client | Database Discovery / Characteristic単体Discovery / UUID・handle指定Characteristic操作 / Descriptor Read・Write / Notification | connection単位snapshot、Characteristic・Descriptor handle、binary-safe値、CCCD、専用task、`update()`配送 |
 | GATT Server | `gattServer()` / Service・Characteristic・Descriptor登録 / Read・Write / Notify・Indicate | begin前の静的定義、opaque handle、binary-safe値、動的Read、CCCD購読、Notificationを実機確認 |
 | BLE Security | Just Works / Static・Runtime Passkey / Numeric Comparison / Bond | 暗号化・認証必須attribute、保存bond再接続、passkey表示・入力・比較確認、bond管理 |
-| Capability | `capabilities()` | BLE、Classic、dual-mode、Classic Inquiry、SPPを初期化前に判定 |
+| Capability | `capabilities()` / `classic().profileSupport()` | 全体boolに加え、主要Classic profileを対応済み・library未実装・Core無効・Core APIなし・標準なしへ理由付き分類 |
 | Classic Inquiry | `classic().inquiry()` | name、address、Class of Device、RSSI、明示停止、完了event、`update()`配送 |
 | Classic SPP Server | `classic().spp().startServer()` / session / read / write / disconnect | binary-safe双方向data、固定長RX ring、送信完了、remote切断、再接続ID、稼働中`end()` |
 | Classic SPP Client | `classic().spp().connect()` / connection failure / 共通session API | non-blocking SDP/RFCOMM接続、共通RX ring、送信完了、local切断、再接続ID、timeout |
@@ -174,8 +174,10 @@ CCCD購読、notificationまで確認している。
   RX ring保持を確認している。BLE connection event queue満杯時はNotificationより
   接続・Security・GATT完了などの制御eventを優先する。長時間soakとround境界なしの
   連続飽和状態でのfairnessは未確認。
-- Classic profileの公開APIは現在SPPのみ対応済み。HID、A2DP、AVRCP、HFPなど主要profileの
-  backend制約と優先度は[Bluetooth Classic profile対応表](CLASSIC_PROFILE_SUPPORT.ja.md)に記載する。
+- Classic profileはSPPとA2DP Sink/Sourceに対応済み。A2DPはCore内蔵SBC codecへ接続する
+  16-bit interleaved PCM callback、session、stream制御を公開し、Sink/Source双方の実機testを
+  持つ。AVRCP、HID、HFPなどのbackend制約と優先度は
+  [Bluetooth Classic profile対応表](CLASSIC_PROFILE_SUPPORT.ja.md)に記載する。
 - Advertisingの時間指定停止は`update()`で処理するため、継続的な`update()`呼出しが必要。
 
 ## BLE直接バックエンド移行

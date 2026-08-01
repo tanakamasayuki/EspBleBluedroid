@@ -36,11 +36,23 @@ GATT Server / Clientとは別の概念です。
 ## 2. Capability
 
 Classic Bluetoothを搭載する無印ESP32が対象です。利用前に
-`EspBluedroidCapabilities`でInquiry、SPP、dual modeの可否を確認できます。
+`EspBluedroidCapabilities`でInquiry、SPP、dual modeの可否を確認できます。個別profileは
+`classic().profileSupport()`で、ライブラリ実装だけでなくCore設定や標準profileの有無まで
+理由付きで確認できます。
 
 capabilityは「SoC名から推測した値」ではなく、compile-time設定とlibraryが実装済みの
 機能を合わせたsnapshotです。Classic対応SoCでも、build設定でprofileが無効なら
 利用可能とは報告しません。
+
+```cpp
+const auto hid = bluetooth.classic().profileSupport(
+  EspBluedroidClassicProfile::HidDevice);
+Serial.println(hid.reason);
+```
+
+状態は`Supported`、`LibraryNotImplemented`、`CoreDisabled`、`CoreApiUnavailable`、
+`NoStandardProfile`を区別します。[ProfileSupport example](../examples/Classic/ProfileSupport/README.ja.md)
+では主要profileをまとめて表示します。
 
 `EspBleBluedroid`がcontrollerとBluedroid hostのlifecycleを一括して所有します。
 InquiryやSPPが個別にstackを初期化することはありません。このため、BLEとClassicを
@@ -174,7 +186,49 @@ Classic bondはlink key、BLE bondはLE keyを管理します。片方の削除�
 - [SppSecurity](../examples/Classic/SppSecurity/README.ja.md)
 - [SppPasskey](../examples/Classic/SppPasskey/README.ja.md)
 
-## 6. BLEとの同時利用
+## 6. A2DP
+
+A2DPは音楽向けの非同期audio profileです。受信する側がSink、送信する側がSourceです。
+同じESPを状況に応じて両roleで使う場合もobjectを混ぜず、片方を`stop()`してからもう片方を
+`start()`します。現在のCoreは同時に1 role、1 sessionだけを扱えます。
+
+SinkはCoreがSBCから復号したPCMを受け取ります。
+
+```cpp
+auto &sink = bluetooth.classic().a2dpSink();
+sink.onPcmData([](const EspBluedroidA2dpPcmData &pcm) {
+  // pcm.dataをcallback中にbounded audio queueへcopyする
+});
+sink.start();
+```
+
+SourceはCoreから要求された容量までPCMを書き、`written`へ実際のbyte数を設定します。
+
+```cpp
+auto &source = bluetooth.classic().a2dpSource();
+source.onPcmRequested([](EspBluedroidA2dpPcmRequest &request) {
+  if (request.flush) return;
+  request.written = audioQueue.read(request.data, request.capacity);
+});
+source.start();
+source.connect("aa:bb:cc:dd:ee:ff");
+```
+
+PCMは16-bit interleavedで、`format.sampleRate`と`format.channelCount`はnegotiation後の値です。
+Sinkのpointerはcallback終了後に保持できません。Sourceの`written`を`capacity`より大きくすると
+その要求は0 byteとして拒否されます。`flush`時は`data == nullptr`であり、application側の
+PCM queueやresampler状態を破棄します。
+
+`onPcmData()`と`onPcmRequested()`だけはdeadlineのあるA2DP stack task上で同期実行されます。
+一方、`onStarted()`、`onConnected()`、`onConnectionFailed()`、`onDisconnected()`、
+`onStreamChanged()`は他のAPIと同様に`update()`から配送されます。
+
+関連example:
+
+- [A2dpSink](../examples/Classic/A2dpSink/README.ja.md)
+- [A2dpSource](../examples/Classic/A2dpSource/README.ja.md)
+
+## 7. BLEとの同時利用
 
 dual modeではBLEとClassicを同時に利用できますが、radio、heap、callback queueは
 共有資源です。SPP通信中も`update()`を短い間隔で呼び続けます。
@@ -192,8 +246,8 @@ dual modeではBLEとClassicを同時に利用できますが、radio、heap、c
 
 - [ScanWhileSpp](../examples/DualMode/ScanWhileSpp/README.ja.md)
 
-A2DP、AVRCP、Classic HIDは現在の公開APIに含まれません。追加する場合も
-`classic()`配下の独立profileとし、BLE connectionやSPP sessionへ混ぜません。
+AVRCPとClassic HIDは現在の公開APIに含まれず、追加時も`classic()`配下の独立profileとして
+BLE connectionやSPP sessionへ混ぜません。
 
 主要profileの対応可否、Arduino-ESP32のbuild制約、実装優先度は
 [Bluetooth Classic profile対応表](CLASSIC_PROFILE_SUPPORT.ja.md)を参照してください。

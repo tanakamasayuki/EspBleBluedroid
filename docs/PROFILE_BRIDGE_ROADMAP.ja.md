@@ -172,16 +172,19 @@ headerだけ存在する状態や、常に`Unsupported`を返す見せかけのA
 接続・stream state・codec configを扱う。AVRCP Controller/Targetはaudio data pathへ混ぜず、
 再生操作、absolute volume、metadata eventのcontrol planeとして分離する。
 
-Arduino-ESP32 3.3.11のA2DP APIはencoded audio bufferを扱うため、root libraryの正本はSBC等の
-encoded frameとする。PCM decode/encode、resample、channel変換はPCMFlow系adapterへ分離し、
-USB Audio bridgeは次のpipelineとして構成する。
+Arduino-ESP32 3.3.11標準buildでは`CONFIG_BT_A2DP_USE_EXTERNAL_CODEC`が無効であり、
+新しいencoded audio buffer APIは実動しない。実機検証の結果に基づき、root libraryの正本は
+Core内蔵SBC codecがdecode/encodeする16-bit interleaved PCMとする。resampleとchannel変換は
+別libraryへ分離し、USB Audio bridgeは次のpipelineとして構成する。
 
 ```text
-A2DP Sink -> SBC decoder -> PCM/resample -> USB Audio Device Capture/Playback
-USB Audio Host -> PCM/resample -> SBC encoder -> A2DP Source
+A2DP Sink (Core SBC decode) -> PCM queue/resample -> USB Audio Device Capture/Playback
+USB Audio Host -> PCM queue/resample -> A2DP Source (Core SBC encode)
 ```
 
-codec処理を暗黙に行わず、追加heap、latency、dropを各stageで観測可能にする。
+SBC処理はCore設定により不可避だが、queue、resample、channel変換を暗黙に行わず、追加heap、
+latency、dropを各stageで観測可能にする。external-codec-enabled buildは標準support対象に
+含めず、別の実機fixtureが成立した場合に再評価する。
 
 ### Phase 5: HFP Hands-Free / Audio Gateway
 

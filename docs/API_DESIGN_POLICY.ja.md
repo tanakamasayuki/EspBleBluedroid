@@ -265,10 +265,10 @@ capability snapshotを用意する。少なくとも次を区別する。
 - SPP、Classic HID、A2DP、AVRCP、HFPなどprofileごとの利用可否
 - buildで決まる接続数、GATT attribute、notification登録などの上限
 
-初期の公開形は`bluetooth.capabilities()`が返す
-`EspBluedroidCapabilities`とする。初期化前にも問い合わせ可能で、現在はBLE、
-Classic、dual-mode、Classic Inquiry、Classic SPPの実装可否をboolで返す。
-compile-timeで利用できても未実装のprofileは`false`とし、利用可能と誤認させない。
+全体の公開形は`bluetooth.capabilities()`が返す`EspBluedroidCapabilities`とする。
+個別profileは`classic().profileSupport()`で初期化前にも問い合わせ可能とし、対応済み、
+library未実装、Core設定で無効、Core public APIなし、標準profileなしを理由付きで区別する。
+compile-timeで利用できても未実装のprofileを利用可能と誤認させない。
 
 Arduino-ESP32 3.3.11の現在の無印ESP32 buildでは、Bluedroid、BLE GATT、SPP、
 A2DP、AVRCP、HFPが有効で、BLE最大接続数、Classic ACL数、GATT attribute数などに
@@ -405,7 +405,7 @@ Classic対応は「buildで有効だから一括公開」せず、profileごと�
    RX ring保持を確認済み。満杯時のGATT完了優先配送も決定的に確認済み。
    長時間soakとround境界なしの連続飽和時fairnessは未確認。
 4. Classic HID Host/Device。HOGPと共有できるusage/report codecだけを共通化する。
-5. A2DP/AVRCP。audio data pathとcontrol eventを分離して設計する。
+5. A2DP/AVRCP。A2DP PCM data pathは実装・実機確認済み。次にAVRCP control planeを追加する。
 6. HFP。同期音声linkを含むため、別途resource/latency設計を行う。
 
 最初のClassic公開対象はSPPを推奨する。Arduinoの`Stream`利用形に馴染みがあり、2台の

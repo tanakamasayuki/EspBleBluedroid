@@ -756,8 +756,13 @@ void classicGapCallback(
   else if (event == ESP_BT_GAP_CFM_REQ_EVT)
   {
     bool canRequest = false;
+    bool justWorks = false;
     {
       std::lock_guard<std::mutex> lock(classic->mutex);
+      justWorks =
+        !classic->security.enabled ||
+        classic->security.ioCapability ==
+          EspBluedroidClassicSecurityIoCapability::None;
       canRequest =
         classic->security.enabled &&
         classic->security.ioCapability ==
@@ -775,6 +780,11 @@ void classicGapCallback(
         classic->numericComparisonDeadlineMs =
           millis() + classic->security.responseTimeoutMilliseconds;
       }
+    }
+    if (justWorks)
+    {
+      esp_bt_gap_ssp_confirm_reply(parameter->cfm_req.bda, true);
+      return;
     }
     if (!canRequest)
     {
@@ -4821,7 +4831,8 @@ void EspBluedroidSpp::update()
 }
 
 EspBluedroidClassic::EspBluedroidClassic(EspBleBluedroid *owner)
-    : owner_(owner), inquiry_(owner), spp_(owner)
+    : owner_(owner), inquiry_(owner), spp_(owner),
+      a2dpSink_(owner), a2dpSource_(owner)
 {
 }
 
@@ -4839,6 +4850,161 @@ EspBluedroidClassicInquiry &EspBluedroidClassic::inquiry()
 EspBluedroidSpp &EspBluedroidClassic::spp()
 {
   return spp_;
+}
+
+EspBluedroidA2dpSink &EspBluedroidClassic::a2dpSink()
+{
+  return a2dpSink_;
+}
+
+EspBluedroidA2dpSource &EspBluedroidClassic::a2dpSource()
+{
+  return a2dpSource_;
+}
+
+EspBluedroidClassicProfileSupport EspBluedroidClassic::profileSupport(
+  EspBluedroidClassicProfile profile) const
+{
+  EspBluedroidClassicProfileSupport result;
+  result.profile = profile;
+
+#if !defined(CONFIG_BT_CLASSIC_ENABLED)
+  result.status = EspBluedroidClassicProfileStatus::CoreDisabled;
+  result.reason =
+    "Bluetooth Classic is not enabled for the selected SoC/build";
+  return result;
+#else
+  const auto supported = [&result](const char *reason) {
+    result.status = EspBluedroidClassicProfileStatus::Supported;
+    result.coreAvailable = true;
+    result.implemented = true;
+    result.reason = reason;
+  };
+  const auto notImplemented = [&result](const char *reason) {
+    result.status =
+      EspBluedroidClassicProfileStatus::LibraryNotImplemented;
+    result.coreAvailable = true;
+    result.implemented = false;
+    result.reason = reason;
+  };
+  const auto coreDisabled = [&result](const char *reason) {
+    result.status = EspBluedroidClassicProfileStatus::CoreDisabled;
+    result.coreAvailable = false;
+    result.implemented = false;
+    result.reason = reason;
+  };
+  const auto coreApiUnavailable = [&result](const char *reason) {
+    result.status =
+      EspBluedroidClassicProfileStatus::CoreApiUnavailable;
+    result.coreAvailable = false;
+    result.implemented = false;
+    result.reason = reason;
+  };
+
+  switch (profile)
+  {
+    case EspBluedroidClassicProfile::Gap:
+      supported("Classic GAP, Inquiry, Security, and bond APIs are available");
+      break;
+    case EspBluedroidClassicProfile::Spp:
+#if defined(CONFIG_BT_SPP_ENABLED)
+      supported("SPP Server and Client APIs are available");
+#else
+      coreDisabled("CONFIG_BT_SPP_ENABLED is disabled by the Core build");
+#endif
+      break;
+    case EspBluedroidClassicProfile::A2dpSink:
+    case EspBluedroidClassicProfile::A2dpSource:
+#if defined(CONFIG_BT_A2DP_ENABLE)
+      supported(
+        "A2DP Sink and Source SBC/PCM APIs are available; only one A2DP role may be active");
+#else
+      coreDisabled("CONFIG_BT_A2DP_ENABLE is disabled by the Core build");
+#endif
+      break;
+    case EspBluedroidClassicProfile::AvrcpController:
+    case EspBluedroidClassicProfile::AvrcpTarget:
+#if defined(CONFIG_BT_AVRCP_ENABLED)
+      notImplemented(
+        "CONFIG_BT_AVRCP_ENABLED is enabled; EspBleBluedroid API is not implemented yet");
+#else
+      coreDisabled("CONFIG_BT_AVRCP_ENABLED is disabled by the Core build");
+#endif
+      break;
+    case EspBluedroidClassicProfile::HidDevice:
+    case EspBluedroidClassicProfile::HidHost:
+#if defined(CONFIG_BT_HID_ENABLED)
+      notImplemented(
+        "Classic HID is enabled; EspBleBluedroid API is not implemented yet");
+#else
+      coreDisabled("CONFIG_BT_HID_ENABLED is disabled by the Core build");
+#endif
+      break;
+    case EspBluedroidClassicProfile::HfpHandsFree:
+#if defined(CONFIG_BT_HFP_CLIENT_ENABLE)
+      notImplemented(
+        "CONFIG_BT_HFP_CLIENT_ENABLE is enabled; EspBleBluedroid API is not implemented yet");
+#else
+      coreDisabled(
+        "CONFIG_BT_HFP_CLIENT_ENABLE is disabled by the Core build");
+#endif
+      break;
+    case EspBluedroidClassicProfile::HfpAudioGateway:
+#if defined(CONFIG_BT_HFP_AG_ENABLE)
+      notImplemented(
+        "CONFIG_BT_HFP_AG_ENABLE is enabled; EspBleBluedroid API is not implemented yet");
+#else
+      coreDisabled("CONFIG_BT_HFP_AG_ENABLE is disabled by the Core build");
+#endif
+      break;
+    case EspBluedroidClassicProfile::PbapClient:
+#if defined(CONFIG_BT_PBAC_ENABLED)
+      notImplemented(
+        "CONFIG_BT_PBAC_ENABLED is enabled; EspBleBluedroid API is not implemented yet");
+#else
+      coreDisabled("CONFIG_BT_PBAC_ENABLED is disabled by the Core build");
+#endif
+      break;
+    case EspBluedroidClassicProfile::Hsp:
+      coreApiUnavailable(
+        "the Core does not expose a dedicated supported HSP profile API");
+      break;
+    case EspBluedroidClassicProfile::Pan:
+      coreApiUnavailable(
+        "the Core does not expose a supported PAN/BNEP profile API");
+      break;
+    case EspBluedroidClassicProfile::PbapServer:
+      coreApiUnavailable(
+        "the Core does not expose a supported PBAP Server profile API");
+      break;
+    case EspBluedroidClassicProfile::Map:
+      coreApiUnavailable(
+        "the Core does not expose a supported MAP profile API");
+      break;
+    case EspBluedroidClassicProfile::Opp:
+      coreApiUnavailable(
+        "the Core does not expose a supported OPP profile API");
+      break;
+    case EspBluedroidClassicProfile::Ftp:
+      coreApiUnavailable(
+        "the Core does not expose a supported FTP profile API");
+      break;
+    case EspBluedroidClassicProfile::Dun:
+      coreApiUnavailable(
+        "the Core does not expose a supported DUN profile API");
+      break;
+    case EspBluedroidClassicProfile::Sap:
+      coreApiUnavailable(
+        "the Core does not expose a supported SAP profile API");
+      break;
+    case EspBluedroidClassicProfile::Midi:
+      result.status = EspBluedroidClassicProfileStatus::NoStandardProfile;
+      result.reason =
+        "Bluetooth Classic has no standard MIDI profile; proprietary SPP MIDI is out of scope";
+      break;
+  }
+  return result;
+#endif
 }
 
 void EspBluedroidClassic::onSecurityChanged(
@@ -5320,6 +5486,8 @@ void EspBluedroidClassic::end()
     esp_bt_gap_ssp_passkey_reply(pendingPasskeyAddress, false, 0);
   }
 #endif
+  a2dpSource_.end();
+  a2dpSink_.end();
   spp_.end();
   inquiry_.end();
   if (impl_ != nullptr)
@@ -5443,6 +5611,8 @@ void EspBluedroidClassic::update()
   }
   inquiry_.update();
   spp_.update();
+  a2dpSink_.update();
+  a2dpSource_.update();
 }
 
 EspBleBluedroid::EspBleBluedroid()

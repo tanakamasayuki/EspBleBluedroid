@@ -403,6 +403,49 @@ struct EspBluedroidCapabilities
   bool classicSpp = false;
 };
 
+enum class EspBluedroidClassicProfile : uint8_t
+{
+  Gap = 0,
+  Spp,
+  A2dpSink,
+  A2dpSource,
+  AvrcpController,
+  AvrcpTarget,
+  HidDevice,
+  HidHost,
+  HfpHandsFree,
+  HfpAudioGateway,
+  Hsp,
+  Pan,
+  PbapClient,
+  PbapServer,
+  Map,
+  Opp,
+  Ftp,
+  Dun,
+  Sap,
+  Midi,
+};
+
+enum class EspBluedroidClassicProfileStatus : uint8_t
+{
+  Supported = 0,
+  LibraryNotImplemented,
+  CoreDisabled,
+  CoreApiUnavailable,
+  NoStandardProfile,
+};
+
+struct EspBluedroidClassicProfileSupport
+{
+  EspBluedroidClassicProfile profile = EspBluedroidClassicProfile::Gap;
+  EspBluedroidClassicProfileStatus status =
+    EspBluedroidClassicProfileStatus::CoreApiUnavailable;
+  bool coreAvailable = false;
+  bool implemented = false;
+  String reason;
+};
+
 struct EspBluedroidClassicInquiryConfig
 {
   uint32_t durationSeconds = 10;
@@ -425,6 +468,97 @@ struct EspBluedroidClassicInquiryComplete
 };
 
 using EspBluedroidSppSessionId = uint32_t;
+using EspBluedroidA2dpSessionId = uint32_t;
+
+enum class EspBluedroidA2dpRole : uint8_t
+{
+  Sink = 0,
+  Source,
+};
+
+enum class EspBluedroidA2dpStreamState : uint8_t
+{
+  Suspended = 0,
+  Started,
+};
+
+enum class EspBluedroidA2dpCodec : uint8_t
+{
+  Unknown = 0,
+  Sbc,
+};
+
+struct EspBluedroidA2dpCodecConfig
+{
+  EspBluedroidA2dpCodec codec = EspBluedroidA2dpCodec::Unknown;
+  uint32_t sampleRate = 0;
+  uint8_t channelCount = 0;
+  uint8_t channelMode = 0;
+  uint8_t blockLength = 0;
+  uint8_t subbands = 0;
+  uint8_t minBitpool = 0;
+  uint8_t maxBitpool = 0;
+};
+
+struct EspBluedroidA2dpSession
+{
+  EspBluedroidA2dpSessionId id = 0;
+  String peerAddress;
+  EspBluedroidA2dpRole role = EspBluedroidA2dpRole::Sink;
+  bool incoming = false;
+  bool streaming = false;
+  uint16_t audioMtu = 0;
+  EspBluedroidA2dpCodecConfig codec;
+};
+
+struct EspBluedroidA2dpPcmFormat
+{
+  uint32_t sampleRate = 0;
+  uint8_t channelCount = 0;
+  uint8_t bitsPerSample = 16;
+  bool interleaved = true;
+};
+
+struct EspBluedroidA2dpPcmData
+{
+  EspBluedroidA2dpSessionId sessionId = 0;
+  EspBluedroidA2dpPcmFormat format;
+  const uint8_t *data = nullptr;
+  size_t length = 0;
+};
+
+struct EspBluedroidA2dpPcmRequest
+{
+  EspBluedroidA2dpSessionId sessionId = 0;
+  EspBluedroidA2dpPcmFormat format;
+  uint8_t *data = nullptr;
+  size_t capacity = 0;
+  size_t written = 0;
+  bool flush = false;
+};
+
+struct EspBluedroidA2dpStreamChanged
+{
+  EspBluedroidA2dpSessionId sessionId = 0;
+  EspBluedroidA2dpStreamState state =
+    EspBluedroidA2dpStreamState::Suspended;
+};
+
+struct EspBluedroidA2dpStartResult
+{
+  EspBluedroidA2dpRole role = EspBluedroidA2dpRole::Sink;
+  bool success = false;
+  EspBleError error = EspBleError::None;
+  String detail;
+};
+
+struct EspBluedroidA2dpConnectionFailure
+{
+  String peerAddress;
+  EspBluedroidA2dpRole role = EspBluedroidA2dpRole::Sink;
+  EspBleError error = EspBleError::BackendFailure;
+  String detail;
+};
 
 enum class EspBluedroidSppSecurity : uint8_t
 {
@@ -501,6 +635,7 @@ struct EspBleConnectionImpl;
 struct EspBleGattServerImpl;
 struct EspBluedroidClassicInquiryImpl;
 struct EspBluedroidSppImpl;
+struct EspBluedroidA2dpImpl;
 struct EspBluedroidClassicImpl;
 
 class EspBleAdvertisingData
@@ -834,6 +969,102 @@ private:
   EspBluedroidSpp &spp_;
 };
 
+class EspBluedroidA2dpSink
+{
+public:
+  using SessionCallback =
+    std::function<void(const EspBluedroidA2dpSession &session)>;
+  using StreamCallback =
+    std::function<void(const EspBluedroidA2dpStreamChanged &event)>;
+  using PcmDataCallback =
+    std::function<void(const EspBluedroidA2dpPcmData &data)>;
+  using StartCallback =
+    std::function<void(const EspBluedroidA2dpStartResult &result)>;
+  using ConnectionFailureCallback = std::function<void(
+    const EspBluedroidA2dpConnectionFailure &failure)>;
+
+  bool start();
+  bool stop();
+  bool started() const;
+  bool connect(const char *peerAddress);
+  bool disconnect(EspBluedroidA2dpSessionId sessionId);
+  bool session(EspBluedroidA2dpSession &session) const;
+  void onConnected(SessionCallback callback);
+  void onDisconnected(SessionCallback callback);
+  void onStarted(StartCallback callback);
+  void onConnectionFailed(ConnectionFailureCallback callback);
+  void onStreamChanged(StreamCallback callback);
+  // PCM is delivered synchronously from the A2DP stack task. The data pointer
+  // is valid only for the duration of the callback; do not block or retain it.
+  void onPcmData(PcmDataCallback callback);
+
+private:
+  friend class EspBluedroidClassic;
+  friend struct EspBluedroidA2dpImpl;
+  explicit EspBluedroidA2dpSink(EspBleBluedroid *owner);
+  ~EspBluedroidA2dpSink();
+  void end();
+  void update();
+
+  EspBleBluedroid *owner_;
+  EspBluedroidA2dpImpl *impl_ = nullptr;
+  SessionCallback connectedCallback_;
+  SessionCallback disconnectedCallback_;
+  StartCallback startedCallback_;
+  ConnectionFailureCallback connectionFailureCallback_;
+  StreamCallback streamCallback_;
+  PcmDataCallback pcmDataCallback_;
+};
+
+class EspBluedroidA2dpSource
+{
+public:
+  using SessionCallback =
+    std::function<void(const EspBluedroidA2dpSession &session)>;
+  using StreamCallback =
+    std::function<void(const EspBluedroidA2dpStreamChanged &event)>;
+  using StartCallback =
+    std::function<void(const EspBluedroidA2dpStartResult &result)>;
+  using ConnectionFailureCallback = std::function<void(
+    const EspBluedroidA2dpConnectionFailure &failure)>;
+  using PcmRequestCallback =
+    std::function<void(EspBluedroidA2dpPcmRequest &request)>;
+
+  bool start();
+  bool stop();
+  bool started() const;
+  bool connect(const char *peerAddress);
+  bool disconnect(EspBluedroidA2dpSessionId sessionId);
+  bool session(EspBluedroidA2dpSession &session) const;
+  bool startStream();
+  bool suspendStream();
+  // Called synchronously from the A2DP stack task. Fill request.data, set
+  // request.written <= request.capacity, and return quickly.
+  void onPcmRequested(PcmRequestCallback callback);
+  void onConnected(SessionCallback callback);
+  void onDisconnected(SessionCallback callback);
+  void onStarted(StartCallback callback);
+  void onConnectionFailed(ConnectionFailureCallback callback);
+  void onStreamChanged(StreamCallback callback);
+
+private:
+  friend class EspBluedroidClassic;
+  friend struct EspBluedroidA2dpImpl;
+  explicit EspBluedroidA2dpSource(EspBleBluedroid *owner);
+  ~EspBluedroidA2dpSource();
+  void end();
+  void update();
+
+  EspBleBluedroid *owner_;
+  EspBluedroidA2dpImpl *impl_ = nullptr;
+  SessionCallback connectedCallback_;
+  SessionCallback disconnectedCallback_;
+  StartCallback startedCallback_;
+  ConnectionFailureCallback connectionFailureCallback_;
+  StreamCallback streamCallback_;
+  PcmRequestCallback pcmRequestCallback_;
+};
+
 class EspBluedroidClassic
 {
 public:
@@ -848,6 +1079,10 @@ public:
 
   EspBluedroidClassicInquiry &inquiry();
   EspBluedroidSpp &spp();
+  EspBluedroidA2dpSink &a2dpSink();
+  EspBluedroidA2dpSource &a2dpSource();
+  EspBluedroidClassicProfileSupport profileSupport(
+    EspBluedroidClassicProfile profile) const;
   void onSecurityChanged(SecurityChangedCallback callback);
   void onNumericComparisonRequested(NumericComparisonCallback callback);
   void onPasskeyDisplayed(PasskeyDisplayedCallback callback);
@@ -874,6 +1109,8 @@ private:
   EspBleBluedroid *owner_;
   EspBluedroidClassicInquiry inquiry_;
   EspBluedroidSpp spp_;
+  EspBluedroidA2dpSink a2dpSink_;
+  EspBluedroidA2dpSource a2dpSource_;
   SecurityChangedCallback securityChangedCallback_;
   NumericComparisonCallback numericComparisonCallback_;
   PasskeyDisplayedCallback passkeyDisplayedCallback_;
@@ -1130,6 +1367,8 @@ private:
   friend class EspBluedroidClassic;
   friend class EspBluedroidClassicInquiry;
   friend class EspBluedroidSpp;
+  friend class EspBluedroidA2dpSink;
+  friend class EspBluedroidA2dpSource;
 
   void setError(EspBleError error, const char *detail = nullptr);
   bool startGattOperation(

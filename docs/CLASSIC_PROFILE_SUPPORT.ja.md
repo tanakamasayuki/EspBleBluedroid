@@ -34,8 +34,8 @@ P1ですが、現在はplatform buildに阻まれているため保留扱いで�
 |---|---|---|---|---|---|
 | GAP | Inquiry、接続性、device name、Security | 利用可能 | 対応済み | P0 | `classic().inquiry()`、Security、bond管理を公開。profile共通基盤として維持する |
 | SPP | RFCOMM上のbinary serial、Server/Client | `CONFIG_BT_SPP_ENABLED=y` | 対応済み | P0 | Server/Client、session、binary I/O、`Stream` adapter、Security、実機testあり。絶対に維持する |
-| A2DP Sink | 音楽受信、SBC encoded audio | `CONFIG_BT_A2DP_ENABLE=y` | 未対応 | P1 | サウンド系の最優先。data path、codec設定、buffer統計を公開する |
-| A2DP Source | 音楽送信、SBC encoded audio | `CONFIG_BT_A2DP_ENABLE=y` | 未対応 | P1 | Sinkと共通のsession/data-path設計を使う。PCM encodeは暗黙にcoreへ含めない |
+| A2DP Sink | 音楽受信、SBCをCoreで復号したPCM | `CONFIG_BT_A2DP_ENABLE=y` | 対応済み | P1 | `classic().a2dpSink()`。16-bit interleaved PCM、codec設定、session、stream状態を公開。PCM callbackはstack task上で同期実行する |
+| A2DP Source | PCMをCoreでSBC encodeして音楽送信 | `CONFIG_BT_A2DP_ENABLE=y` | 対応済み | P1 | `classic().a2dpSource()`。PCM要求callback、session、stream制御を公開。Sink/Sourceの同時利用と複数A2DP接続はCore制約により非対応 |
 | AVRCP Controller | 再生・停止・選曲・音量操作 | `CONFIG_BT_AVRCP_ENABLED=y` | 未対応 | P1 | A2DPと同時に整備する。audio dataではなくcontrol planeとして分離する |
 | AVRCP Target | 再生状態、metadata、absolute volume | `CONFIG_BT_AVRCP_ENABLED=y` | 未対応 | P1 | A2DPと同時に整備する。Controller/Targetのroleを混同しない |
 | HID Device | Keyboard、Mouse、GamePad等として動作 | **`CONFIG_BT_HID_ENABLED`無効** | **非対応** | P1（保留） | GamePadは独立profileではなくHID report descriptorで表現できる。ただし現状の標準buildではlink可能な実装を保証できない |
@@ -82,6 +82,24 @@ EspBleBluedroidのClassic GamePadを「非対応」と表示します。
 
 HIDのplatform制約解消を待つ間も、A2DP/AVRCPの作業は独立して進められます。P1内の
 実際の着手順は、利用可能なbackendを優先してA2DP/AVRCP、次にHIDとします。
+
+## A2DPのCore制約
+
+Arduino-ESP32 3.3.11標準buildは`CONFIG_BT_A2DP_USE_EXTERNAL_CODEC`が無効です。
+新しいencoded audio buffer APIはheaderとlink可能なsymbolを持ちますが、この構成では
+Source送信が`ESP_FAIL`となり、Sinkへencoded callbackも配送されないことを実機で確認しました。
+このためEspBleBluedroidは、Core内蔵SBC codecにつながるlegacy PCM callbackを公開backendに
+使用します。
+
+- Sink: SBCをCoreが復号し、16-bit interleaved PCMを`onPcmData()`へ渡す
+- Source: `onPcmRequested()`で16-bit interleaved PCMを受け取り、CoreがSBCへencodeする
+- PCM callbackはA2DP stack task上の同期処理。pointerはcallback中だけ有効で、blockしない
+- 接続、切断、stream状態などcontrol eventは`bluetooth.update()`から配送する
+- codec設定通知より早いPCM bufferは形式不明のため公開しない
+- Coreの上限に合わせ、A2DP SinkまたはSourceのどちらか1 role、1 sessionだけを許可する
+
+この制約はUSB Audio等とのbridgeを本ライブラリへ実装するものではありません。別libraryは
+PCM formatを見てqueue、resample、channel変換を明示的に構成します。
 
 ## 完了の定義
 
