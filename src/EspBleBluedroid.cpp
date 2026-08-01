@@ -110,6 +110,42 @@ BLERemoteCharacteristic *findCharacteristicByHandle(
   return nullptr;
 }
 
+BLERemoteDescriptor *findDescriptorByHandle(
+  BLEClient *client, uint16_t handle, String &serviceUuid,
+  BLERemoteCharacteristic *&owner)
+{
+  if (client == nullptr || handle == 0) return nullptr;
+  std::map<std::string, BLERemoteService *> *services = client->getServices();
+  if (services == nullptr) return nullptr;
+  for (const auto &serviceItem : *services)
+  {
+    BLERemoteService *service = serviceItem.second;
+    if (service == nullptr) continue;
+    std::map<uint16_t, BLERemoteCharacteristic *> *characteristics =
+      service->getCharacteristicsByHandle();
+    if (characteristics == nullptr) continue;
+    for (const auto &characteristicItem : *characteristics)
+    {
+      BLERemoteCharacteristic *characteristic = characteristicItem.second;
+      if (characteristic == nullptr) continue;
+      std::map<std::string, BLERemoteDescriptor *> *descriptors =
+        characteristic->getDescriptors();
+      if (descriptors == nullptr) continue;
+      for (const auto &descriptorItem : *descriptors)
+      {
+        BLERemoteDescriptor *descriptor = descriptorItem.second;
+        if (descriptor != nullptr && descriptor->getHandle() == handle)
+        {
+          serviceUuid = service->getUUID().toString();
+          owner = characteristic;
+          return descriptor;
+        }
+      }
+    }
+  }
+  return nullptr;
+}
+
 bool sameSecurityConfig(
   const EspBleSecurityConfig &left, const EspBleSecurityConfig &right)
 {
@@ -282,6 +318,166 @@ struct EspBleScannerImpl
 
   EspBleScannerImpl() : callbacks(this) {}
 
+  static void appendServiceUuid(
+    EspBleScanResult &result,
+    const uint8_t *data,
+    size_t length)
+  {
+    if (result.serviceUuidCount >= EspBleScanResult::MaxServiceUuids) return;
+    espblebluedroid::internal::BleUuid uuid;
+    uuid.bitSize = static_cast<uint8_t>(length * 8);
+    memcpy(uuid.bytes.data(), data, length);
+    const std::string formatted =
+      espblebluedroid::internal::formatBleUuid(uuid);
+    if (!formatted.empty())
+    {
+      result.serviceUuids[result.serviceUuidCount++] = formatted.c_str();
+    }
+  }
+
+  static void parseAdvertisingData(
+    EspBleScanResult &result,
+    const uint8_t *payload,
+    size_t payloadLength)
+  {
+    size_t offset = 0;
+    while (offset < payloadLength)
+    {
+      const size_t fieldLength = payload[offset];
+      if (fieldLength == 0) break;
+      if (fieldLength < 1 || offset + fieldLength + 1 > payloadLength) break;
+      const uint8_t type = payload[offset + 1];
+      const uint8_t *data = payload + offset + 2;
+      const size_t length = fieldLength - 1;
+      if ((type == ESP_BLE_AD_TYPE_NAME_CMPL ||
+           type == ESP_BLE_AD_TYPE_NAME_SHORT) &&
+          (result.name.isEmpty() || type == ESP_BLE_AD_TYPE_NAME_CMPL))
+      {
+        result.name = String(
+          reinterpret_cast<const char *>(data), length);
+      }
+      else if (type == ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE)
+      {
+        result.manufacturerData = String(
+          reinterpret_cast<const char *>(data), length);
+      }
+      else if (type == ESP_BLE_AD_TYPE_APPEARANCE && length == 2)
+      {
+        result.appearance = static_cast<uint16_t>(data[0]) |
+          (static_cast<uint16_t>(data[1]) << 8);
+      }
+      else if (type == ESP_BLE_AD_TYPE_TX_PWR && length == 1)
+      {
+        result.txPowerLevel = static_cast<int8_t>(data[0]);
+        result.txPowerLevelPresent = true;
+      }
+      else if (type == ESP_BLE_AD_TYPE_16SRV_CMPL ||
+               type == ESP_BLE_AD_TYPE_16SRV_PART)
+      {
+        for (size_t index = 0; index + 2 <= length; index += 2)
+        {
+          appendServiceUuid(result, data + index, 2);
+        }
+      }
+      else if (type == ESP_BLE_AD_TYPE_32SRV_CMPL ||
+               type == ESP_BLE_AD_TYPE_32SRV_PART)
+      {
+        for (size_t index = 0; index + 4 <= length; index += 4)
+        {
+          appendServiceUuid(result, data + index, 4);
+        }
+      }
+      else if (type == ESP_BLE_AD_TYPE_128SRV_CMPL ||
+               type == ESP_BLE_AD_TYPE_128SRV_PART)
+      {
+        for (size_t index = 0; index + 16 <= length; index += 16)
+        {
+          appendServiceUuid(result, data + index, 16);
+        }
+      }
+      else if (type == ESP_BLE_AD_TYPE_SERVICE_DATA ||
+               type == ESP_BLE_AD_TYPE_32SERVICE_DATA ||
+               type == ESP_BLE_AD_TYPE_128SERVICE_DATA)
+      {
+        const size_t uuidLength = type == ESP_BLE_AD_TYPE_SERVICE_DATA
+          ? 2
+          : (type == ESP_BLE_AD_TYPE_32SERVICE_DATA ? 4 : 16);
+        if (length >= uuidLength &&
+            result.serviceDataCount < EspBleScanResult::MaxServiceData)
+        {
+          espblebluedroid::internal::BleUuid uuid;
+          uuid.bitSize = static_cast<uint8_t>(uuidLength * 8);
+          memcpy(uuid.bytes.data(), data, uuidLength);
+          const std::string formatted =
+            espblebluedroid::internal::formatBleUuid(uuid);
+          EspBleServiceData &block =
+            result.serviceData[result.serviceDataCount++];
+          block.uuid = formatted.c_str();
+          block.data = String(
+            reinterpret_cast<const char *>(data + uuidLength),
+            length - uuidLength);
+        }
+      }
+      offset += fieldLength + 1;
+    }
+  }
+
+  void handleGapEvent(
+    esp_gap_ble_cb_event_t event,
+    esp_ble_gap_cb_param_t *param)
+  {
+    if (event == ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT)
+    {
+      scanParamsSucceeded.store(
+        param->scan_param_cmpl.status == ESP_BT_STATUS_SUCCESS,
+        std::memory_order_release);
+      scanParamsCompleted.store(true, std::memory_order_release);
+      return;
+    }
+    if (event == ESP_GAP_BLE_SCAN_START_COMPLETE_EVT)
+    {
+      const bool success =
+        param->scan_start_cmpl.status == ESP_BT_STATUS_SUCCESS;
+      scanning.store(success, std::memory_order_release);
+      scanStartSucceeded.store(success, std::memory_order_release);
+      scanStartCompleted.store(true, std::memory_order_release);
+      return;
+    }
+    if (event == ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT)
+    {
+      scanning.store(false, std::memory_order_release);
+      scanStopCompleted.store(true, std::memory_order_release);
+      return;
+    }
+    if (event != ESP_GAP_BLE_SCAN_RESULT_EVT) return;
+    if (param->scan_rst.search_evt == ESP_GAP_SEARCH_INQ_CMPL_EVT)
+    {
+      scanning.store(false, std::memory_order_release);
+      return;
+    }
+    if (param->scan_rst.search_evt != ESP_GAP_SEARCH_INQ_RES_EVT) return;
+
+    EspBleScanResult result;
+    const std::string address =
+      espblebluedroid::internal::formatBleAddress(param->scan_rst.bda);
+    result.address = address.c_str();
+    result.addressType =
+      static_cast<EspBleAddressType>(param->scan_rst.ble_addr_type);
+    result.rssi = param->scan_rst.rssi;
+    result.connectable =
+      param->scan_rst.ble_evt_type == ESP_BLE_EVT_CONN_ADV ||
+      param->scan_rst.ble_evt_type == ESP_BLE_EVT_CONN_DIR_ADV;
+    result.scannable =
+      param->scan_rst.ble_evt_type == ESP_BLE_EVT_CONN_ADV ||
+      param->scan_rst.ble_evt_type == ESP_BLE_EVT_DISC_ADV;
+    parseAdvertisingData(
+      result,
+      param->scan_rst.ble_adv,
+      static_cast<size_t>(param->scan_rst.adv_data_len) +
+        param->scan_rst.scan_rsp_len);
+    enqueue(std::move(result), false);
+  }
+
   bool enqueue(EspBleScanResult result, bool injected)
   {
     std::lock_guard<std::mutex> lock(mutex);
@@ -326,7 +522,18 @@ struct EspBleScannerImpl
   bool wantDuplicates = false;
   std::set<std::string> reportedAddresses;
   BackendCallbacks callbacks;
+  std::atomic<bool> scanParamsCompleted{false};
+  std::atomic<bool> scanParamsSucceeded{false};
+  std::atomic<bool> scanStartCompleted{false};
+  std::atomic<bool> scanStartSucceeded{false};
+  std::atomic<bool> scanStopCompleted{false};
+  std::atomic<bool> scanning{false};
 };
+
+namespace
+{
+std::atomic<EspBleScannerImpl *> activeBleScanner{nullptr};
+}
 
 struct EspBluedroidClassicInquiryImpl
 {
@@ -1645,6 +1852,7 @@ struct EspBleConnectionImpl
             descriptorInfo.descriptorUuid =
               formatBackendUuid(descriptor.uuid);
             descriptorInfo.handle = descriptor.handle;
+            descriptorInfo.characteristicHandle = characteristicInfo.handle;
             ++descriptorOffset;
           }
           if (gattDiscoveryError != EspBleError::None) break;
@@ -1838,6 +2046,12 @@ struct EspBleConnectionImpl
     esp_gap_ble_cb_event_t event,
     esp_ble_gap_cb_param_t *param)
   {
+    EspBleScannerImpl *scanner =
+      activeBleScanner.load(std::memory_order_acquire);
+    if (scanner != nullptr && param != nullptr)
+    {
+      scanner->handleGapEvent(event, param);
+    }
     EspBleConnectionImpl *owner = customGapOwner;
     if (owner == nullptr || param == nullptr)
     {
@@ -2094,6 +2308,7 @@ struct EspBleConnectionImpl
       result.characteristicUuid = impl->gattCharacteristicUuid;
       result.descriptorUuid = impl->gattDescriptorUuid;
       result.handle = impl->gattCharacteristicHandle;
+      result.descriptorHandle = impl->gattDescriptorHandle;
       result.response = impl->gattWriteResponse;
       writeValue = impl->gattWriteValue;
       if (impl->active && impl->connection.id == result.connectionId)
@@ -2115,7 +2330,24 @@ struct EspBleConnectionImpl
     else
     {
       BLERemoteCharacteristic *characteristic = nullptr;
-      if (result.handle != 0)
+      BLERemoteDescriptor *selectedDescriptor = nullptr;
+      if (result.descriptorHandle != 0)
+      {
+        selectedDescriptor = findDescriptorByHandle(
+          client, result.descriptorHandle, result.serviceUuid, characteristic);
+        if (selectedDescriptor == nullptr || characteristic == nullptr)
+        {
+          result.error = EspBleError::NotFound;
+          result.detail =
+            "GATT descriptor handle was not found (discover services first)";
+        }
+        else
+        {
+          result.characteristicUuid = characteristic->getUUID().toString();
+          result.descriptorUuid = selectedDescriptor->getUUID().toString();
+        }
+      }
+      else if (result.handle != 0)
       {
         characteristic = findCharacteristicByHandle(
           client, result.handle, result.serviceUuid);
@@ -2162,8 +2394,9 @@ struct EspBleConnectionImpl
             result.operation == EspBleGattOperation::WriteDescriptor;
           if (descriptorOperation)
           {
-            BLERemoteDescriptor *descriptor = characteristic->getDescriptor(
-              BLEUUID(result.descriptorUuid.c_str()));
+            BLERemoteDescriptor *descriptor = selectedDescriptor != nullptr
+              ? selectedDescriptor
+              : characteristic->getDescriptor(BLEUUID(result.descriptorUuid.c_str()));
             if (descriptor == nullptr)
             {
               result.error = EspBleError::NotFound;
@@ -2171,7 +2404,7 @@ struct EspBleConnectionImpl
             }
             else
             {
-              result.handle = descriptor->getHandle();
+              result.descriptorHandle = descriptor->getHandle();
               if (result.operation == EspBleGattOperation::ReadDescriptor)
               {
                 result.value = descriptor->readValue();
@@ -2191,6 +2424,10 @@ struct EspBleConnectionImpl
                 }
               }
             }
+          }
+          else if (result.operation == EspBleGattOperation::Discover)
+          {
+            result.success = true;
           }
           else if (result.operation == EspBleGattOperation::Read && !result.readable)
           {
@@ -2342,6 +2579,7 @@ struct EspBleConnectionImpl
   String gattCharacteristicUuid;
   String gattDescriptorUuid;
   uint16_t gattCharacteristicHandle = 0;
+  uint16_t gattDescriptorHandle = 0;
   String gattWriteValue;
   bool gattWriteResponse = true;
   uint32_t gattStartedAt = 0;
@@ -2604,6 +2842,11 @@ void EspBleAdvertising::clear()
   connectable_ = true;
   intervalMinMs_ = 0;
   intervalMaxMs_ = 0;
+  directed_ = false;
+  directedHighDuty_ = false;
+  directedAddress_ = String();
+  directedAddressType_ = EspBleAddressType::Public;
+  channelMask_ = 0;
 }
 
 EspBleAdvertisingData &EspBleAdvertising::data()
@@ -2706,6 +2949,50 @@ bool EspBleAdvertising::setInterval(
   return true;
 }
 
+bool EspBleAdvertising::setDirectedTarget(
+  const char *address,
+  EspBleAddressType addressType,
+  bool highDuty)
+{
+  if (!isValidBleAddress(address) ||
+      static_cast<uint8_t>(addressType) >
+        static_cast<uint8_t>(EspBleAddressType::RandomIdentity))
+  {
+    owner_->setError(
+      EspBleError::InvalidArgument,
+      "valid directed peer address and address type are required");
+    return false;
+  }
+  directed_ = true;
+  directedHighDuty_ = highDuty;
+  directedAddress_ = address;
+  directedAddressType_ = addressType;
+  owner_->clearError();
+  return true;
+}
+
+void EspBleAdvertising::clearDirectedTarget()
+{
+  directed_ = false;
+  directedHighDuty_ = false;
+  directedAddress_ = String();
+}
+
+bool EspBleAdvertising::setChannelMap(uint8_t channelMask)
+{
+  if ((channelMask &
+       ~static_cast<uint8_t>(EspBleAdvertisingChannelAll)) != 0)
+  {
+    owner_->setError(
+      EspBleError::InvalidArgument,
+      "advertising channel mask is invalid");
+    return false;
+  }
+  channelMask_ = channelMask;
+  owner_->clearError();
+  return true;
+}
+
 bool EspBleAdvertising::applyOwnAddress()
 {
   if (!owner_->activeRandomAddressPresent_) return true;
@@ -2796,6 +3083,93 @@ bool EspBleAdvertising::start(uint32_t durationSeconds)
       EspBleError::InvalidArgument,
       "unsupported advertising filter policy");
     return false;
+  }
+
+  if (advertising_ && !stop()) return false;
+
+  if (directed_)
+  {
+    if (!applyOwnAddress()) return false;
+
+    esp_ble_adv_params_t parameters{};
+    if (directedHighDuty_)
+    {
+      parameters.adv_int_min = 0x0020;
+      parameters.adv_int_max = 0x0020;
+      parameters.adv_type = ADV_TYPE_DIRECT_IND_HIGH;
+    }
+    else
+    {
+      parameters.adv_int_min = intervalMinMs_ == 0
+        ? 0x0800
+        : static_cast<uint16_t>(
+            (static_cast<uint32_t>(intervalMinMs_) * 8) / 5);
+      parameters.adv_int_max = intervalMaxMs_ == 0
+        ? 0x0800
+        : static_cast<uint16_t>(
+            (static_cast<uint32_t>(intervalMaxMs_) * 8) / 5);
+      parameters.adv_type = ADV_TYPE_DIRECT_IND_LOW;
+    }
+    parameters.own_addr_type =
+      owner_->activeOwnAddressType_ == EspBleOwnAddressType::Public
+        ? BLE_ADDR_TYPE_PUBLIC
+        : (owner_->activeOwnAddressType_ ==
+               EspBleOwnAddressType::ResolvablePrivate
+             ? BLE_ADDR_TYPE_RPA_RANDOM
+             : BLE_ADDR_TYPE_RANDOM);
+    if (!espblebluedroid::internal::parseBleAddress(
+          directedAddress_.c_str(), parameters.peer_addr))
+    {
+      owner_->setError(
+        EspBleError::InvalidArgument, "invalid directed peer address");
+      return false;
+    }
+    parameters.peer_addr_type =
+      directedAddressType_ == EspBleAddressType::Random ||
+          directedAddressType_ == EspBleAddressType::RandomIdentity
+        ? BLE_ADDR_TYPE_RANDOM
+        : BLE_ADDR_TYPE_PUBLIC;
+    parameters.channel_map = static_cast<esp_ble_adv_channel_t>(
+      channelMask_ == 0 ? EspBleAdvertisingChannelAll : channelMask_);
+    parameters.adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY;
+
+    EspBleConnectionImpl *operations = owner_->connectionImpl_;
+    operations->advertisingStartOperationCompleted.store(
+      false, std::memory_order_release);
+    operations->advertisingStartOperationSucceeded.store(
+      false, std::memory_order_release);
+    if (esp_ble_gap_start_advertising(&parameters) != ESP_OK)
+    {
+      owner_->setError(
+        EspBleError::BackendFailure,
+        "failed to request directed advertising");
+      return false;
+    }
+    const uint32_t requestedAt = millis();
+    while (!operations->advertisingStartOperationCompleted.load(
+             std::memory_order_acquire) &&
+           static_cast<uint32_t>(millis() - requestedAt) < 2000)
+    {
+      delay(1);
+    }
+    if (!operations->advertisingStartOperationCompleted.load(
+          std::memory_order_acquire) ||
+        !operations->advertisingStartOperationSucceeded.load(
+          std::memory_order_acquire))
+    {
+      owner_->setError(
+        EspBleError::BackendFailure,
+        "directed advertising did not start");
+      return false;
+    }
+
+    advertising_ = true;
+    directedAdvertising_ = true;
+    directedHighDutyCycle_ = directedHighDuty_;
+    startedAtMs_ = millis();
+    durationMs_ = durationSeconds == 0 ? 0 : durationSeconds * 1000UL;
+    owner_->clearError();
+    return true;
   }
 
   BLEAdvertising *backend = BLEDevice::getAdvertising();
@@ -3059,6 +3433,9 @@ bool EspBleAdvertising::start(uint32_t durationSeconds)
   backend->setAdvertisementType(
     connectable_ ? ADV_TYPE_IND
       : (scanResponseEnabled_ ? ADV_TYPE_SCAN_IND : ADV_TYPE_NONCONN_IND));
+  backend->setAdvertisementChannelMap(
+    static_cast<esp_ble_adv_channel_t>(
+      channelMask_ == 0 ? EspBleAdvertisingChannelAll : channelMask_));
   const bool filterScanRequests =
     filterPolicy_ ==
       EspBleAdvertisingFilterPolicy::ScanRequestFromAcceptList ||
@@ -3086,125 +3463,6 @@ bool EspBleAdvertising::start(uint32_t durationSeconds)
   directedHighDutyCycle_ = false;
   startedAtMs_ = millis();
   durationMs_ = durationSeconds == 0 ? 0 : durationSeconds * 1000UL;
-  owner_->clearError();
-  return true;
-}
-
-bool EspBleAdvertising::startDirected(
-  const char *peerAddress,
-  EspBleAddressType peerAddressType,
-  EspBleDirectedAdvertisingMode mode)
-{
-  if (!owner_->initialized())
-  {
-    owner_->setError(EspBleError::InvalidState, "BLE stack is not initialized");
-    return false;
-  }
-  if (!isValidBleAddress(peerAddress) ||
-      static_cast<uint8_t>(peerAddressType) >
-        static_cast<uint8_t>(EspBleAddressType::RandomIdentity) ||
-      static_cast<uint8_t>(mode) >
-        static_cast<uint8_t>(
-          EspBleDirectedAdvertisingMode::LowDutyCycle))
-  {
-    owner_->setError(
-      EspBleError::InvalidArgument,
-      "valid directed peer address, address type, and mode are required");
-    return false;
-  }
-  if (advertising_)
-  {
-    owner_->setError(
-      EspBleError::InvalidState,
-      "stop the active advertising operation before starting directed advertising");
-    return false;
-  }
-  if (!data_.isEmpty() || !scanResponseData_.isEmpty())
-  {
-    owner_->setError(
-      EspBleError::InvalidState,
-      "directed advertising cannot carry advertising or scan response data");
-    return false;
-  }
-  if (!applyOwnAddress()) return false;
-
-  esp_ble_adv_params_t parameters{};
-  if (mode == EspBleDirectedAdvertisingMode::HighDutyCycle)
-  {
-    parameters.adv_int_min = 0x0020;
-    parameters.adv_int_max = 0x0020;
-    parameters.adv_type = ADV_TYPE_DIRECT_IND_HIGH;
-  }
-  else
-  {
-    parameters.adv_int_min = intervalMinMs_ == 0
-      ? 0x0800
-      : static_cast<uint16_t>(
-          (static_cast<uint32_t>(intervalMinMs_) * 8) / 5);
-    parameters.adv_int_max = intervalMaxMs_ == 0
-      ? 0x0800
-      : static_cast<uint16_t>(
-          (static_cast<uint32_t>(intervalMaxMs_) * 8) / 5);
-    parameters.adv_type = ADV_TYPE_DIRECT_IND_LOW;
-  }
-  parameters.own_addr_type =
-    owner_->activeOwnAddressType_ == EspBleOwnAddressType::Public
-      ? BLE_ADDR_TYPE_PUBLIC
-      : (owner_->activeOwnAddressType_ ==
-             EspBleOwnAddressType::ResolvablePrivate
-           ? BLE_ADDR_TYPE_RPA_RANDOM
-           : BLE_ADDR_TYPE_RANDOM);
-  if (!espblebluedroid::internal::parseBleAddress(
-        peerAddress, parameters.peer_addr))
-  {
-    owner_->setError(
-      EspBleError::InvalidArgument, "invalid directed peer address");
-    return false;
-  }
-  parameters.peer_addr_type =
-    peerAddressType == EspBleAddressType::Random ||
-        peerAddressType == EspBleAddressType::RandomIdentity
-      ? BLE_ADDR_TYPE_RANDOM
-      : BLE_ADDR_TYPE_PUBLIC;
-  parameters.channel_map = ADV_CHNL_ALL;
-  parameters.adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY;
-
-  EspBleConnectionImpl *operations = owner_->connectionImpl_;
-  operations->advertisingStartOperationCompleted.store(
-    false, std::memory_order_release);
-  operations->advertisingStartOperationSucceeded.store(
-    false, std::memory_order_release);
-  if (esp_ble_gap_start_advertising(&parameters) != ESP_OK)
-  {
-    owner_->setError(
-      EspBleError::BackendFailure,
-      "failed to request directed advertising");
-    return false;
-  }
-  const uint32_t requestedAt = millis();
-  while (!operations->advertisingStartOperationCompleted.load(
-           std::memory_order_acquire) &&
-         static_cast<uint32_t>(millis() - requestedAt) < 2000)
-  {
-    delay(1);
-  }
-  if (!operations->advertisingStartOperationCompleted.load(
-        std::memory_order_acquire) ||
-      !operations->advertisingStartOperationSucceeded.load(
-        std::memory_order_acquire))
-  {
-    owner_->setError(
-      EspBleError::BackendFailure,
-      "directed advertising did not start");
-    return false;
-  }
-
-  advertising_ = true;
-  directedAdvertising_ = true;
-  directedHighDutyCycle_ =
-    mode == EspBleDirectedAdvertisingMode::HighDutyCycle;
-  startedAtMs_ = millis();
-  durationMs_ = 0;
   owner_->clearError();
   return true;
 }
@@ -3263,6 +3521,10 @@ EspBleScanner::EspBleScanner(EspBleBluedroid *owner) : owner_(owner) {}
 
 EspBleScanner::~EspBleScanner()
 {
+  if (activeBleScanner.load(std::memory_order_acquire) == impl_)
+  {
+    activeBleScanner.store(nullptr, std::memory_order_release);
+  }
   delete impl_;
 }
 
@@ -3296,25 +3558,116 @@ bool EspBleScanner::start(const EspBleScanConfig &config)
       return false;
     }
   }
-
-  BLEScan *backend = BLEDevice::getScan();
+  if (impl_->scanning.load(std::memory_order_acquire) && !stop())
+  {
+    return false;
+  }
+  flushPendingResults();
   {
     std::lock_guard<std::mutex> lock(impl_->mutex);
     impl_->active = config.active;
     impl_->wantDuplicates = config.wantDuplicates;
     impl_->reportedAddresses.clear();
   }
-  // Bluedroid can report the advertisement before its active-scan response.
-  // Receive both backend events and merge them by address before exposing one
-  // public result. Public duplicate filtering is applied by EspBleScannerImpl.
-  backend->setAdvertisedDeviceCallbacks(
-    &impl_->callbacks, config.active || config.wantDuplicates, true);
-  backend->setActiveScan(config.active);
-  backend->setInterval(config.intervalMilliseconds);
-  backend->setWindow(config.windowMilliseconds);
-  if (!backend->start(config.durationSeconds, nullptr, false))
+
+  if (config.acceptListOnly)
   {
-    owner_->setError(EspBleError::BackendFailure, "failed to start scan");
+    prepareAcceptListOperation(owner_->connectionImpl_);
+    if (esp_ble_gap_clear_whitelist() != ESP_OK ||
+        !waitForAcceptListOperation(owner_->connectionImpl_))
+    {
+      owner_->setError(
+        EspBleError::BackendFailure, "failed to clear the BLE accept list");
+      return false;
+    }
+    for (size_t index = 0; index < owner_->acceptListCount_; ++index)
+    {
+      esp_bd_addr_t address = {};
+      if (!espblebluedroid::internal::parseBleAddress(
+            owner_->acceptList_[index].peerAddress.c_str(), address))
+      {
+        owner_->setError(
+          EspBleError::InvalidArgument,
+          "invalid BLE accept list address");
+        return false;
+      }
+      prepareAcceptListOperation(owner_->connectionImpl_);
+      if (esp_ble_gap_update_whitelist(
+            true,
+            address,
+            acceptListBackendAddressType(
+              owner_->acceptList_[index].peerAddressType)) != ESP_OK ||
+          !waitForAcceptListOperation(owner_->connectionImpl_))
+      {
+        owner_->setError(
+          EspBleError::BackendFailure,
+          "failed to write the BLE accept list");
+        return false;
+      }
+    }
+  }
+
+  esp_ble_scan_params_t parameters{};
+  parameters.scan_type =
+    config.active ? BLE_SCAN_TYPE_ACTIVE : BLE_SCAN_TYPE_PASSIVE;
+  parameters.own_addr_type =
+    owner_->activeOwnAddressType_ == EspBleOwnAddressType::Public
+      ? BLE_ADDR_TYPE_PUBLIC
+      : (owner_->activeOwnAddressType_ ==
+             EspBleOwnAddressType::ResolvablePrivate
+           ? BLE_ADDR_TYPE_RPA_RANDOM
+           : BLE_ADDR_TYPE_RANDOM);
+  parameters.scan_filter_policy = config.acceptListOnly
+    ? BLE_SCAN_FILTER_ALLOW_ONLY_WLST
+    : BLE_SCAN_FILTER_ALLOW_ALL;
+  parameters.scan_interval = static_cast<uint16_t>(
+    (static_cast<uint32_t>(config.intervalMilliseconds) * 8) / 5);
+  parameters.scan_window = static_cast<uint16_t>(
+    (static_cast<uint32_t>(config.windowMilliseconds) * 8) / 5);
+  // Keep controller duplicate filtering disabled so an active advertisement
+  // and its scan response can be merged before public duplicate filtering.
+  parameters.scan_duplicate = BLE_SCAN_DUPLICATE_DISABLE;
+
+  activeBleScanner.store(impl_, std::memory_order_release);
+  impl_->scanParamsCompleted.store(false, std::memory_order_release);
+  impl_->scanParamsSucceeded.store(false, std::memory_order_release);
+  if (esp_ble_gap_set_scan_params(&parameters) != ESP_OK)
+  {
+    owner_->setError(
+      EspBleError::BackendFailure, "failed to configure BLE scan");
+    return false;
+  }
+  const uint32_t parametersRequestedAt = millis();
+  while (!impl_->scanParamsCompleted.load(std::memory_order_acquire) &&
+         static_cast<uint32_t>(millis() - parametersRequestedAt) < 2000)
+  {
+    delay(1);
+  }
+  if (!impl_->scanParamsCompleted.load(std::memory_order_acquire) ||
+      !impl_->scanParamsSucceeded.load(std::memory_order_acquire))
+  {
+    owner_->setError(
+      EspBleError::BackendFailure, "BLE scan parameters were rejected");
+    return false;
+  }
+
+  impl_->scanStartCompleted.store(false, std::memory_order_release);
+  impl_->scanStartSucceeded.store(false, std::memory_order_release);
+  if (esp_ble_gap_start_scanning(config.durationSeconds) != ESP_OK)
+  {
+    owner_->setError(EspBleError::BackendFailure, "failed to start BLE scan");
+    return false;
+  }
+  const uint32_t startRequestedAt = millis();
+  while (!impl_->scanStartCompleted.load(std::memory_order_acquire) &&
+         static_cast<uint32_t>(millis() - startRequestedAt) < 2000)
+  {
+    delay(1);
+  }
+  if (!impl_->scanStartCompleted.load(std::memory_order_acquire) ||
+      !impl_->scanStartSucceeded.load(std::memory_order_acquire))
+  {
+    owner_->setError(EspBleError::BackendFailure, "BLE scan did not start");
     return false;
   }
   owner_->clearError();
@@ -3328,24 +3681,38 @@ bool EspBleScanner::stop()
     owner_->setError(EspBleError::InvalidState, "BLE stack is not initialized");
     return false;
   }
-  BLEScan *backend = BLEDevice::getScan();
-  if (!backend->isScanning())
+  if (impl_ == nullptr ||
+      !impl_->scanning.load(std::memory_order_acquire))
   {
     owner_->clearError();
     return true;
   }
-  if (!backend->stop())
+  impl_->scanStopCompleted.store(false, std::memory_order_release);
+  if (esp_ble_gap_stop_scanning() != ESP_OK)
   {
-    owner_->setError(EspBleError::BackendFailure, "failed to stop scan");
+    owner_->setError(EspBleError::BackendFailure, "failed to stop BLE scan");
     return false;
   }
+  const uint32_t requestedAt = millis();
+  while (!impl_->scanStopCompleted.load(std::memory_order_acquire) &&
+         static_cast<uint32_t>(millis() - requestedAt) < 2000)
+  {
+    delay(1);
+  }
+  if (!impl_->scanStopCompleted.load(std::memory_order_acquire))
+  {
+    owner_->setError(EspBleError::BackendFailure, "BLE scan did not stop");
+    return false;
+  }
+  flushPendingResults();
   owner_->clearError();
   return true;
 }
 
 bool EspBleScanner::isScanning() const
 {
-  return owner_->initialized() && BLEDevice::getScan()->isScanning();
+  return owner_->initialized() && impl_ != nullptr &&
+    impl_->scanning.load(std::memory_order_acquire);
 }
 
 size_t EspBleScanner::droppedResultCount() const
@@ -5079,7 +5446,7 @@ void EspBluedroidClassic::update()
 }
 
 EspBleBluedroid::EspBleBluedroid()
-    : advertising_(this), scanner_(this), classic_(this)
+    : advertising_(this), scanner_(this), gattServer_(this), classic_(this)
 {
 }
 
@@ -5330,6 +5697,23 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
     BLEDevice::setSecurityCallbacks(nullptr);
   }
 
+  if (!gattServer_.realize())
+  {
+    classic_.end();
+    BLEDevice::setSecurityCallbacks(nullptr);
+    BLEDevice::setCustomGattcHandler(nullptr);
+    BLEDevice::setCustomGapHandler(nullptr);
+    EspBleConnectionImpl::customGattcOwner = nullptr;
+    EspBleConnectionImpl::customGapOwner = nullptr;
+    BLEDevice::deinit(false);
+    gattServer_.resetBackend();
+    delete connectionImpl_;
+    connectionImpl_ = nullptr;
+    if (lastError_ == EspBleError::None)
+      setError(EspBleError::BackendFailure, "failed to realize GATT Server");
+    return false;
+  }
+
   activeDeviceName_ = deviceName;
   activePreferredMtu_ = config.preferredMtu;
   activeOwnAddressType_ = config.ownAddressType;
@@ -5348,8 +5732,9 @@ void EspBleBluedroid::end()
   }
   if (scanner_.isScanning())
   {
-    BLEDevice::getScan()->stop();
+    esp_ble_gap_stop_scanning();
   }
+  activeBleScanner.store(nullptr, std::memory_order_release);
   if (advertising_.advertising_)
   {
     BLEDevice::getAdvertising()->stop();
@@ -5395,6 +5780,7 @@ void EspBleBluedroid::end()
   BLESecurity::setAuthenticationMode(false, false, false);
   BLESecurity::setForceAuthentication(false);
   BLEDevice::deinit(false);
+  gattServer_.resetBackend();
   BLEDevice::setCustomGattcHandler(nullptr);
   BLEDevice::setCustomGapHandler(nullptr);
   EspBleConnectionImpl::customGattcOwner = nullptr;
@@ -5411,6 +5797,7 @@ void EspBleBluedroid::end()
 void EspBleBluedroid::update()
 {
   advertising_.update();
+  gattServer_.update();
   if (connectionImpl_ != nullptr)
   {
     connectionImpl_->requestPreferredMtu();
@@ -5512,6 +5899,11 @@ EspBleAdvertising &EspBleBluedroid::advertising()
 EspBleScanner &EspBleBluedroid::scanner()
 {
   return scanner_;
+}
+
+EspBleGattServer &EspBleBluedroid::gattServer()
+{
+  return gattServer_;
 }
 
 EspBluedroidClassic &EspBleBluedroid::classic()
@@ -5720,6 +6112,17 @@ bool EspBleBluedroid::updateConnectionParameters(
   }
   clearError();
   return true;
+}
+
+bool EspBleBluedroid::discoverCharacteristic(
+  EspBleConnectionId connectionId,
+  const char *serviceUuid,
+  const char *characteristicUuid,
+  uint32_t timeoutMilliseconds)
+{
+  return startGattOperation(
+    EspBleGattOperation::Discover, connectionId, serviceUuid,
+    characteristicUuid, nullptr, 0, true, nullptr, timeoutMilliseconds);
 }
 
 bool EspBleBluedroid::discoverServices(
@@ -6016,6 +6419,55 @@ bool EspBleBluedroid::unsubscribe(
     nullptr, 0, true, nullptr, timeoutMilliseconds, characteristicHandle);
 }
 
+bool EspBleBluedroid::readDescriptor(
+  EspBleConnectionId connectionId,
+  uint16_t descriptorHandle,
+  uint32_t timeoutMilliseconds)
+{
+  if (descriptorHandle == 0)
+  {
+    setError(EspBleError::InvalidArgument,
+      "descriptor handle must be non-zero");
+    return false;
+  }
+  return startGattOperation(
+    EspBleGattOperation::ReadDescriptor, connectionId, nullptr, nullptr,
+    nullptr, 0, true, nullptr, timeoutMilliseconds, 0, descriptorHandle);
+}
+
+bool EspBleBluedroid::writeDescriptor(
+  EspBleConnectionId connectionId,
+  uint16_t descriptorHandle,
+  const uint8_t *data,
+  size_t length,
+  bool response,
+  uint32_t timeoutMilliseconds)
+{
+  if (descriptorHandle == 0)
+  {
+    setError(EspBleError::InvalidArgument,
+      "descriptor handle must be non-zero");
+    return false;
+  }
+  return startGattOperation(
+    EspBleGattOperation::WriteDescriptor, connectionId, nullptr, nullptr,
+    data, length, response, nullptr, timeoutMilliseconds, 0,
+    descriptorHandle);
+}
+
+bool EspBleBluedroid::writeDescriptor(
+  EspBleConnectionId connectionId,
+  uint16_t descriptorHandle,
+  const String &value,
+  bool response,
+  uint32_t timeoutMilliseconds)
+{
+  return writeDescriptor(
+    connectionId, descriptorHandle,
+    reinterpret_cast<const uint8_t *>(value.c_str()), value.length(),
+    response, timeoutMilliseconds);
+}
+
 bool EspBleBluedroid::writeDescriptor(
   EspBleConnectionId connectionId,
   const char *serviceUuid,
@@ -6065,7 +6517,8 @@ bool EspBleBluedroid::startGattOperation(
   bool response,
   const char *descriptorUuid,
   uint32_t timeoutMilliseconds,
-  uint16_t characteristicHandle)
+  uint16_t characteristicHandle,
+  uint16_t descriptorHandle)
 {
   if (!initialized_ || connectionImpl_ == nullptr)
   {
@@ -6077,14 +6530,16 @@ bool EspBleBluedroid::startGattOperation(
   const bool descriptorOperation =
     operation == EspBleGattOperation::ReadDescriptor ||
     operation == EspBleGattOperation::WriteDescriptor;
-  const bool handleBased = characteristicHandle != 0;
+  const bool handleBased =
+    characteristicHandle != 0 || descriptorHandle != 0;
   if ((!databaseDiscovery && !handleBased &&
        (serviceUuid == nullptr || serviceUuid[0] == '\0' ||
         characteristicUuid == nullptr || characteristicUuid[0] == '\0')) ||
-      (descriptorOperation &&
+      (descriptorOperation && descriptorHandle == 0 &&
        (descriptorUuid == nullptr || descriptorUuid[0] == '\0')) ||
       (data == nullptr && length != 0) || timeoutMilliseconds == 0 ||
-      (operation != EspBleGattOperation::Read &&
+      (operation != EspBleGattOperation::Discover &&
+       operation != EspBleGattOperation::Read &&
        operation != EspBleGattOperation::Write &&
        operation != EspBleGattOperation::Subscribe &&
        operation != EspBleGattOperation::Unsubscribe &&
@@ -6116,6 +6571,7 @@ bool EspBleBluedroid::startGattOperation(
     connectionImpl_->gattDescriptorUuid =
       descriptorUuid == nullptr ? "" : descriptorUuid;
     connectionImpl_->gattCharacteristicHandle = characteristicHandle;
+    connectionImpl_->gattDescriptorHandle = descriptorHandle;
     if (databaseDiscovery)
     {
       delete connectionImpl_->gattDatabase;
@@ -6731,6 +7187,11 @@ void EspBleBluedroid::onNumericComparison(PasskeyDisplayedCallback callback)
   numericComparisonCallback_ = std::move(callback);
 }
 
+void EspBleBluedroid::onCharacteristicDiscovered(GattResultCallback callback)
+{
+  characteristicDiscoveredCallback_ = std::move(callback);
+}
+
 void EspBleBluedroid::onCharacteristicRead(GattResultCallback callback)
 {
   characteristicReadCallback_ = std::move(callback);
@@ -6792,6 +7253,7 @@ void EspBleBluedroid::expireGattOperation()
   event.gattResult.characteristicUuid = connectionImpl_->gattCharacteristicUuid;
   event.gattResult.descriptorUuid = connectionImpl_->gattDescriptorUuid;
   event.gattResult.handle = connectionImpl_->gattCharacteristicHandle;
+  event.gattResult.descriptorHandle = connectionImpl_->gattDescriptorHandle;
   event.gattResult.response = connectionImpl_->gattWriteResponse;
   event.gattResult.error = EspBleError::Timeout;
   event.gattResult.detail = "GATT operation timed out";
@@ -6862,6 +7324,13 @@ void EspBleBluedroid::dispatchConnectionEvents()
       numericComparisonCallback_)
     {
       numericComparisonCallback_(event.passkeyDisplayed);
+    }
+    else if (
+      event.type == EspBleConnectionImpl::EventType::GattResult &&
+      event.gattResult.operation == EspBleGattOperation::Discover &&
+      characteristicDiscoveredCallback_)
+    {
+      characteristicDiscoveredCallback_(event.gattResult);
     }
     else if (
       event.type == EspBleConnectionImpl::EventType::GattResult &&

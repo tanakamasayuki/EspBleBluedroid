@@ -6,6 +6,9 @@
 
 BLEには、接続要求をapplicationが見てから承認・拒否するcallbackはありません。Filter Accept List（旧称white list）を使うと、controllerが接続要求をアドレスと照合し、登録されていない相手をapplicationへ届く前に破棄します。
 
+同じlistはCentral側のScanにも使われ、`EspBleScanConfig::acceptListOnly = true`で
+一覧外のAdvertisingをcontrollerが破棄します。
+
 ## 必要なもの
 
 - このsketchを動かす無印ESP32 × 1
@@ -29,6 +32,7 @@ BLEには、接続要求をapplicationが見てから承認・拒否するcallba
 - `bluetooth.clearAcceptList()`
 - `bluetooth.acceptListCount()` / `bluetooth.acceptListEntry(index, entry)`
 - `bluetooth.advertising().setFilterPolicy(policy)`
+- `EspBleScanConfig::acceptListOnly` — 同じlistをScan側へ適用
 
 policyは次の4種類です。
 

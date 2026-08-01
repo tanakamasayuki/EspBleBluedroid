@@ -17,16 +17,16 @@ Replace `TARGET_CENTRAL` with the central's identity address and select its matc
 
 | Mode | Interval | Lifetime | Typical use |
 |---|---:|---:|---|
-| `HighDutyCycle` | Fixed 3.75 ms | At most 1.28 seconds | Fast reconnection immediately after a disconnect |
-| `LowDutyCycle` | `setInterval()`, or 1.28 seconds by default | Until `stop()` or connection | Lower-power reconnection waiting |
+| `highDuty = true` | Fixed 3.75 ms | At most 1.28 seconds | Fast reconnection immediately after a disconnect |
+| `highDuty = false` | `setInterval()`, or 1.28 seconds by default | Until `stop()` or connection | Lower-power reconnection waiting |
 
 The controller stops High Duty automatically when the target does not connect. Keep calling `bluetooth.update()` so `isAdvertising()` also reflects that stopped state.
 
 ## Important restrictions
 
-The BLE specification permits no Local Name, Service UUID, Manufacturer Data, other AD data, or Scan Response in Directed Advertising. `startDirected()` therefore returns `InvalidState` when `data()` or `scanResponse()` contains a value.
+The BLE specification permits no Local Name, Service UUID, Manufacturer Data, other AD data, or Scan Response in Directed Advertising. While a target is configured through `setDirectedTarget()`, the payload configured for normal advertising is not transmitted. `clearDirectedTarget()` returns the same Advertising object to normal broadcasting.
 
-Call `stop()` before switching from an active normal advertising operation. `startDirected()` does not silently replace another active operation.
+`start()` stops an active advertising operation before starting with the new settings.
 
 For a bonded peer using RPA, specify its identity address and correct identity address type, not a temporary observed RPA.
 
@@ -41,8 +41,8 @@ Directed Advertising limits who may connect; it does not provide encryption or a
 ## Main API
 
 ```cpp
-bluetooth.advertising().startDirected(
-  targetAddress,
-  EspBleAddressType::Public,
-  EspBleDirectedAdvertisingMode::HighDutyCycle);
+auto &advertising = bluetooth.advertising();
+advertising.setDirectedTarget(
+  targetAddress, EspBleAddressType::Public, true);
+advertising.start();
 ```

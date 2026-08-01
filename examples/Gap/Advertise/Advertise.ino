@@ -21,6 +21,7 @@ void setup()
   const uint8_t manufacturerData[] = {0x34, 0x12, 0x01};
   advertising.setManufacturerData(manufacturerData, sizeof(manufacturerData));
   advertising.setScanResponseEnabled(true);
+  advertising.setChannelMap(EspBleAdvertisingChannelAll);
   if (!advertising.start())
   {
     Serial.printf("advertising failed: %s (%s)\n",
@@ -35,4 +36,3 @@ void loop()
   bluetooth.update();
   delay(1);
 }
-

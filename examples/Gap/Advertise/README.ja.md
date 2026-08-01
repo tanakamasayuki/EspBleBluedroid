@@ -20,6 +20,7 @@ Local Name、Service UUID、Manufacturer DataをconnectableなLegacy Advertising
 - `EspBleConfig::deviceName` — stackのdevice name
 - `advertising().setName()` — payloadのLocal Name
 - `addServiceUuid()` / `setManufacturerData()` — 公開する識別情報とbinary値
+- `setChannelMap()` — channel 37/38/39の利用範囲。`0`または`EspBleAdvertisingChannelAll`で全channel
 - `advertising().start()` — payload検証と開始
 
 同じbit幅のService UUIDは1つのComplete Listへまとめられます。Advertisingまたは

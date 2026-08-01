@@ -1,8 +1,11 @@
 # EspBleBluedroid ドキュメント
 
-- [BLE通信の入門ガイド](GUIDE_BLE_BASICS.ja.md) — Advertising、Scan、接続
+- [BLE通信の入門ガイド](GUIDE_BLE_BASICS.ja.md) — Advertising、Scan、接続、
+  Security、GATT Client / Server、UUID
 - [Bluetooth Classic通信の入門ガイド](GUIDE_CLASSIC_BASICS.ja.md) —
   Inquiry、SPP、Serial/Stream、BLEとの同時利用
+- [HID・MIDI・Audio profileとbridgeの整備計画](PROFILE_BRIDGE_ROADMAP.ja.md) —
+  EspBle・EspUsbHost・EspUsbDeviceと揃える値型、複数device、Classic Audioの段階計画
 - [EspBle（NimBLE）とのBLE差分](BLE_BACKEND_DIFFERENCES.ja.md) —
   共通API、Bluedroid固有の実装差、意図的に一致させない機能
 - [API設計方針](API_DESIGN_POLICY.ja.md) — EspBleとの共通部分、Bluedroid差分、

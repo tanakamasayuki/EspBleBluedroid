@@ -14,7 +14,7 @@ void setup()
   Serial.setTimeout(3000);
   delay(500);
 
-  const bool prebeginRejected = !bluetooth.advertising().startDirected(
+  const bool prebeginConfigured = bluetooth.advertising().setDirectedTarget(
     "02:00:00:00:00:01", EspBleAddressType::Public);
   if (!bluetooth.begin())
   {
@@ -26,17 +26,23 @@ void setup()
   server->createService(SERVICE_UUID)->start();
 
   bluetooth.advertising().setName("not allowed");
-  const bool payloadRejected = !bluetooth.advertising().startDirected(
-    "02:00:00:00:00:01", EspBleAddressType::Public);
+  const bool payloadIgnored = bluetooth.advertising().start();
+  bluetooth.advertising().stop();
   bluetooth.advertising().clear();
   const bool invalidAddressRejected =
-    !bluetooth.advertising().startDirected(
+    !bluetooth.advertising().setDirectedTarget(
       "invalid", EspBleAddressType::Public);
+  const bool invalidChannelRejected =
+    !bluetooth.advertising().setChannelMap(0x80);
+  const bool channelConfigured = bluetooth.advertising().setChannelMap(
+    EspBleAdvertisingChannel39);
   Serial.printf(
-    "VALIDATION prebegin=%u payload=%u invalid_address=%u\n",
-    prebeginRejected ? 1 : 0,
-    payloadRejected ? 1 : 0,
-    invalidAddressRejected ? 1 : 0);
+    "VALIDATION prebegin=%u payload_ignored=%u invalid_address=%u invalid_channel=%u channel39=%u\n",
+    prebeginConfigured ? 1 : 0,
+    payloadIgnored ? 1 : 0,
+    invalidAddressRejected ? 1 : 0,
+    invalidChannelRejected ? 1 : 0,
+    channelConfigured ? 1 : 0);
   Serial.printf("PERIPHERAL_READY address=%s\n",
     bluetooth.localAddress().c_str());
 }
@@ -64,11 +70,11 @@ void loop()
     {
       const bool highDuty = command[0] == 'h';
       const String target = command.substring(1);
-      const bool started = bluetooth.advertising().startDirected(
+      const bool configured = bluetooth.advertising().setDirectedTarget(
         target.c_str(),
         EspBleAddressType::Public,
-        highDuty ? EspBleDirectedAdvertisingMode::HighDutyCycle
-                 : EspBleDirectedAdvertisingMode::LowDutyCycle);
+        highDuty);
+      const bool started = configured && bluetooth.advertising().start();
       Serial.printf(
         "DIRECTED_STARTED success=%u mode=%s target=%s advertising=%u error=%s\n",
         started ? 1 : 0,

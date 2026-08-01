@@ -52,7 +52,7 @@ BLEには役割を表す言葉が4つ出てきます。混乱しやすいのは�
 
 典型的には「Peripheral = GATT Server」「Central = GATT Client」ですが、**これは決まりではありません**。接続が確立した後は、どちらの側もServerにもClientにもなれます。たとえばキーボード（Peripheral）がホストの時刻を読みに行けば、それはPeripheralかつGATT Clientです。
 
-BLEの仕様上、ESP32は1台で**CentralとPeripheralを同時に**こなせます。ただし現在のEspBleBluedroid公開APIはCentral 1接続とGATT Clientを先に実装しており、Peripheral connectionの公開snapshotとGATT Serverは未実装です。役割を同一視しない設計は維持し、Server追加時にもこの2軸を崩しません。
+BLEの仕様上、ESP32は1台で**CentralとPeripheralを同時に**こなせます。EspBleBluedroidはCentral側のGATT ClientとPeripheral側のGATT Serverを別のAPI境界で公開します。現在、Peripheral connectionの公開snapshotは未実装ですが、役割を同一視しない設計は維持します。
 
 ### 1.3 大原則 — 要求とイベントは別のタイミング
 
@@ -140,6 +140,22 @@ EspBleBluedroidは、Scan Responseに何も指定しなければ**デバイス�
 
 なお仕様上、Non-connectableなアドバタイズは**100ミリ秒以上**にする必要があります。
 
+#### 相手を1台に限定する（Directed Advertising）
+
+`setDirectedTarget(address, addressType, highDuty)`で既知のCentralを宛先に設定し、
+通常と同じ`start()`で送信します。`highDuty = true`は3.75 ms間隔で最大1.28秒、
+`false`は`setInterval()`の間隔で接続または停止まで継続します。
+
+Directed AdvertisingにはpayloadもScan Responseも載りません。構成済みの通常payloadは
+宛先設定中だけ送信されず、`clearDirectedTarget()`で通常Advertisingへ戻ります。
+受信結果はaddress、address type、RSSIと接続可能状態だけを持ちます。
+
+#### アドバタイズチャネルの選択
+
+`setChannelMap()`へ`EspBleAdvertisingChannel37`、`38`、`39`のビットマスクを渡して
+送信チャネルを選べます。`0`または`EspBleAdvertisingChannelAll`で3チャネルすべてを
+使います。チャネルを減らすと干渉を避けられる場合がありますが、発見には時間がかかります。
+
 #### 関連するexample
 
 | example | 内容 |
@@ -147,6 +163,7 @@ EspBleBluedroidは、Scan Responseに何も指定しなければ**デバイス�
 | [Gap/Advertise](../examples/Gap/Advertise/) | 名前とService UUIDを載せた最小のアドバタイズ |
 | [Gap/ScanResponse](../examples/Gap/ScanResponse/) | 2面に分けて31バイト制限を回避する |
 | [Gap/ServiceData](../examples/Gap/ServiceData/) | Service Dataとしてセンサー値を放送する |
+| [Gap/IBeacon](../examples/Gap/IBeacon/) | Apple iBeacon形式を共通codecで放送する |
 
 ### 2.2 スキャン — Centralが相手を探す
 
@@ -175,6 +192,13 @@ Passive Scanの利点は、こちらが電波を出さないことです。消�
 たとえばinterval 100ミリ秒・window 50ミリ秒なら、**受信しているのは半分の時間**です。残り半分は他の処理に使えます。window = intervalにすれば常時受信になりますが、消費電力は最大になります。
 
 スキャンを続ける時間は `durationSeconds` で指定し、`0` なら止めるまで続きます。
+
+#### 特定の相手だけを受け取る
+
+`EspBleScanConfig::acceptListOnly = true`にすると、`addToAcceptList()`で登録した
+address以外のAdvertisingをcontrollerが破棄します。applicationの`onResult()`まで
+届かないため、callbackで後から絞り込むより処理量を抑えられます。RPAを回転させる相手を
+継続して識別する場合は、bondingで得たidentityを使います。
 
 #### 見落としの問題
 
@@ -377,34 +401,7 @@ sequenceDiagram
 
 接続の必要がないビーコン用途では、`onResult` までで完結します。
 
-### 2.7 Directed Advertising
-
-**Directed Advertising**は、相手を1台に限定したアドバタイズです。通常のアドバタイズが「誰でもどうぞ」と放送するのに対し、これは**送信先のアドレスを指定**し、その相手だけが接続できます。ボンディング済みの相手へ素早く再接続する用途で使われ、特に**High Duty Cycle Directed Advertising**は3.75ミリ秒間隔で最大1.28秒間送出し、極めて短時間で再接続を成立させます。
-
-`advertising().startDirected(peerAddress, peerAddressType, mode)`で送信できます。
-`HighDutyCycle`は3.75 ms固定で最大1.28秒、`LowDutyCycle`は`setInterval()`の値で
-接続または`stop()`まで継続します。Low Dutyのintervalを指定しない場合は1.28秒です。
-
-Directed Advertisingは仕様上AD dataもScan Responseも持てません。Local Name、
-Service UUID、Manufacturer Dataなどを設定した状態では`startDirected()`を拒否します。
-通常Advertisingから切り替えるときは先に`stop()`します。RPAを使うbond済みpeerには、
-一時的に観測したRPAではなくidentity addressと正しいaddress typeを指定します。
-
-**受信側の挙動**は次のとおりです。
-
-- 自分宛のDirected Advertisingだけがスキャン結果に届きます。他人宛のものはコントローラが破棄します
-- 届いた結果は**アドレス・アドレス種別・RSSIだけ**を持ちます。Directed Advertisingは仕様上ADデータを一切載せられないため、名前もService UUIDもありません
-- 接続可能フラグは立ち、スキャン応答可能フラグは立ちません
-- そのまま通常どおり接続できます
-- ただし**「これはDirected Advertisingだ」と判別する手段はありません**。EspBleBluedroidがアドバタイズ種別を公開していないためです。「接続可能・スキャン応答不可・データが空」という組み合わせから推測することになります
-
-具体的な設定とHigh/Low Dutyの切替は
-[Gap/DirectedAdvertising](../examples/Gap/DirectedAdvertising/)を参照してください。
-
-接続相手だけを制限しつつ通常のAdvertising payloadも送りたい場合はFilter Accept Listを
-使います。その場合、Advertising自体は周囲全体へ届きます。
-
-### 2.8 GAPで対応していないこと
+### 2.7 GAPで対応していないこと
 
 BLEの仕様にはあるが、EspBleBluedroidでは使えない機能です。理由もあわせて挙げます。
 
@@ -416,14 +413,6 @@ BLE 5.0で追加された、255バイトまでのペイロードを扱う仕組�
 
 結果として、アドバタイズは31バイト × 2面（本体とScan Response）が上限になります。
 
-#### スキャン側のFilter Accept List
-
-Filter Accept Listは、アドバタイズ側（誰の接続を受けるか）だけでなく、**スキャン側**（誰のアドバタイズを受け取るか）にも適用できる仕組みが仕様上あります。
-
-EspBleBluedroidはAdvertising側のScan Request・接続要求filterに対応しています。
-Centralが行うScan自体へcontroller filterを適用する公開APIは未実装です。スキャン結果の
-絞り込みは、受け取った後にapplication側で判定します。
-
 #### 接続時のパラメータ指定
 
 接続を開始する時点でConnection IntervalやPHYを指定することは**できません**。同梱backendの接続APIが指定を受け付けないためです。
@@ -431,7 +420,359 @@ Centralが行うScan自体へcontroller filterを適用する公開APIは未実�
 接続後のConnection Interval、Peripheral Latency、Supervision Timeoutは
 `updateConnectionParameters()`で変更を要求できます。PHY変更は未実装です。対象の
 無印ESP32 controllerは1M PHYだけを利用でき、2M/Coded PHYは追加できません。
++## 3. セキュリティ編 — つながった相手をどこまで信頼するか
 
-#### アドバタイズチャネルの選択
+接続しただけでは、相手が誰なのかも、やり取りが盗み見られていないかも分かりません。それを決めるのがこの章です。
 
-アドバタイズは3つのチャネル（37・38・39）を使いますが、そのうち一部だけを使う設定は**できません**。現在の公開APIはチャネルマップを扱わず、常にbackend既定の3チャネルを使います。
+BLEでは**GAP・GATTと並ぶ独立した層**として**SMP**（Security Manager Protocol）がこれを担当します。GAPが「つながる」、SMPが「どこまで信頼するかを決める」、GATTが「その信頼を属性ごとに要求する」という分担です。この章はリンク単位の方針を扱い、属性ごとの要求は4章で扱います。
+
+### 3.1 何から守るのか
+
+「セキュリティを有効にする」と一括りにされがちですが、守る対象は3つあり、**それぞれ対策が違います**。
+
+| 脅威 | 内容 | 対策 |
+|---|---|---|
+| **盗聴** | 電波を傍受して中身を読まれる | **暗号化**。ペアリングすれば得られる |
+| **なりすまし（MITM）** | 通信の間に割り込み、両者になりすます | **認証つきペアリング**。passkeyなどで「同じ相手を見ている」ことを確かめる |
+| **追跡** | 変わらないアドレスから個体を追われる | **RPA**（2.4節）。ボンディングとセットで使う |
+
+重要なのは、**暗号化されていても、なりすましは防げない**ことです。passkeyを使わないペアリング（Just Works）は、鍵交換の相手が本物かを確かめる手段を持ちません。中間者が両側とそれぞれペアリングしてしまえば、両方の通信は正しく暗号化されたまま素通しされます。
+
+EspBleBluedroidではこの区別が結果にそのまま現れます。`onSecurityChanged` で届く接続情報の `encrypted` が盗聴対策、`authenticated` がなりすまし対策です。Just Worksでは `encrypted=1, authenticated=0` になります。
+
+### 3.2 ペアリングとボンディング
+
+この2つは混同されがちですが、別のものです。
+
+- **ペアリング**（pairing） — その場で鍵を作り、リンクを暗号化する手続き。切断すれば鍵は消える
+- **ボンディング**（bonding） — ペアリングで作った鍵を**両者が保存**し、次の接続で再利用できるようにすること
+
+ボンディングすると、2回目以降は鍵交換をやり直しません。接続してすぐ、保存済みの鍵で暗号化が始まります。passkeyの入力も一度きりで済みます。**「一度ペアリングしたら次からは何もしなくていい」という体験は、ボンディングがあって初めて成立します。**
+
+保存されるのは暗号鍵だけではありません。**IRK**（Identity Resolving Key）も交換され、これがRPAの解決に使われます（2.4節）。RPAがボンディングとセットでしか意味を持たないのはこのためです。
+
+ボンド情報は電源を切っても残ります（NVSに保存されます）。したがって**消す手段が必要**で、`deleteBond()` / `deleteAllBonds()` がそれにあたります。相手側だけがボンドを消した状態で再接続すると、鍵の食い違いでペアリングがやり直しになるか、失敗します。片側だけ消さないでください。
+
+### 3.3 ペアリング方式はIO能力で決まる
+
+どの方式でペアリングするかを**アプリケーションが直接指定することはできません**。両者が「自分は何を表示できて、何を入力できるか」（**IO能力**）と「MITM保護が要るか」を申告し、その組み合わせから方式が**自動的に決まります**。
+
+| 方式 | 成立条件 | ユーザー操作 | `authenticated` |
+|---|---|---|---|
+| **Just Works** | どちらかがMITMを要求しない、または一方のIO能力が `None` | なし | 0 |
+| **Passkey Entry** | 片方が表示（`DisplayOnly`）、もう片方が入力（`KeyboardOnly`） | 6桁の数字を表示 → もう一方が入力 | 1 |
+| **Numeric Comparison** | 両方が `DisplayYesNo` かつMITM要求 | 両方に同じ6桁が出る → 一致を確認 | 1 |
+
+ここから導かれる実用上の結論があります。**ボタンも画面も無い機器は、原理的にMITM保護を得られません。** 入力も表示もできない以上、人間が「同じ相手を見ている」ことを確かめる手段が無いからです。IO能力を偽って `DisplayOnly` を申告しても、表示できないpasskeyを相手が入力できないので、ペアリングは失敗するだけです。
+
+もう1つの注意点として、**Numeric Comparisonは両方がLE Secure Connectionsに対応している場合にのみ使えます**。EspBleBluedroidはLE Secure Connectionsで動作するため、相手がBLE 4.2より古い場合は選ばれません。
+
+### 3.4 いつ暗号化が始まるか
+
+タイミングは3通りあり、どれを使うかで設計が変わります。
+
+**1. 接続と同時に開始する（`pairOnConnect`）**
+
+接続が成立したらすぐペアリングを始めます。以降のやり取りはすべて暗号化された状態で行われるため、一番分かりやすい形です。`security.enabled=true`にした場合の既定です。
+
+**2. アプリケーションが明示的に開始する（`requestSecurity()`）**
+
+条件を見てから暗号化したい場合に使います。Central側から呼びます。
+
+**3. 保護された属性に触れた瞬間に開始する**
+
+Characteristicに `encryptedRead` などを付けておくと、暗号化されていないリンクからの読み書きはATT層でエラー（insufficient encryption）になります。多くのOSはこのエラーを受けて**自動的にペアリングを始めます**。「必要になったときだけ認証を求める」形はこれで実現できます。
+
+いずれの場合も、結果は `onSecurityChanged` に届きます。**このコールバックが来るまで、保護された属性は読めません。** 接続直後にReadを投げる作りにすると、1と3のどちらでも競合します。
+
+```mermaid
+sequenceDiagram
+    participant C as Central
+    participant P as Peripheral
+    Note over C,P: 接続確立（2章）
+    C->>P: Pairing Request（IO能力・MITM要求・鍵の種類）
+    P-->>C: Pairing Response
+    Note over C,P: 方式が決まる（3.3節）
+    Note over C: onPasskeyDisplayed / onNumericComparison<br/>（方式によっては人間の操作を待つ）
+    C->>P: 鍵の交換（LE Secure Connections）
+    Note over C,P: リンクが暗号化される
+    C->>P: IRKなどの配布（bonding時）
+    Note over C: onSecurityChanged
+    Note over P: onSecurityChanged
+    Note over C,P: 保護された属性が読み書きできるようになる
+```
+
+### 3.5 EspBleBluedroidでの設定
+
+方針は `EspBleConfig::security` にまとめて指定し、`begin()` へ渡します。**接続ごとに変えることはできません。**
+
+| フィールド | 既定 | 内容 |
+|---|---|---|
+| `enabled` | `false` | セキュリティ機能全体の有効化。これが `false` なら他の設定は指定できない |
+| `bonding` | `true` | 鍵を保存して次回に備えるか（3.2節） |
+| `pairOnConnect` | `true` | 接続と同時にペアリングを開始するか（3.4節の1） |
+| `mitm` | `false` | なりすまし対策を要求するか。`true` にはIO能力が必要 |
+| `ioCapability` | `None` | `None` / `DisplayOnly` / `KeyboardOnly` / `DisplayYesNo`（3.3節） |
+| `staticPasskeyEnabled`／`staticPasskey` | `false`／`0` | passkeyを実行時に扱わず固定値にする |
+
+矛盾した組み合わせは `begin()` が `InvalidArgument` で弾きます。「`enabled=false` なのにMITMを指定した」「MITMなのにIO能力が `None`」「MITMでないのにpasskeyを指定した」などです。**黙って無視して弱い設定で動き出すことはありません。**
+
+固定passkeyは配線が単純ですが、**値がスケッチに焼き込まれる以上、秘密にはなりません**。ソースを読める相手には無防備です。実運用では実行時に決める方（`onPasskeyDisplayed` で表示された値を人間が伝える）を選んでください。
+
+対応するコールバックとAPIは次のとおりです。
+
+| API | 役割 |
+|---|---|
+| `onSecurityChanged(cb)` | ペアリングの成否と、その結果のセキュリティ状態 |
+| `onPasskeyDisplayed(cb)` | 自分が表示側のとき、表示すべき6桁が届く |
+| `onNumericComparison(cb)` ＋ `confirmNumericComparison(bool)` | 両方に出た6桁の一致を人間が確認して答える |
+| `providePasskey(uint32_t)` | 自分が入力側（`KeyboardOnly`）のとき、受け取った6桁を渡す |
+| `requestSecurity(id)` | ペアリングを明示的に開始する（3.4節の2） |
+| `bondCount()` / `bond(i, out)` / `deleteBond()` / `deleteAllBonds()` | 保存済みボンドの列挙と削除 |
+
+ボンドを削除するときは**すべて切断してから**行ってください。使用中のボンドを消すと、リンクの鍵と保存内容が食い違います。
+
+### 3.6 制限
+
+理由とあわせて挙げます。
+
+- **保存件数はcontroller/NVSの容量に依存します** — application側で固定件数を仮定せず、`bondCount()`で確認してください
+- **passkeyの応答中、BLEホストは停止します** — passkeyの入力（`providePasskey`）とNumeric Comparisonの確認（`confirmNumericComparison`）は、SMPが答えを待つ間ホストタスクを止めます。仕様上ペアリングは応答を待って進む手続きで、途中で他の処理を挟めないためです。**30秒で打ち切り、ペアリングは失敗します**。`loop()` の中で長く待たせる作りにしないでください
+- **OOB（Out Of Band）ペアリングは使えません** — NFCなど別経路で鍵を渡す方式です。渡す経路そのものがESP32側に無いため対応していません
+- **署名付き書き込み（CSRK）は使えません** — 暗号化せず署名だけで完全性を守る仕組みです。交換する鍵を暗号鍵とIRKに限っており、実運用でこれを使う機器がほぼ存在しないためです
+- **ペアリング方式を直接指定することはできません** — 3.3節のとおり仕様がIO能力から導出するもので、BLEにそのようなAPIがありません
+
+### 3.7 関連するexample
+
+| example | 内容 |
+|---|---|
+| [Security/JustWorksClient](../examples/Security/JustWorksClient/) | Just Works＋ボンディング |
+| [Security/StaticPasskeyClient](../examples/Security/StaticPasskeyClient/) | 入力側（`KeyboardOnly`）。認証後に保護された値を読む |
+| [Security/RuntimePasskeyClient](../examples/Security/RuntimePasskeyClient/) | 表示された値を実行時に `providePasskey()` で渡す |
+| [Security/NumericComparisonClient](../examples/Security/NumericComparisonClient/) | 同上のCentral側 |
+
+---
+
+## 4. GATT編 — データをやり取りする
+
+接続が成立したら、ここからはGATTの領域です。
+
+### 4.1 GATTの構造
+
+GATTでは、データが3階層で表現されます。
+
+- **Service** — 機能のまとまり。「電池」「心拍計」など
+- **Characteristic** — 個々の値。「電池残量」「心拍数」など。Serviceの中に複数入る
+- **Descriptor** — Characteristicに付随する補足情報。単位や説明、通知の有効・無効の設定など
+
+それぞれがUUIDという識別子を持ちます（5章で詳しく説明します）。
+
+ただし**UUIDは「型」であって「どれか」ではありません。** 仕様上、同じUUIDのServiceやCharacteristicを1台が複数持てます。HIDキーボードが複数のReport Characteristicを同じUUIDで並べるのが典型例です。
+
+そのためEspBleBluedroidでは、**登録時に返るハンドルで対象を指定します**。`addService()` がServiceのハンドルを返し、それを `addCharacteristic()` へ渡すとCharacteristicのハンドルが返り、以降の値設定やNotifyはそのハンドルで行います。イベント（書き込み通知や購読状態の変化）にも対象のハンドルが入るので、UUIDが同じでもどれのことか分かります。
+
+Client側は、相手のCharacteristicを**属性ハンドル**で指定できます。同じUUIDのCharacteristicが並ぶHIDのReportを撃ち分けるのはこの方法です。Descriptorにも同じ指定方法があります——HIDのReport Reference（0x2908）は「0x2A4DのCharacteristicの下にある0x2908」なので、UUIDの組では言い表せません。
+
+#### 同一UUIDの重複はどこまで扱えるか
+
+仕様が認めている重複は、**どちらの役割でも扱えます**。
+
+| | 同じUUIDの**Service**を複数持つ | 同じServiceの中に同じUUIDの**Characteristic**を複数持つ |
+|---|---|---|
+| **Peripheral（公開する側）** | できる | できない（登録時に拒否） |
+| **Central（読む側）** | 区別できる（属性ハンドルで指定） | 区別できる（属性ハンドルで指定） |
+
+Peripheral側は、`addService()` / `addCharacteristic()` が返すハンドルが対象を表します。EspBleBluedroidは登録時のopaque handleとBluedroidのattribute handleを対応づけるため、UUIDだけに依存せず対象を判別します。
+
+Central側は、相手がどう重複させていても属性ハンドルで撃ち分けられます。discoveryを`ble_gattc_disc_all_svcs()`などのAPIで自前に行い、read / write / 購読（CCCDへの書き込み）もすべて属性ハンドルに対して直接発行するためです。Notificationも、どのハンドルから来たかで対応付けます。**Descriptorも同様にハンドルで指定できます**（`readDescriptor(id, descriptorHandle)` / `writeDescriptor(...)`）。DescriptorはCharacteristicに属するので、Characteristicが重複しているとUUIDの組では特定できません。結果の`descriptorHandle`が対象のDescriptor、`handle`がそれを持つCharacteristicを指します。
+
+EspBleBluedroidは購読を自動復元しません。再接続後はUUIDが一意かどうかにかかわらず、Discovery後のhandleを使って購読し直してください。
+
+### 4.2 4つの操作
+
+値のやり取りには次の方法があります。
+
+| 操作 | 向き | 説明 |
+|---|---|---|
+| **Read** | Client → Server | 値を読む |
+| **Write** | Client → Server | 値を書く。応答ありと応答なしがある |
+| **Notify** | Server → Client | 値の変化を送りつける。確認応答なし |
+| **Indicate** | Server → Client | 同上だが、Clientの確認応答を待つ |
+
+**要求を出せるのはClient側だけです。** Serverは自分から読み書きを求められません。Serverから能動的に送れるのはNotifyとIndicateだけで、それも次に述べる購読が前提です。
+
+#### 購読 — 送っていいかを決めるのはClient
+
+NotifyとIndicateは、Clientが事前に**購読**（subscribe）したものだけが届きます。購読の状態は、Notify / Indicate可能なCharacteristicに自動的に付く**CCCD**（Client Characteristic Configuration Descriptor）というDescriptorに記録されます。Clientがそこへビットを書くと購読が始まります。
+
+重要なのは**CCCDが接続ごとに独立している**ことです。3台が繋がっていれば3つの状態があり、1台だけが購読していることも普通です。Server側は購読している接続へだけ送り、購読していない接続には何も送りません。**送信が失敗するわけではなく、届く先が無いだけ**です。
+
+購読は切断で消えます。EspBleBluedroidは自動再接続・自動再購読を行わないため、再接続後はapplicationがDiscoveryと購読をやり直します。
+
+#### NotifyとIndicateの使い分け
+
+基準は**取りこぼしが許されるか**です。秒間何度も更新されるセンサー値ならNotify（1つ落ちても次が来る）、確実に届けたい設定変更の結果ならIndicateです。
+
+Indicateは1件ずつ確認応答を待つため、**同時に1件しか飛ばせません**。連続して送りたい場合は前の確認を待つ必要があり、そのぶんスループットは落ちます。EspBleBluedroidでは送信の結果が `onSent()` に届き、Indicateではそれが「Clientが受け取ったこと」を意味します。
+
+### 4.3 属性ごとに保護を宣言する
+
+3章で決めたリンクの方針を、**どの値に適用するか**をここで書きます。Characteristic（およびDescriptor）の設定に、次のフラグがあります。
+
+| フラグ | 要求すること |
+|---|---|
+| `encryptedRead` / `encryptedWrite` | リンクが暗号化されていること（ペアリング済み） |
+| `authenticatedRead` / `authenticatedWrite` | さらにMITM認証されていること（passkeyなどを経ていること） |
+
+フラグを立てた属性へ、条件を満たさないリンクから読み書きが来ると、**ATT層がエラーを返します**（insufficient encryption / insufficient authentication）。アプリケーションのコードは呼ばれません。多くのOSはこのエラーを受けて自動的にペアリングを始めるので、「必要になったときだけ認証を求める」形がこれで書けます。
+
+読みと書きは別に指定できます。「誰でも読めるが、書き換えるには認証が必要」という設定は、`authenticatedWrite` だけを立てれば作れます。
+
+**保護は属性ごとであって、Serviceごとではありません。** 同じServiceの中に、無条件に読める値と認証を要求する値を混在させられます。
+
+### 4.4 Server側 — 公開するものを先に全部決める
+
+GATT Serverの構成は、**`begin()` より前にすべて登録します**。`begin()` の時点で属性テーブルが確定して動き出すため、あとからServiceを足すことはできません（`InvalidState` で失敗します）。
+
+登録は**3段のハンドル連鎖**です。
+
+```cpp
+service = gattServer.addService(SERVICE_UUID);
+characteristic = gattServer.addCharacteristic(service, CHAR_UUID, config);
+descriptor = gattServer.addDescriptor(characteristic, DESC_UUID, descriptorConfig);
+```
+
+以降の値の設定・送信・イベント判定はすべてこのハンドルで行います。4.1節のとおり、UUIDでは「どれか」を指せないからです。**イベントは操作の種類ごとに1つ**（全Characteristic共通）なので、複数登録している場合はハンドルで対象を判定します。
+
+値の持たせ方は2通りあります。
+
+- **`setValue()` で先に置く** — こちらが値の変化を知っている場合。読み取りにはスタックがその値を返します
+- **`onRead()` で読まれた瞬間に作る** — センサーのように「読まれた時点の値」を返したい場合。コールバックの中で `setValue()` した値がそのまま相手へ返ります。誰も読まなければ値を作る処理は走りません
+
+`onRead()` には他と違う制約があります。**このコールバックだけは `update()` ではなくBLEスタックのタスクで走ります。** ATTの応答を返す前に値が必要で、後回しにできる場所がないためです。したがって短く保つ必要があり（待たせるとスタック全体が止まり、相手には読み取りのタイムアウトに見えます）、`loop()` と同時に走るので共有変数には排他制御が要ります。
+
+1台が公開できる上限はEspBleBluedroid側の固定配列で決まっており、**Service 8個、Characteristic 32個、Descriptor 16個**です。Notify / Indicateに付くCCCDはスタックが自動で用意するもので、この16個には含まれません。
+
+### 4.5 Client側の手順
+
+Clientは相手のデータ構造を知りません。そこでまず**Discovery**（探索）を行い、目的のServiceとCharacteristicがどこにあるかを調べます。その後にRead・Write・購読を行います。
+
+1.3節で説明したとおり、これらはすべて非同期です。「Discoveryを頼む → 完了イベントの中でReadを頼む → 完了イベントの中でWriteを頼む」という連鎖で書きます。
+
+そのうえでもう1つ制約があります。**Central側のGATT操作は同時に1件だけです。** 実行中に2つ目を要求すると、その場で `InvalidState` として同期的に失敗します。手続きを上から並べて書くことはできず、必ず連鎖の形になります。
+
+Discoveryには2通りあります。
+
+- **一覧Discovery**（`discoverServices()`）— 相手のGATT database全体を列挙し、**接続ごとのsnapshot**として保持します。切断するか次の一覧Discoveryを行うまで有効で、`discoveredService*()` などの照会は無線を使いません
+- **既知UUIDのDiscovery**（`discoverCharacteristic()`）— 目的のUUIDだけを解決します。何が必要か分かっている場合はこちらが速く、軽いです
+
+### 4.6 値の大きさとMTU
+
+1回のやり取りで運べるのはMTU − 3バイトです（2.3節）。既定のMTU 247なら244バイトです。これを超える値の扱いは、**読みと書きで非対称**です。
+
+- **Readは自動で分割されます。** 1回の応答に収まらない値は、Clientが続きを要求して結合します（**Read Long**）。EspBleBluedroidはこの読み方をするため、`result.value` には結合後の全体が入ります。アプリケーション側で組み立てる必要はありません。逆にこれを行わないと長い値が黙って途中で切れます
+- **Writeは分割されません。** 書き込みはATTの1回の要求として送られ、Long Write（複数回に分けて書く手続き）は行いません。分割の可否が相手側の実装にも依存するためです
+
+Notify / Indicateも1回に載る分だけで、分割されません。実際に送れるバイト数は `maximumNotificationPayload()` で確認できます。**MTUが確定するのは接続の後**なので（2.5節）、大きなデータを送る処理は `onMtuChanged` を待ってから始めてください。
+
+### 4.7 時系列で見る全体像
+
+```mermaid
+sequenceDiagram
+    participant C as Central（GATT Client）
+    participant P as Peripheral（GATT Server）
+    Note over C,P: 2章の手順で接続が確立している
+    C->>P: Discovery要求
+    P-->>C: Service / Characteristic の構成
+    Note over C: onCharacteristicDiscovered
+    C->>P: Read要求
+    P-->>C: 値
+    Note over C: onCharacteristicRead
+    C->>P: Write要求
+    P-->>C: 応答（Write with Responseの場合）
+    Note over C: onCharacteristicWritten
+    C->>P: 購読の登録
+    loop 値が変わるたび
+        P-->>C: Notify（確認応答なし）
+        Note over C: onNotification
+    end
+    P-->>C: Indicate（確認応答あり）
+    C->>P: 確認応答
+```
+
+すべてのイベントは `loop()` の `ble.update()` から配送されます。要求を出した直後ではなく、**次に `update()` を呼んだとき**にコールバックが呼ばれます（`onRead()` だけは例外で、4.4節のとおりスタックのタスクで走ります）。
+
+### 4.8 標準Serviceと独自Service
+
+UUIDには、Bluetooth SIGが用途を定めた**標準UUID**と、自分で決める**独自UUID**があります（5章）。心拍計・体温計・電池残量といった一般的な機能には標準のServiceとCharacteristicが定義されていて、値のバイト並びまで決まっています。これに従えば、相手のアプリを作らなくてもスマートフォンの汎用アプリや対応機器がそのまま読めます。
+
+**標準Serviceのほとんどに専用クラスはありません。** 心拍計・体温計・電池残量・フィットネス機器などは、どれも4.4節の汎用API（`addService()` / `addCharacteristic()`）で組み立てます。標準の側にあるのは「UUIDとバイト並びの決まり」だけで、GATTの仕組みとしては独自Serviceと何も違わないからです。専用クラスを増やすと、仕様の一部だけを実装した中途半端な抽象がその数だけ増えます。
+
+そのぶん、値のバイト並びはapplication側で組み立てます。現在のEspBleBluedroidは標準Service用profile helper、HID、BLE MIDI、複数observer用の`add*Listener()`をまだ公開していません。汎用GATT APIと、イベントごとに1つの`on*()` callbackを使います。
+
+独自の機能には独自UUIDを使ってください。**標準UUIDを別の意味で使い回すと、汎用アプリが誤って解釈します。**
+
+### 4.9 GATTで対応していないこと
+
+| 機能 | 理由 |
+|---|---|
+| **Long Write**（分割書き込み） | 4.6節のとおり、1回のATT要求として送ります。分割の可否が相手側の実装にも依存し、確実に成立させられないためです |
+| **署名付き書き込み（CSRK）** | 暗号化せず署名だけで完全性を守る仕組みです。交換する鍵を暗号鍵とIRKに限っており、実運用でこれを使う機器がほぼ存在しないためです（3.6節） |
+| **`onRead()` の多重登録** | 他のイベントと違い1つだけです。「返す値を決める」責任を持てるのは1箇所だけだからです |
+| **購読の自動復元** | 自動再接続・再購読は未実装です。再接続後にDiscoveryと購読をやり直します |
+
+### 4.10 関連するexample
+
+| example | 内容 |
+|---|---|
+| [Gatt/Basics/Server](../examples/Gatt/Basics/Server/) | 独自ServiceとCharacteristicを公開するServer |
+| [Gatt/Basics/Client](../examples/Gatt/Basics/Client/) | Discovery → Read → Write の連鎖 |
+| [Gatt/Basics/NotifyServer](../examples/Gatt/Basics/NotifyServer/) | Notifyの送出と購読状態の監視 |
+| [Gatt/Device/BatteryClient](../examples/Gatt/Device/BatteryClient/) | 標準Battery Serviceを読むClient |
+
+---
+
+## 5. UUIDを理解する
+
+### 5.1 UUIDは「機能の型」を表す名札
+
+ServiceやCharacteristicが何であるかは、**UUID**（Universally Unique IDentifier）で表されます。128ビット（16バイト）の、世界で一意な識別子です。
+
+```
+5266f727-49d7-4eaf-a6f1-636f6e6e6563   （8-4-4-4-12桁の16進数）
+```
+
+たとえば「電池残量」というCharacteristicには決まったUUIDが割り当てられており、どのメーカーの機器でも同じ値を使います。だから相手の機種を知らなくても「このUUIDを読めば電池残量が分かる」と決め打ちできます。
+
+UUIDは名前ではなく**型（種類）を表す名札**だと考えてください。
+
+### 5.2 標準UUIDと独自UUID
+
+- **標準UUID** — Bluetooth SIGが割り当てたもの。電池、心拍計、HIDなど、仕様で決まった機能に対応する
+- **独自UUID** — 自分のアプリ専用。ランダムに128ビットを生成して使う
+
+### 5.3 フル形と短縮形
+
+標準UUIDには**16ビットの短縮形**があります。たとえば電池サービスは `180F` です。
+
+これは次の**Base UUID**の中に短縮形を差し込んだ128ビットUUIDの、省略表記にすぎません。
+
+```
+Base UUID:  0000____-0000-1000-8000-00805F9B34FB
+                ↑ここに16ビット短縮形が入る
+180F の実体: 0000180F-0000-1000-8000-00805F9B34FB
+```
+
+つまり**短縮形とフル形は同じUUIDを指す別表記**です。EspBleBluedroidはUUIDを**値として**比較する（内部で短縮形をBase UUIDへ展開する）ので、`180F` と `0000180f-0000-1000-8000-00805f9b34fb` はどちらで書いても同じ相手に一致します。大文字小文字も区別しません。
+
+ただし**文字列としては別物**です。スキャン結果に入っているUUIDを自分で文字列比較するのではなく、値として比較する仕組みを使ってください。
+
+### 5.4 気をつける点
+
+1. **独自サービスは必ず128ビットのフル形で書く。** 短縮形はSIGが割り当てた標準UUID専用の表記です。自作サービスに勝手に16ビット値を使ってはいけません。
+2. **桁とハイフンの位置は正確に。** 大文字小文字は無視されますが、`8-4-4-4-12` の形が崩れると別のUUIDになります。
+3. **アドバタイズに出ていない＝そのServiceが無い、ではない。** 31バイトの制限のため、Service UUIDを全部載せられるとは限りません。確実に知りたいときは接続後のDiscoveryで確認します。
+4. **Service UUIDを一切載せない機器もある。** iBeaconのようにManufacturer Dataだけの機器は、UUIDでは絞り込めません。アドレスやManufacturer Dataの中身で判定します。
+5. **短縮形が意味を持つのはSIG登録済みの値だけ。** 未登録の16ビット値に決まった意味はありません。
+
+---

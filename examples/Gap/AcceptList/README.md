@@ -6,6 +6,9 @@ A peripheral-side example that restricts who may connect.
 
 BLE has no application callback for inspecting and approving a connection request. The Filter Accept List (formerly the white list) lets the controller compare the requester's address and discard unlisted requests before they reach the application.
 
+The same list applies to central scanning when `EspBleScanConfig::acceptListOnly`
+is true; the controller then discards advertising from unlisted addresses.
+
 ## Hardware
 
 - 1 × original ESP32 running this sketch
@@ -29,6 +32,7 @@ The current public API does not yet expose peripheral GATT servers or peripheral
 - `bluetooth.clearAcceptList()`
 - `bluetooth.acceptListCount()` / `bluetooth.acceptListEntry(index, entry)`
 - `bluetooth.advertising().setFilterPolicy(policy)`
+- `EspBleScanConfig::acceptListOnly` — apply the same list while scanning
 
 The four policies are:
 

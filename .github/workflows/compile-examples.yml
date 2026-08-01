@@ -44,6 +44,16 @@ jobs:
             src/internal/EspBleBluedroidGattcState.cpp \
             -o /tmp/espblebluedroid-unit
           /tmp/espblebluedroid-unit
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            -Isrc \
+            tests/unit/ibeacon_test.cpp \
+            -o /tmp/espblebluedroid-ibeacon-unit
+          /tmp/espblebluedroid-ibeacon-unit
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            -Isrc \
+            tests/unit/uuid_test.cpp \
+            -o /tmp/espblebluedroid-uuid-unit
+          /tmp/espblebluedroid-uuid-unit
 
       - name: Compile all examples (original ESP32 / Bluedroid)
         run: |

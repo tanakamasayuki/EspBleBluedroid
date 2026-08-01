@@ -5,11 +5,12 @@ stack. It aims to provide an experience similar to its NimBLE-based sibling
 library, [EspBle](https://github.com/tanakamasayuki/EspBle), especially for GATT operations after a
 connection is established.
 
-The project is in its initial bring-up stage. Its public API currently covers
-the root lifecycle, legacy advertising, scanning, one Central connection, and
-asynchronous GATT discovery, UUID/handle-based Characteristic operations,
-Descriptor Read/Write, and Notification subscription,
-verified by automated two-board peer tests on original ESP32 boards. Just Works
+Its public API covers the root lifecycle, legacy advertising, scanning, one
+Central connection, asynchronous GATT discovery, UUID/handle-based
+Characteristic and Descriptor operations, Notification subscription, and an
+EspBle-shaped GATT Server API with opaque registration handles, Read/Write,
+Notify, and Indicate. These paths are verified by automated two-board peer
+tests on original ESP32 boards. Just Works
 security, static-passkey and runtime-passkey MITM, Numeric Comparison, and BLE
 bond management are also available. The first Bluetooth Classic API provides a
 capability snapshot, asynchronous Inquiry, and binary-safe SPP Client/Server

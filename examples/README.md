@@ -7,6 +7,7 @@
 | Build | [CompileSmoke](CompileSmoke/README.md) | Build-check the header, Bluedroid backend guard, and version macro |
 | GAP | [Advertise](Gap/Advertise/README.md) | Legacy advertising with a local name, service UUID, and manufacturer data |
 | GAP | [Beacon](Gap/Beacon/README.md) | Non-connectable Manufacturer Data beacon |
+| GAP | [IBeacon](Gap/IBeacon/README.md) | Apple iBeacon using the shared codec |
 | GAP | [ScanResponse](Gap/ScanResponse/README.md) | Compose advertising and scan-response payloads independently |
 | GAP | [PrivateAddress](Gap/PrivateAddress/README.md) | Advertise with a Random Static address or controller-managed RPA |
 | GAP | [AcceptList](Gap/AcceptList/README.md) | Restrict scan and connection requests with the controller Filter Accept List |
@@ -17,6 +18,8 @@
 | GAP | [ConnectionParameters](Gap/ConnectionParameters/README.md) | Inspect and update interval, latency, and supervision timeout |
 | GAP | [Mtu](Gap/Mtu/README.md) | Configure a preferred ATT MTU and observe the negotiated payload limit |
 | GATT Basics | [Client](Gatt/Basics/Client/README.md) | Database discovery, Read/Write, Descriptor access, and Notification subscription |
+| GATT Basics | [Server](Gatt/Basics/Server/README.md) | Pre-begin Service, Characteristic, and Descriptor registration with read/write callbacks |
+| GATT Basics | [NotifyServer](Gatt/Basics/NotifyServer/README.md) | Counter notifications while a client is subscribed through the CCCD |
 | GATT Device | [BatteryClient](Gatt/Device/BatteryClient/README.md) | Standard Battery Level Read and Notification subscription |
 | Info | [ConnectionInspector](Info/ConnectionInspector/README.md) | Interactive connection, snapshot, bond, and counter diagnostics |
 | Info | [ScanDump](Info/ScanDump/README.md) | Print every public field extracted from advertising |

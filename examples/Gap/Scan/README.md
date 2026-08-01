@@ -18,7 +18,7 @@ Runs a continuous active scan and prints each address, RSSI, and Local Name.
 ## Main APIs
 
 - `scanner().onResult()`
-- `EspBleScanConfig::active`, interval, window, and duration
+- `EspBleScanConfig::active`, interval, window, duration, and `acceptListOnly`
 - `EspBleScanResult::hasName()`
 
 ## Expected Serial output

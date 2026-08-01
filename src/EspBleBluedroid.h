@@ -90,6 +90,8 @@ struct EspBleScanConfig
   uint16_t intervalMilliseconds = 100;
   uint16_t windowMilliseconds = 50;
   uint32_t durationSeconds = 0;
+  // Report only advertisers on the Filter Accept List.
+  bool acceptListOnly = false;
 };
 
 enum class EspBleAddressType : uint8_t
@@ -200,6 +202,30 @@ struct EspBleBond
   EspBleAddressType peerAddressType = EspBleAddressType::Public;
 };
 
+struct EspBleGattCharacteristicConfig
+{
+  bool readable = false;
+  bool writable = false;
+  bool writableWithoutResponse = false;
+  bool notifiable = false;
+  bool indicatable = false;
+  bool encryptedRead = false;
+  bool encryptedWrite = false;
+  bool authenticatedRead = false;
+  bool authenticatedWrite = false;
+};
+
+struct EspBleGattDescriptorConfig
+{
+  bool readable = true;
+  bool writable = false;
+  bool encryptedRead = false;
+  bool encryptedWrite = false;
+  bool authenticatedRead = false;
+  bool authenticatedWrite = false;
+  uint16_t maximumLength = 100;
+};
+
 enum class EspBleAdvertisingFilterPolicy : uint8_t
 {
   Any = 0,
@@ -208,10 +234,13 @@ enum class EspBleAdvertisingFilterPolicy : uint8_t
   Both,
 };
 
-enum class EspBleDirectedAdvertisingMode : uint8_t
+// Advertising channels, as a bit mask for EspBleAdvertising::setChannelMap().
+enum EspBleAdvertisingChannel : uint8_t
 {
-  HighDutyCycle = 0,
-  LowDutyCycle,
+  EspBleAdvertisingChannel37 = 0x01,
+  EspBleAdvertisingChannel38 = 0x02,
+  EspBleAdvertisingChannel39 = 0x04,
+  EspBleAdvertisingChannelAll = 0x07,
 };
 
 enum class EspBleGattOperation : uint8_t
@@ -234,6 +263,7 @@ struct EspBleGattResult
   String characteristicUuid;
   String descriptorUuid;
   uint16_t handle = 0;
+  uint16_t descriptorHandle = 0;
   bool success = false;
   EspBleError error = EspBleError::None;
   String detail;
@@ -282,6 +312,86 @@ struct EspBleGattDescriptorInfo
   String characteristicUuid;
   String descriptorUuid;
   uint16_t handle = 0;
+  uint16_t characteristicHandle = 0;
+};
+
+struct EspBleGattService
+{
+  uint16_t id = 0;
+  bool valid() const { return id != 0; }
+  explicit operator bool() const { return valid(); }
+};
+
+struct EspBleGattCharacteristic
+{
+  uint16_t id = 0;
+  bool valid() const { return id != 0; }
+  explicit operator bool() const { return valid(); }
+  bool operator==(const EspBleGattCharacteristic &other) const
+    { return id == other.id; }
+  bool operator!=(const EspBleGattCharacteristic &other) const
+    { return id != other.id; }
+};
+
+struct EspBleGattDescriptor
+{
+  uint16_t id = 0;
+  bool valid() const { return id != 0; }
+  explicit operator bool() const { return valid(); }
+  bool operator==(const EspBleGattDescriptor &other) const
+    { return id == other.id; }
+  bool operator!=(const EspBleGattDescriptor &other) const
+    { return id != other.id; }
+};
+
+struct EspBleGattWrite
+{
+  EspBleConnectionId connectionId = 0;
+  EspBleGattCharacteristic characteristic;
+  String serviceUuid;
+  String characteristicUuid;
+  String value;
+};
+
+struct EspBleGattReadRequest
+{
+  EspBleConnectionId connectionId = 0;
+  EspBleGattCharacteristic characteristic;
+  String serviceUuid;
+  String characteristicUuid;
+};
+
+struct EspBleGattDescriptorWrite
+{
+  EspBleConnectionId connectionId = 0;
+  EspBleGattDescriptor descriptor;
+  String serviceUuid;
+  String characteristicUuid;
+  String descriptorUuid;
+  String value;
+};
+
+struct EspBleGattSubscription
+{
+  EspBleConnectionId connectionId = 0;
+  EspBleGattCharacteristic characteristic;
+  String serviceUuid;
+  String characteristicUuid;
+  bool notifications = false;
+  bool indications = false;
+};
+
+struct EspBleGattSendResult
+{
+  EspBleConnectionId connectionId = 0;
+  EspBleGattCharacteristic characteristic;
+  String serviceUuid;
+  String characteristicUuid;
+  String value;
+  bool indication = false;
+  bool success = false;
+  EspBleError error = EspBleError::None;
+  String detail;
 };
 
 struct EspBluedroidCapabilities
@@ -388,6 +498,7 @@ struct EspBluedroidSppConnectionFailure
 class EspBleBluedroid;
 struct EspBleScannerImpl;
 struct EspBleConnectionImpl;
+struct EspBleGattServerImpl;
 struct EspBluedroidClassicInquiryImpl;
 struct EspBluedroidSppImpl;
 struct EspBluedroidClassicImpl;
@@ -441,12 +552,17 @@ public:
   EspBleAdvertisingFilterPolicy filterPolicy() const;
   void setConnectable(bool connectable);
   bool setInterval(uint16_t minMilliseconds, uint16_t maxMilliseconds);
+  // Address one known peer instead of broadcasting to everyone. Directed
+  // advertising carries no payload, so configured data is ignored until
+  // clearDirectedTarget() returns this object to normal advertising.
+  bool setDirectedTarget(
+    const char *address,
+    EspBleAddressType addressType,
+    bool highDuty = false);
+  void clearDirectedTarget();
+  // Zero restores all three legacy advertising channels.
+  bool setChannelMap(uint8_t channelMask);
   bool start(uint32_t durationSeconds = 0);
-  bool startDirected(
-    const char *peerAddress,
-    EspBleAddressType peerAddressType,
-    EspBleDirectedAdvertisingMode mode =
-      EspBleDirectedAdvertisingMode::HighDutyCycle);
   bool stop();
   bool isAdvertising() const;
 
@@ -466,6 +582,11 @@ private:
   bool connectable_ = true;
   uint16_t intervalMinMs_ = 0;
   uint16_t intervalMaxMs_ = 0;
+  bool directed_ = false;
+  bool directedHighDuty_ = false;
+  String directedAddress_;
+  EspBleAddressType directedAddressType_ = EspBleAddressType::Public;
+  uint8_t channelMask_ = 0;
   bool advertising_ = false;
   bool directedAdvertising_ = false;
   bool directedHighDutyCycle_ = false;
@@ -500,6 +621,84 @@ private:
   EspBleBluedroid *owner_;
   ResultCallback resultCallback_;
   EspBleScannerImpl *impl_ = nullptr;
+};
+
+class EspBleGattServer
+{
+public:
+  static constexpr size_t MaxServices = 8;
+  static constexpr size_t MaxCharacteristics = 32;
+  static constexpr size_t MaxDescriptors = 16;
+  using WriteCallback = std::function<void(const EspBleGattWrite &write)>;
+  using ReadCallback =
+    std::function<void(const EspBleGattReadRequest &request)>;
+  using DescriptorWriteCallback =
+    std::function<void(const EspBleGattDescriptorWrite &write)>;
+  using SubscriptionCallback =
+    std::function<void(const EspBleGattSubscription &subscription)>;
+  using SendCallback =
+    std::function<void(const EspBleGattSendResult &result)>;
+
+  EspBleGattService addService(const char *serviceUuid);
+  EspBleGattCharacteristic addCharacteristic(
+    EspBleGattService service,
+    const char *characteristicUuid,
+    const EspBleGattCharacteristicConfig &config);
+  EspBleGattDescriptor addDescriptor(
+    EspBleGattCharacteristic characteristic,
+    const char *descriptorUuid,
+    const EspBleGattDescriptorConfig &config = EspBleGattDescriptorConfig());
+  bool setValue(
+    EspBleGattCharacteristic characteristic, const uint8_t *data, size_t length);
+  bool setValue(EspBleGattCharacteristic characteristic, const String &value);
+  bool value(EspBleGattCharacteristic characteristic, String &value) const;
+  bool setDescriptorValue(
+    EspBleGattDescriptor descriptor, const uint8_t *data, size_t length);
+  bool setDescriptorValue(EspBleGattDescriptor descriptor, const String &value);
+  bool descriptorValue(EspBleGattDescriptor descriptor, String &value) const;
+  bool notify(
+    EspBleGattCharacteristic characteristic, const uint8_t *data, size_t length);
+  bool notify(EspBleGattCharacteristic characteristic, const String &value);
+  bool indicate(
+    EspBleGattCharacteristic characteristic, const uint8_t *data, size_t length);
+  bool indicate(EspBleGattCharacteristic characteristic, const String &value);
+  bool notify(
+    EspBleConnectionId connectionId, EspBleGattCharacteristic characteristic,
+    const uint8_t *data, size_t length);
+  bool notify(
+    EspBleConnectionId connectionId, EspBleGattCharacteristic characteristic,
+    const String &value);
+  bool indicate(
+    EspBleConnectionId connectionId, EspBleGattCharacteristic characteristic,
+    const uint8_t *data, size_t length);
+  bool indicate(
+    EspBleConnectionId connectionId, EspBleGattCharacteristic characteristic,
+    const String &value);
+  void onWritten(WriteCallback callback);
+  void onRead(ReadCallback callback);
+  void onDescriptorWritten(DescriptorWriteCallback callback);
+  void onSubscriptionChanged(SubscriptionCallback callback);
+  void onSent(SendCallback callback);
+
+private:
+  friend class EspBleBluedroid;
+  friend struct EspBleGattServerImpl;
+  explicit EspBleGattServer(EspBleBluedroid *owner);
+  ~EspBleGattServer();
+  bool realize();
+  void resetBackend();
+  void update();
+  bool send(
+    EspBleConnectionId connectionId, EspBleGattCharacteristic characteristic,
+    const uint8_t *data, size_t length, bool indication);
+
+  EspBleBluedroid *owner_;
+  EspBleGattServerImpl *impl_ = nullptr;
+  WriteCallback writtenCallback_;
+  ReadCallback readCallback_;
+  DescriptorWriteCallback descriptorWrittenCallback_;
+  SubscriptionCallback subscriptionCallback_;
+  SendCallback sentCallback_;
 };
 
 class EspBluedroidClassicInquiry
@@ -723,6 +922,7 @@ public:
   EspBluedroidCapabilities capabilities() const;
   EspBleAdvertising &advertising();
   EspBleScanner &scanner();
+  EspBleGattServer &gattServer();
   EspBluedroidClassic &classic();
 #ifdef ESP_BLE_BLUEDROID_TESTING
   bool setSecurityResponseTimeoutForTest(uint32_t timeoutMilliseconds);
@@ -749,6 +949,11 @@ public:
     uint16_t maxInterval,
     uint16_t latency,
     uint16_t supervisionTimeout);
+  bool discoverCharacteristic(
+    EspBleConnectionId connectionId,
+    const char *serviceUuid,
+    const char *characteristicUuid,
+    uint32_t timeoutMilliseconds = 10000);
   bool discoverServices(
     EspBleConnectionId connectionId,
     uint32_t timeoutMilliseconds = 10000);
@@ -831,6 +1036,23 @@ public:
     EspBleConnectionId connectionId,
     uint16_t characteristicHandle,
     uint32_t timeoutMilliseconds = 10000);
+  bool readDescriptor(
+    EspBleConnectionId connectionId,
+    uint16_t descriptorHandle,
+    uint32_t timeoutMilliseconds = 10000);
+  bool writeDescriptor(
+    EspBleConnectionId connectionId,
+    uint16_t descriptorHandle,
+    const uint8_t *data,
+    size_t length,
+    bool response = true,
+    uint32_t timeoutMilliseconds = 10000);
+  bool writeDescriptor(
+    EspBleConnectionId connectionId,
+    uint16_t descriptorHandle,
+    const String &value,
+    bool response = true,
+    uint32_t timeoutMilliseconds = 10000);
   bool subscribe(
     EspBleConnectionId connectionId,
     const char *serviceUuid,
@@ -885,6 +1107,7 @@ public:
   void onSecurityChanged(SecurityChangedCallback callback);
   void onPasskeyDisplayed(PasskeyDisplayedCallback callback);
   void onNumericComparison(PasskeyDisplayedCallback callback);
+  void onCharacteristicDiscovered(GattResultCallback callback);
   void onCharacteristicRead(GattResultCallback callback);
   void onCharacteristicWritten(GattResultCallback callback);
   void onDescriptorRead(GattResultCallback callback);
@@ -903,6 +1126,7 @@ public:
 private:
   friend class EspBleAdvertising;
   friend class EspBleScanner;
+  friend class EspBleGattServer;
   friend class EspBluedroidClassic;
   friend class EspBluedroidClassicInquiry;
   friend class EspBluedroidSpp;
@@ -918,12 +1142,14 @@ private:
     bool response,
     const char *descriptorUuid,
     uint32_t timeoutMilliseconds,
-    uint16_t characteristicHandle = 0);
+    uint16_t characteristicHandle = 0,
+    uint16_t descriptorHandle = 0);
   void expireGattOperation();
   void dispatchConnectionEvents();
 
   EspBleAdvertising advertising_;
   EspBleScanner scanner_;
+  EspBleGattServer gattServer_;
   EspBluedroidClassic classic_;
   EspBleConnectionImpl *connectionImpl_ = nullptr;
   ConnectionCallback connectedCallback_;
@@ -934,6 +1160,7 @@ private:
   SecurityChangedCallback securityChangedCallback_;
   PasskeyDisplayedCallback passkeyDisplayedCallback_;
   PasskeyDisplayedCallback numericComparisonCallback_;
+  GattResultCallback characteristicDiscoveredCallback_;
   GattResultCallback characteristicReadCallback_;
   GattResultCallback characteristicWrittenCallback_;
   GattResultCallback descriptorReadCallback_;

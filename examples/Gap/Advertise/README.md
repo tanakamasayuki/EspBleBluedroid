@@ -20,6 +20,7 @@ legacy advertising.
 
 - `EspBleConfig::deviceName`
 - `advertising().setName()` / `addServiceUuid()` / `setManufacturerData()`
+- `setChannelMap()` — channels 37/38/39; zero or `EspBleAdvertisingChannelAll` selects all
 - `advertising().start()`
 
 `start()` rejects either legacy payload if it exceeds 31 bytes.

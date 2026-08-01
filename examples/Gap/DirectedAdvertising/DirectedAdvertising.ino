@@ -10,17 +10,19 @@ static constexpr const char *TARGET_CENTRAL = "aa:bb:cc:dd:ee:ff";
 
 EspBleBluedroid bluetooth;
 
-bool startDirected(EspBleDirectedAdvertisingMode mode)
+bool startDirected(bool highDuty)
 {
-  if (!bluetooth.advertising().startDirected(
-        TARGET_CENTRAL, EspBleAddressType::Public, mode))
+  auto &advertising = bluetooth.advertising();
+  if (!advertising.setDirectedTarget(
+        TARGET_CENTRAL, EspBleAddressType::Public, highDuty) ||
+      !advertising.start())
   {
     Serial.printf("Directed Advertising failed: %s (%s)\n",
       bluetooth.lastErrorName(), bluetooth.lastErrorDetail().c_str());
     return false;
   }
   Serial.printf("Directed Advertising started: %s -> %s\n",
-    mode == EspBleDirectedAdvertisingMode::HighDutyCycle ? "high" : "low",
+    highDuty ? "high" : "low",
     TARGET_CENTRAL);
   return true;
 }
@@ -41,7 +43,7 @@ void setup()
   // en: High Duty uses the fixed 3.75 ms interval and stops after at most
   //     1.28 seconds if the target does not connect.
   // ja: High Dutyは固定3.75 ms間隔で、targetが接続しなければ最大1.28秒で停止する。
-  startDirected(EspBleDirectedAdvertisingMode::HighDutyCycle);
+  startDirected(true);
   Serial.println("Send h=high, l=low, x=stop.");
 }
 
@@ -58,10 +60,7 @@ void loop()
     else if (command == 'h' || command == 'l')
     {
       bluetooth.advertising().stop();
-      startDirected(
-        command == 'h'
-          ? EspBleDirectedAdvertisingMode::HighDutyCycle
-          : EspBleDirectedAdvertisingMode::LowDutyCycle);
+      startDirected(command == 'h');
     }
   }
 

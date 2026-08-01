@@ -10,7 +10,9 @@ def test_high_duty_directed_advertising_connects_only_target(dut, peers):
     )
     central_address = central_ready.group(1).decode()
     peripheral.expect_exact(
-        "VALIDATION prebegin=1 payload=1 invalid_address=1", timeout=20
+        "VALIDATION prebegin=1 payload_ignored=1 invalid_address=1 "
+        "invalid_channel=1 channel39=1",
+        timeout=20,
     )
     peripheral_ready = peripheral.expect(
         re.compile(rb"PERIPHERAL_READY address=([0-9a-f:]{17})"), timeout=20

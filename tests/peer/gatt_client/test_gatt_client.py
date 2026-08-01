@@ -6,6 +6,9 @@ def test_characteristic_read_write_is_binary_safe_and_deferred(dut, peers):
         "INVALID_DESCRIPTOR_READ_REJECTED 1 error=InvalidArgument", timeout=20
     )
     dut.expect_exact("ZERO_HANDLE_REJECTED 1 error=InvalidArgument", timeout=20)
+    dut.expect_exact(
+        "ZERO_DESCRIPTOR_HANDLE_REJECTED 1 error=InvalidArgument", timeout=20
+    )
     dut.expect_exact("GATT_CENTRAL_READY", timeout=20)
     peripheral.expect_exact("GATT_PEER_READY", timeout=20)
 
@@ -25,6 +28,10 @@ def test_characteristic_read_write_is_binary_safe_and_deferred(dut, peers):
         timeout=30,
     )
     assert int(discovery.group(1)) >= 1
+    dut.expect_exact("CHARACTERISTIC_DISCOVERY_REQUESTED 1", timeout=20)
+    dut.expect_exact(
+        "CHARACTERISTIC_DISCOVERY_RESULT success=1 context=loop", timeout=20
+    )
     dut.expect_exact("MISSING_HANDLE_READ_REQUESTED 1", timeout=20)
     dut.expect_exact(
         "MISSING_HANDLE_READ_RESULT success=0 error=NotFound handle=65534 context=loop",

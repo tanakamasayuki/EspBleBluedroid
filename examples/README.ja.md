@@ -7,6 +7,7 @@
 | Build | [CompileSmoke](CompileSmoke/README.ja.md) | header、Bluedroid backend guard、version macroのbuild確認 |
 | GAP | [Advertise](Gap/Advertise/README.ja.md) | Local Name、Service UUID、Manufacturer DataのLegacy Advertising |
 | GAP | [Beacon](Gap/Beacon/README.ja.md) | non-connectableなManufacturer Data beacon |
+| GAP | [IBeacon](Gap/IBeacon/README.ja.md) | 共通codecでApple iBeaconをbroadcast |
 | GAP | [ScanResponse](Gap/ScanResponse/README.ja.md) | Advertising本体とScan Responseを個別に構成 |
 | GAP | [PrivateAddress](Gap/PrivateAddress/README.ja.md) | Random StaticまたはRPAでpublic addressを隠してAdvertising |
 | GAP | [AcceptList](Gap/AcceptList/README.ja.md) | controllerのFilter Accept Listでscan request・接続要求を制限 |
@@ -17,6 +18,8 @@
 | GAP | [ConnectionParameters](Gap/ConnectionParameters/README.ja.md) | 接続interval、latency、supervision timeoutの表示・更新 |
 | GAP | [Mtu](Gap/Mtu/README.ja.md) | 希望ATT MTUを設定し、交換前後の値とpayload上限を確認 |
 | GATT Basics | [Client](Gatt/Basics/Client/README.ja.md) | Database Discovery、Read/Write、Descriptor、Notification購読のcallback chain |
+| GATT Basics | [Server](Gatt/Basics/Server/README.ja.md) | begin前に登録するService、Characteristic、DescriptorとRead/Write callback |
+| GATT Basics | [NotifyServer](Gatt/Basics/NotifyServer/README.ja.md) | CCCD購読中のClientへカウンタをNotification送信 |
 | GATT Device | [BatteryClient](Gatt/Device/BatteryClient/README.ja.md) | 標準Battery LevelのReadとNotification購読 |
 | Info | [ConnectionInspector](Info/ConnectionInspector/README.ja.md) | 対話式接続、snapshot、bond、counter診断 |
 | Info | [ScanDump](Info/ScanDump/README.ja.md) | Advertisingから抽出した全公開fieldを表示 |

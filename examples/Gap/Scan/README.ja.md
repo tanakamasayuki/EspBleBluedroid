@@ -20,6 +20,7 @@
 - `scanner().onResult()` — `EspBleScanResult`を受け取る
 - `EspBleScanConfig::active` — Active/Passive Scanを選択
 - `intervalMilliseconds` / `windowMilliseconds` / `durationSeconds`
+- `acceptListOnly` — `addToAcceptList()`で登録したaddressだけをcontrollerから受け取る
 - `scanResult.hasName()` — nameを持たないpacketと区別
 
 ## 期待されるSerial出力

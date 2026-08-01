@@ -4,10 +4,10 @@ ESP32のBluedroidスタックを利用するArduinoライブラリです。NimBL
 兄弟ライブラリ[EspBle](https://github.com/tanakamasayuki/EspBle)と、接続後のGATT操作を中心に似た使い勝手を
 提供することを目標にしています。
 
-現在は実装の最初の段階です。root lifecycle、Legacy Advertising、Scan、Central
-1接続、非同期GATT Discovery / UUID・handle指定Characteristic操作 / Descriptor
-Read / Write / Notification購読の
-公開APIを実装し、
+root lifecycle、Legacy Advertising、Scan、Central 1接続、非同期GATT Discovery、
+UUID・handle指定Characteristic / Descriptor操作、Notification購読に加え、EspBleと
+同型のopaque handleを使うGATT Server APIを実装しています。GATT ServerはService、
+Characteristic、Descriptor、Read/Write、Notify/Indicateを扱えます。
 無印ESP32を2台使ったpeerテストで
 検証しています。LE Secure Connections Just Works、静的・実行時passkey MITM、
 Numeric Comparison、bondの保存・列挙・削除も実装済みです。Bluetooth Classicは
@@ -30,6 +30,7 @@ peerテストでは次を確認します。
 - GATT characteristicのreadとwrite
 - Discoveryで得たhandleを使うcharacteristic read/write/subscribe/unsubscribe
 - GATT descriptorのbinary-safeなreadとwrite
+- GATT Serverの動的Read、binary Write、Descriptor、CCCD購読、Notification
 - Just Works pairing、暗号化再接続、BLE bond管理
 - DisplayOnly/KeyboardOnlyの静的passkey MITMとauthenticated GATT
 - CCCD購読とnotification

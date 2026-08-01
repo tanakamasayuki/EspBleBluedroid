@@ -26,11 +26,13 @@ backendが違っても同じ意味にできる機能は、型名、操作の要�
 | Advertising / Scan | payload builder、scan result、開始・停止callback | Active ScanのAdvertisingとScan Responseの報告順が一定でないため、address単位で短時間merge |
 | local identity / Tx Power | Advertising own address種別、`localAddress()`、`setTxPower()` | Random Static、controller RPA、実送信電力をESP-IDF GAP APIから直接制御 |
 | Advertising Filter Accept List | 一覧管理とScan Request・接続要求policy | 開始時にESP-IDF GAP APIでcontroller一覧を同期し、Arduino wrapperへfilter policyだけを設定 |
+| Scan Filter Accept List | `EspBleScanConfig::acceptListOnly` | ESP-IDF GAP scan APIへ直接設定し、一覧外packetをcontrollerで破棄 |
 | Central接続 | 非同期`connect()`、connection ID、接続・切断callback | 現在は同時1接続。接続処理はworker taskへ隔離 |
 | 接続パラメータ | snapshot、`updateConnectionParameters()`、`onConnectionParametersUpdated()` | 初期値はcontrollerから読み、GAP完了eventの合意値だけを`update()`から配送 |
 | MTU | 既定247、`EspBleConnection::mtu`、`EspBleMtuChanged`、`onMtuChanged()` | local値を初期化時に設定し、接続worker完了後に`update()`から1回だけ交換して低レベル完了eventの合意値を公開 |
 | 切断 | `disconnect()`と`onDisconnected()` | Arduino callbackが捨てるHCI reasonを低レベルGATTC eventから補完 |
 | GATT Client | Discovery、Characteristic/Descriptor Read・Write、Subscribe | Bluedroidの同期wrapperを専用taskへ隔離し、完了は`update()`から配送 |
+| GATT Server | begin前の静的登録、opaque handle、Read/Write、Notify/Indicate | Arduino Bluedroid Serverをbackendにし、Read以外のcallbackを`update()`から配送 |
 | BLE Security | Just Works、Passkey、Numeric Comparison、Bond | backend callbackへの同期回答は期限付きmailboxで受け、結果callbackとは分離 |
 
 ## 意図的に一致させていない範囲
@@ -50,18 +52,18 @@ EspBleにある自動再接続とPHY更新は未実装です。Connection Parame
 
 ### PeripheralとGATT Server
 
-現在の公開APIはCentral 1接続とGATT Clientまでです。Peripheral connection snapshotと
-GATT Serverは未実装です。GATT Server編のAPIをEspBle側で確定した後、静的定義、
-permission、Read/Write、Notify/Indicateを同じ利用規則へ寄せます。Bluedroidが
-NimBLEより動的変更しやすい場合でも、既存objectの寿命やcallback順を壊さない独立機能
-として設計し、暗黙に有効化しません。
+GATT Serverの静的定義、permission、Read/Write、Notify/IndicateはEspBleと同じ公開型と
+登録順で利用できます。Bluedroid wrapperが同じService内の同一UUID Characteristicを
+正しく保持しないため、この組み合わせだけは登録時に拒否します。Peripheral connectionの
+公開snapshot、複数observer、自動再接続・再購読、HID/MIDIなどのprofile helperは未実装です。
 
 ### GAPの未実装機能
 
-Central Scan側のFilter Accept Listと接続開始時のパラメータ指定は未実装です。
+接続開始時のパラメータ指定は未実装です。
 Advertising側のFilter Accept ListはScan Request・接続要求の両方に対応します。
-Directed AdvertisingはBluedroid GAP APIを直接呼び、High/Low Dutyとpeer address typeを
-公開しています。これは現在EspBle側にないBluedroid固有の先行機能です。
+Directed AdvertisingはEspBleと同じ`setDirectedTarget()` / `clearDirectedTarget()` /
+`start()`で公開し、Bluedroid GAP APIを直接呼びます。High/Low Dutyとpeer address type、
+Advertising channel mapも共通APIで指定できます。
 Legacy Advertisingのown address選択、Random Static、RPA、送信電力設定には対応しています。
 Scan Request側のown address typeはArduino wrapperがPublic固定のため、直接scan経路へ
 置き換えるまで未対応です。ただしBluedroidの

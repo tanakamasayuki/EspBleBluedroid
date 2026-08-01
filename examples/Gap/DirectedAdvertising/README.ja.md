@@ -17,16 +17,16 @@
 
 | mode | interval | 継続時間 | 主な用途 |
 |---|---:|---:|---|
-| `HighDutyCycle` | 3.75 ms固定 | 最大1.28秒 | 切断直後の高速再接続 |
-| `LowDutyCycle` | `setInterval()`の値。未指定時1.28秒 | `stop()`または接続まで | 消費電力を抑えた待機 |
+| `highDuty = true` | 3.75 ms固定 | 最大1.28秒 | 切断直後の高速再接続 |
+| `highDuty = false` | `setInterval()`の値。未指定時1.28秒 | `stop()`または接続まで | 消費電力を抑えた待機 |
 
 High Dutyはtargetが接続しなくてもcontrollerが自動停止します。`bluetooth.update()`を継続して呼ぶと`isAdvertising()`も停止状態へ更新されます。
 
 ## 重要な制約
 
-Directed Advertisingは仕様上、Local Name、Service UUID、Manufacturer DataなどのAD dataとScan Responseを一切送れません。このため、`data()`または`scanResponse()`に値が設定された状態で`startDirected()`を呼ぶと`InvalidState`になります。
+Directed Advertisingは仕様上、Local Name、Service UUID、Manufacturer DataなどのAD dataとScan Responseを一切送れません。`setDirectedTarget()`で宛先を設定している間は、通常Advertising用に構成したpayloadは送信されません。`clearDirectedTarget()`を呼ぶと同じAdvertising objectを通常送信へ戻せます。
 
-通常Advertisingから切り替える場合は、先に`stop()`してください。動作中の別Advertisingを暗黙に上書きしません。
+`start()`は動作中のAdvertisingを停止して、新しい設定で開始します。
 
 RPAを使うbond済みpeerを指定する場合は、一時的に観測したRPAではなくidentity addressと正しいidentity address typeを指定します。
 
@@ -41,8 +41,8 @@ Directed Advertisingは接続先を限定しますが、接続後の暗号化や
 ## 主なAPI
 
 ```cpp
-bluetooth.advertising().startDirected(
-  targetAddress,
-  EspBleAddressType::Public,
-  EspBleDirectedAdvertisingMode::HighDutyCycle);
+auto &advertising = bluetooth.advertising();
+advertising.setDirectedTarget(
+  targetAddress, EspBleAddressType::Public, true);
+advertising.start();
 ```

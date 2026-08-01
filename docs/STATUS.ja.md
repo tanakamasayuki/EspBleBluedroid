@@ -11,13 +11,16 @@
 | Lifecycle | `begin()` / `end()` / `update()` / `initialized()` | 初期化前操作拒否、同一設定の再実行、接続試行・active linkの終了 |
 | Error | `lastError()` / `lastErrorName()` / `lastErrorDetail()` | state・argument・backend・resource・unsupportedの分類 |
 | Advertising | `data()` / `scanResponse()`、name、service UUID/data、manufacturer data、appearance、Tx Power、connectable、interval、開始・停止 | 2面の独立構成、raw PDU、複数UUIDの集約、31 byte境界、時間停止を実機確認 |
-| Scan | active/passive、interval/window、duration、duplicate指定、rich result、開始・停止 | AdvertisingとScan Responseのaddress単位merge、Service Data・Appearance・Tx Power、値型copy、duration・明示停止、16件queue・overflow、`end()`時flushを確認 |
+| iBeacon | `EspBleIBeacon.h` encode / decode | EspBle共通codecのunit testとnon-connectable broadcast/scanを実機確認 |
+| UUID codec | `EspBleUuid.h` parse / format / compare | EspBle共通codecで16/32/128-bit、短縮形とBluetooth Base UUIDの等価性をunit test |
+| Scan | active/passive、interval/window、duration、duplicate指定、accept list filter、rich result、開始・停止 | AdvertisingとScan Responseのaddress単位merge、Service Data・Appearance・Tx Power、値型copy、controller filter、duration・明示停止、16件queue・overflow、`end()`時flushを確認 |
 | Event配送 | `EspBleScanner::onResult()` | stack callbackからqueueへcopyし、利用者callbackを`update()`から配送 |
 | Advertising identity / radio | `ownAddressType` / `localAddress()` / `setTxPower()` | Public、Random Static、RPA、−12/+9 dBmと電波上の値を確認 |
 | Advertising accept list | `addToAcceptList()` / 一覧管理 / `setFilterPolicy()` | controller一覧同期、一覧外接続の拒否、`Any`へ変更後の接続・切断 |
-| Directed Advertising | `startDirected()` / High・Low Duty / peer address type | 宛先Centralでの空payload受信・接続、High Duty自動停止、Low Duty継続・明示停止 |
+| Directed Advertising | `setDirectedTarget()` / `start()` / High・Low Duty / peer address type | 宛先Centralでの空payload受信・接続、High Duty自動停止、Low Duty継続・明示停止 |
 | Central接続 | `connect()` / `disconnect()` / connection snapshot / lifecycle・MTU・parameter callback | non-blocking要求、再接続ID、MTU交換、接続パラメータ取得・更新、HCI切断理由、timeout分類、切断、再初期化 |
-| GATT Client | Database Discovery / UUID・handle指定Characteristic操作 / Descriptor Read・Write / Notification | connection単位snapshot、binary-safe値、CCCD、専用task、`update()`配送 |
+| GATT Client | Database Discovery / Characteristic単体Discovery / UUID・handle指定Characteristic操作 / Descriptor Read・Write / Notification | connection単位snapshot、Characteristic・Descriptor handle、binary-safe値、CCCD、専用task、`update()`配送 |
+| GATT Server | `gattServer()` / Service・Characteristic・Descriptor登録 / Read・Write / Notify・Indicate | begin前の静的定義、opaque handle、binary-safe値、動的Read、CCCD購読、Notificationを実機確認 |
 | BLE Security | Just Works / Static・Runtime Passkey / Numeric Comparison / Bond | 暗号化・認証必須attribute、保存bond再接続、passkey表示・入力・比較確認、bond管理 |
 | Capability | `capabilities()` | BLE、Classic、dual-mode、Classic Inquiry、SPPを初期化前に判定 |
 | Classic Inquiry | `classic().inquiry()` | name、address、Class of Device、RSSI、明示停止、完了event、`update()`配送 |
@@ -92,8 +95,8 @@ CCCD購読、notificationまで確認している。
 - Advertising own addressはPublic、Random Static、RPAに対応する。Scan Requestは現在
   Public address固定。RPAはcontroller管理で、現在値を
   返す公開GAP APIがないため`localAddress()`は空文字列を返す。
-- Advertising側のFilter Accept Listは最大8件で、Scan Requestと接続要求を個別または
-  同時に制限できる。Central Scan側のcontroller filterは未実装。
+- Filter Accept Listは最大8件で、Advertising側のScan Request・接続要求と、
+  Central Scan側の受信対象をcontrollerで制限できる。
 - Advertising service UUID / service dataは各payloadで各4件、Scan Resultはservice UUID
   8件、service data 4件。超過したScan fieldの個数はまだ個別に報告しない。
 - Scan result queueは16件。overflowは`droppedResultCount()`で確認できる。
@@ -125,8 +128,14 @@ CCCD購読、notificationまで確認している。
   未実装で、無印ESP32はLE 2M/Coded PHYに対応しない。
 - Bluedroidの接続待機を1秒以下の区間に分けるため、接続試行中の`end()`は同期的に
   終了するが、復帰まで最大約1秒待つことがある。終了した試行のcallbackは配送しない。
-- GATT ClientはDatabase Discovery、Characteristic/Descriptor Read/Write、Subscribe/Unsubscribe。
-  CharacteristicはUUID指定とhandle指定に対応する。同時1操作。
+- GATT ClientはDatabase Discovery、Characteristic単体Discovery、Characteristic/Descriptor
+  Read/Write、Subscribe/Unsubscribe。CharacteristicとDescriptorはUUID指定とhandle指定に
+  対応する。同時1操作。
+- GATT ServerはService 8、Characteristic 32、Descriptor 16までを`begin()`前に登録する。
+  Bluedroid wrapperの制約により、同じService内で同一UUIDのCharacteristicは登録時に拒否する。
+  Read callbackだけは応答前に値を決めるためstack task、Write・Descriptor・購読・送信完了は
+  `update()`から配送する。Peripheral connection snapshot、複数observer、profile helper、
+  自動再接続・再購読は未実装。
 - Discovery snapshot上限はService 16、Characteristic 48、Descriptor 48。
   PSRAMは使用せずDiscovery時だけheapへ確保し、切断時に無効化する。
 - GATT timeoutの結果配送には`update()`が必要。timeout後の遅いbackend完了は配送しないが、
@@ -165,7 +174,7 @@ CCCD購読、notificationまで確認している。
   RX ring保持を確認している。BLE connection event queue満杯時はNotificationより
   接続・Security・GATT完了などの制御eventを優先する。長時間soakとround境界なしの
   連続飽和状態でのfairnessは未確認。
-- GATT Server、HIDおよびSPP以外のClassic profileは公開API未実装。
+- HID、BLE MIDIおよびSPP以外のClassic profileは公開API未実装。
 - Advertisingの時間指定停止は`update()`で処理するため、継続的な`update()`呼出しが必要。
 
 ## BLE直接バックエンド移行

@@ -18,6 +18,7 @@ bool connectionRequested = false;
 bool updatesEnabled = true;
 uint8_t writePhase = 0;
 uint16_t targetCharacteristicHandle = 0;
+uint16_t targetDescriptorHandle = 0;
 
 const char *contextName()
 {
@@ -56,6 +57,10 @@ void setup()
     999, static_cast<uint16_t>(0), 1000);
   Serial.printf("ZERO_HANDLE_REJECTED %u error=%s\n",
     zeroHandleAccepted ? 0 : 1, bluetooth.lastErrorName());
+  const bool zeroDescriptorHandleAccepted = bluetooth.readDescriptor(
+    999, static_cast<uint16_t>(0), 1000);
+  Serial.printf("ZERO_DESCRIPTOR_HANDLE_REJECTED %u error=%s\n",
+    zeroDescriptorHandleAccepted ? 0 : 1, bluetooth.lastErrorName());
 
   bluetooth.onConnected([](const EspBleConnection &connection) {
     const bool accepted = bluetooth.discoverServices(connection.id, 5000);
@@ -105,7 +110,9 @@ void setup()
         }
         if (info.descriptorUuid.equalsIgnoreCase(DESCRIPTOR_UUID))
         {
-          customDescriptorFound = info.handle != 0;
+          customDescriptorFound = info.handle != 0 &&
+            info.characteristicHandle == targetCharacteristicHandle;
+          targetDescriptorHandle = info.handle;
         }
       }
     }
@@ -116,12 +123,24 @@ void setup()
       found ? 1 : 0, cccdFound ? 1 : 0, customDescriptorFound ? 1 : 0,
       propertiesValid ? 1 : 0,
       contextName());
+    const bool accepted = bluetooth.discoverCharacteristic(
+      result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID, 5000);
+    Serial.printf("CHARACTERISTIC_DISCOVERY_REQUESTED %u\n", accepted ? 1 : 0);
+  });
+  bluetooth.onCharacteristicDiscovered([](const EspBleGattResult &result) {
+    const bool valid = result.success &&
+      result.handle == targetCharacteristicHandle && result.readable &&
+      result.writable && result.writableWithoutResponse && result.notifiable;
+    Serial.printf("CHARACTERISTIC_DISCOVERY_RESULT success=%u context=%s\n",
+      valid ? 1 : 0, contextName());
     const bool accepted = bluetooth.readCharacteristic(
       result.connectionId, MISSING_CHARACTERISTIC_HANDLE, 5000);
     Serial.printf("MISSING_HANDLE_READ_REQUESTED %u\n", accepted ? 1 : 0);
   });
   bluetooth.onDescriptorRead([](const EspBleGattResult &result) {
-    const bool valid = result.success && result.handle != 0 &&
+    const bool valid = result.success &&
+      result.handle == targetCharacteristicHandle &&
+      result.descriptorHandle == targetDescriptorHandle &&
       result.descriptorUuid.equalsIgnoreCase(DESCRIPTOR_UUID) &&
       result.value.length() == 4 &&
       static_cast<uint8_t>(result.value[0]) == 0x44 &&
@@ -138,12 +157,14 @@ void setup()
       contextName());
     const uint8_t payload[] = {0x00, 0x44, 0xfe};
     const bool accepted = bluetooth.writeDescriptor(
-      result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID,
-      DESCRIPTOR_UUID, payload, sizeof(payload), true, 5000);
+      result.connectionId, targetDescriptorHandle,
+      payload, sizeof(payload), true, 5000);
     Serial.printf("DESCRIPTOR_WRITE_REQUESTED %u\n", accepted ? 1 : 0);
   });
   bluetooth.onDescriptorWritten([](const EspBleGattResult &result) {
-    const bool valid = result.success && result.handle != 0 &&
+    const bool valid = result.success &&
+      result.handle == targetCharacteristicHandle &&
+      result.descriptorHandle == targetDescriptorHandle &&
       result.descriptorUuid.equalsIgnoreCase(DESCRIPTOR_UUID);
     Serial.printf(
       "DESCRIPTOR_WRITE_RESULT success=%u response=%u length=%u context=%s\n",
@@ -161,8 +182,7 @@ void setup()
         "MISSING_HANDLE_READ_RESULT success=0 error=%s handle=%u context=%s\n",
         errorName(result.error), result.handle, contextName());
       const bool accepted = bluetooth.readDescriptor(
-        result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID,
-        DESCRIPTOR_UUID, 5000);
+        result.connectionId, targetDescriptorHandle, 5000);
       Serial.printf("DESCRIPTOR_READ_REQUESTED %u\n", accepted ? 1 : 0);
       return;
     }
