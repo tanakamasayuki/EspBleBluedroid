@@ -47,7 +47,9 @@ done
 - BLE Scan、接続、GATT read/write/notifyをスマートフォンまたはPCで確認する。
 - BLE Security/Bond実装後はJust Works、passkey、再接続を確認する。
 - Classic SPP実装後は少なくとも2種類の外部SPP実装で双方向通信を確認する。
-- Classic HID/A2DP等はprofile追加時に固有項目をこのchecklistへ追加する。
+- A2DP Sink/Sourceはnegotiated PCM format、stack task上のdata callback、`update()`上の
+  control event、切断、`end()`、Core内蔵SBC encode/decodeを両roleで実機確認する。
+- Classic HID等はprofile追加時にCore build optionと固有項目をこのchecklistへ追加する。
 - BLEとClassicを同時利用する公開機能はdual-mode相互運用を確認する。
 
 ## 最終確認とリリース

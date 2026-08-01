@@ -107,3 +107,9 @@ runtime passkey submission, unanswered-input timeout, rejection of late input,
 successful retry, bounded shutdown while input is pending,
 authenticated/encrypted SPP data, and reinitialization with the opposite I/O
 capability in the same boot.
+`peer/a2dp_sink` verifies the public A2DP Sink against a raw Source, including
+Core SBC decoding, negotiated 16-bit PCM on the A2DP stack task, control events
+through `update()`, disconnection, and shutdown.
+`peer/a2dp_source` verifies the public A2DP Source against a raw Sink, including
+synchronous PCM requests, Core SBC encoding/decoding, stream startup, callback
+contexts, disconnection, and shutdown.

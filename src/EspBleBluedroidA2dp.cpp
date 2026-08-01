@@ -114,7 +114,7 @@ EspBluedroidA2dpPcmFormat pcmFormat(
 {
   EspBluedroidA2dpPcmFormat result;
   result.sampleRate = codec.sampleRate;
-  result.channelCount = codec.channelCount;
+  result.channels = codec.channelCount;
   return result;
 }
 } // namespace
@@ -271,6 +271,13 @@ bool EspBluedroidA2dpSink::session(EspBluedroidA2dpSession &session) const
   if (impl_->activeSession.id == 0) return false;
   session = impl_->activeSession;
   return true;
+}
+
+size_t EspBluedroidA2dpSink::droppedEventCount() const
+{
+  if (impl_ == nullptr) return 0;
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  return impl_->droppedEvents;
 }
 
 void EspBluedroidA2dpSink::onConnected(SessionCallback callback)
@@ -500,6 +507,13 @@ bool EspBluedroidA2dpSource::session(EspBluedroidA2dpSession &session) const
   if (impl_->activeSession.id == 0) return false;
   session = impl_->activeSession;
   return true;
+}
+
+size_t EspBluedroidA2dpSource::droppedEventCount() const
+{
+  if (impl_ == nullptr) return 0;
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  return impl_->droppedEvents;
 }
 
 bool EspBluedroidA2dpSource::startStream()
@@ -785,7 +799,7 @@ void a2dpSinkPcmCallback(const uint8_t *data, uint32_t length)
     pcm.format = pcmFormat(impl->activeSession.codec);
   }
   if (!callback || pcm.sessionId == 0 ||
-      pcm.format.sampleRate == 0 || pcm.format.channelCount == 0)
+      pcm.format.sampleRate == 0 || pcm.format.channels == 0)
   {
     return;
   }
@@ -818,7 +832,7 @@ int32_t a2dpSourcePcmCallback(uint8_t *data, int32_t length)
     return 0;
   }
   if (request.sessionId == 0 || request.format.sampleRate == 0 ||
-      request.format.channelCount == 0)
+      request.format.channels == 0)
   {
     return 0;
   }

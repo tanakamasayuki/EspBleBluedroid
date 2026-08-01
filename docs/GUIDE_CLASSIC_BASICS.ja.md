@@ -214,7 +214,8 @@ source.start();
 source.connect("aa:bb:cc:dd:ee:ff");
 ```
 
-PCMは16-bit interleavedで、`format.sampleRate`と`format.channelCount`はnegotiation後の値です。
+PCMは16-bit interleavedで、formatの`sampleRate`、`channels`、`bytesPerSample`、
+`bitsPerSample`はEspUsbHost/EspUsbDeviceの音声formatと同じfield名です。
 Sinkのpointerはcallback終了後に保持できません。Sourceの`written`を`capacity`より大きくすると
 その要求は0 byteとして拒否されます。`flush`時は`data == nullptr`であり、application側の
 PCM queueやresampler状態を破棄します。

@@ -66,7 +66,7 @@ void initializeBluetooth()
       static_cast<unsigned>(pcm.sessionId),
       static_cast<unsigned>(pcm.length),
       static_cast<unsigned>(pcm.format.sampleRate),
-      pcm.format.channelCount, pcm.format.bitsPerSample,
+      pcm.format.channels, pcm.format.bitsPerSample,
       allZero ? 1 : 0, contextName());
     reported = true;
   });

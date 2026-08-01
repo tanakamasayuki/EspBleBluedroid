@@ -514,7 +514,8 @@ struct EspBluedroidA2dpSession
 struct EspBluedroidA2dpPcmFormat
 {
   uint32_t sampleRate = 0;
-  uint8_t channelCount = 0;
+  uint8_t channels = 0;
+  uint8_t bytesPerSample = 2;
   uint8_t bitsPerSample = 16;
   bool interleaved = true;
 };
@@ -989,6 +990,7 @@ public:
   bool connect(const char *peerAddress);
   bool disconnect(EspBluedroidA2dpSessionId sessionId);
   bool session(EspBluedroidA2dpSession &session) const;
+  size_t droppedEventCount() const;
   void onConnected(SessionCallback callback);
   void onDisconnected(SessionCallback callback);
   void onStarted(StartCallback callback);
@@ -1036,6 +1038,7 @@ public:
   bool connect(const char *peerAddress);
   bool disconnect(EspBluedroidA2dpSessionId sessionId);
   bool session(EspBluedroidA2dpSession &session) const;
+  size_t droppedEventCount() const;
   bool startStream();
   bool suspendStream();
   // Called synchronously from the A2DP stack task. Fill request.data, set

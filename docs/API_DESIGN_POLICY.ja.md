@@ -83,7 +83,9 @@ Classic固有機能は`classic()` facadeの下へ配置する。
 auto &classic = bluetooth.classic();
 classic.inquiry().start();
 classic.spp();
-// 将来候補: classic.hidHost(), classic.a2dpSink(), classic.avrcpController()
+classic.a2dpSink();
+classic.a2dpSource();
+// 将来候補: classic.hidHost(), classic.avrcpController()
 ```
 
 この非対称性は意図的である。root直下のBLE APIを`ble()`配下へ移すとEspBleとの

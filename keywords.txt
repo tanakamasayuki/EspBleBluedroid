@@ -145,6 +145,7 @@ startStream	KEYWORD2
 suspendStream	KEYWORD2
 onStreamChanged	KEYWORD2
 onStarted	KEYWORD2
+droppedEventCount	KEYWORD2
 startServer	KEYWORD2
 stopServer	KEYWORD2
 pendingWriteCount	KEYWORD2
