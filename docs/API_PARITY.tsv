@@ -1,0 +1,751 @@
+# Classified differences between EspBle's public API and this library's.
+# Regenerate the row set with tools/gen_api_parity.py, then fill in every
+# reason and note by hand. tests/unit/api_parity fails on any row with
+# reason TODO, any unlisted difference, and any listed row that no longer
+# differs.
+#
+# side	symbol	reason	note
+# side   espble_only    | bluedroid_only
+# reason backend (a Bluedroid or radio constraint)
+#        classic (a Bluetooth Classic extension EspBle does not have)
+#        planned (not implemented yet; the note says where it is tracked)
+espble_only	ESP_BLE_HID_CONSUMER_CONTROL_MUTE	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_CONSUMER_CONTROL_NEXT_TRACK	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_CONSUMER_CONTROL_PLAY_PAUSE	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_CONSUMER_CONTROL_PREVIOUS_TRACK	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_CONSUMER_CONTROL_VOLUME_DOWN	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_CONSUMER_CONTROL_VOLUME_UP	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_GAMEPAD_HAT_CENTER	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_GAMEPAD_HAT_DOWN	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_GAMEPAD_HAT_DOWN_LEFT	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_GAMEPAD_HAT_DOWN_RIGHT	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_GAMEPAD_HAT_LEFT	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_GAMEPAD_HAT_RIGHT	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_GAMEPAD_HAT_UP	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_GAMEPAD_HAT_UP_LEFT	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_GAMEPAD_HAT_UP_RIGHT	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_MOUSE_BACK	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_MOUSE_FORWARD	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_MOUSE_LEFT	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_MOUSE_MIDDLE	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_MOUSE_RIGHT	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_REPORT_ID_CONSUMER_CONTROL	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_REPORT_ID_GAMEPAD	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_REPORT_ID_KEYBOARD	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_REPORT_ID_MOUSE	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_REPORT_ID_SYSTEM_CONTROL	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_REPORT_ID_VENDOR	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_SYSTEM_CONTROL_POWER_OFF	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_SYSTEM_CONTROL_STANDBY	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	ESP_BLE_HID_SYSTEM_CONTROL_WAKE_HOST	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBle::Phy1MMask	backend	Bluetooth 4.2 LE radio: no LE 2M or Coded PHY to select or report
+espble_only	EspBle::Phy2MMask	backend	Bluetooth 4.2 LE radio: no LE 2M or Coded PHY to select or report
+espble_only	EspBle::PhyCodedMask	backend	Bluetooth 4.2 LE radio: no LE 2M or Coded PHY to select or report
+espble_only	EspBle::addCharacteristicDiscoveredListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBle::addCharacteristicReadListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBle::addCharacteristicWrittenListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBle::addConnectedListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBle::addConnectionFailedListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBle::addConnectionParametersUpdatedListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBle::addDescriptorReadListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBle::addDescriptorWrittenListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBle::addDisconnectedListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBle::addMtuChangedListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBle::addNotificationListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBle::addPhyUpdatedListener/1	backend	Bluetooth 4.2 LE radio: no LE 2M or Coded PHY to select or report
+espble_only	EspBle::addSecurityChangedListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBle::addServicesDiscoveredListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBle::addSubscribedListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBle::addUnsubscribedListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBle::autoReconnect/0	planned	library-level feature, not a backend limit; examples/Gatt/Basics/AutoReconnectClient shows the manual pattern
+espble_only	EspBle::disconnect/2	backend	Bluedroid closes a link through esp_ble_gattc_close(), which sends no application-chosen HCI reason code; disconnect(id) is the whole API here
+espble_only	EspBle::droppedPersistentSubscriptionCount/0	planned	library-level feature, not a backend limit; examples/Gatt/Basics/AutoReconnectClient shows the manual pattern
+espble_only	EspBle::hidConsumerControl/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBle::hidCustom/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBle::hidGamepad/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBle::hidHost/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBle::hidKeyboard/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBle::hidMouse/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBle::hidSystemControl/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBle::hidVendor/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBle::notifyServicesChanged/2	backend	Bluedroid owns Service Changed: Arduino-ESP32 builds it with CONFIG_BT_GATTS_SEND_SERVICE_CHANGE_AUTO=y and publishes Generic Attribute 0x1801 itself, so the application has nothing to announce (tests/peer/service_changed)
+espble_only	EspBle::onPhyUpdated/1	backend	Bluetooth 4.2 LE radio: no LE 2M or Coded PHY to select or report
+espble_only	EspBle::removeConnectionListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBle::removeGattListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBle::setAutoReconnect/1	planned	library-level feature, not a backend limit; examples/Gatt/Basics/AutoReconnectClient shows the manual pattern
+espble_only	EspBle::updatePhy/3	backend	Bluetooth 4.2 LE radio: no LE 2M or Coded PHY to select or report
+espble_only	EspBleCallbackList	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBleCallbackList::Capacity	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBleConfig::persistentSubscriptions	planned	library-level feature, not a backend limit; examples/Gatt/Basics/AutoReconnectClient shows the manual pattern
+espble_only	EspBleConnection::rxPhy	backend	Bluetooth 4.2 LE radio: no LE 2M or Coded PHY to select or report
+espble_only	EspBleConnection::txPhy	backend	Bluetooth 4.2 LE radio: no LE 2M or Coded PHY to select or report
+espble_only	EspBleGattServer::addDescriptorWrittenListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBleGattServer::addSentListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBleGattServer::addSubscriptionChangedListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBleGattServer::addWrittenListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBleGattServer::removeListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBleHidConsumerControl	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidConsumerControl::click/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidConsumerControl::click/2	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidConsumerControl::configure/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidConsumerControl::configure/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidConsumerControl::configured/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidConsumerControl::press/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidConsumerControl::ready/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidConsumerControl::release/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidConsumerControl::releaseAll/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidConsumerControl::sendReport/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidConsumerControl::sendUsage/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidConsumerControl::usage/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidConsumerControlConfig	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidConsumerControlEvent	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidConsumerControlEvent::pressed	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidConsumerControlEvent::released	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidConsumerControlEvent::usage	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidCustom	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidCustom::MaxReports	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidCustom::ReportCallback	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidCustom::addFeatureReport/2	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidCustom::addInputReport/2	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidCustom::addOutputReport/2	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidCustom::configure/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidCustom::configure/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidCustom::configured/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidCustom::onFeatureReport/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidCustom::onOutputReport/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidCustom::ready/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidCustom::sendInput/3	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidCustom::setReportMap/2	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidDeviceConfig	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidDeviceConfig::countryCode	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidDeviceConfig::initialBatteryLevel	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidDeviceConfig::manufacturer	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidDeviceConfig::productId	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidDeviceConfig::productVersion	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidDeviceConfig::vendorId	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidFieldValue	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidFieldValue::bitOffset	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidFieldValue::bitSize	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidFieldValue::flags	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidFieldValue::logicalMax	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidFieldValue::logicalMin	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidFieldValue::reportId	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidFieldValue::usage	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidFieldValue::usagePage	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidFieldValue::value	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidGamepad	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidGamepad::configure/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidGamepad::configure/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidGamepad::configured/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidGamepad::ready/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidGamepad::releaseAll/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidGamepad::send/8	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidGamepad::sendReport/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidGamepadConfig	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidGamepadEvent	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidGamepadEvent::changed	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidGamepadEvent::fieldCount	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidGamepadEvent::fields	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidGamepadReport	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidGamepadReport::buttons	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidGamepadReport::hat	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidGamepadReport::rx	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidGamepadReport::ry	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidGamepadReport::rz	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidGamepadReport::x	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidGamepadReport::y	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidGamepadReport::z	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::ConsumerControlCallback	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::DiscoveryCallback	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::GamepadCallback	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::KeyboardCallback	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::MaxListenersPerEvent	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::MouseCallback	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::StateCallback	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::SystemControlCallback	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::VendorInputCallback	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::addConsumerControlListener/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::addDiscoveredListener/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::addGamepadListener/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::addKeyboardListener/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::addKeyboardStateListener/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::addMouseListener/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::addSystemControlListener/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::addVendorInputListener/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::autoRediscover/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::discover/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::droppedEventCount/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::invalidInputReportCount/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::keyboardLayout/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::onConsumerControl/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::onDiscovered/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::onGamepad/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::onKeyboard/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::onKeyboardState/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::onMouse/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::onSystemControl/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::onVendorInput/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::ready/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::removeListener/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::sendVendorFeature/3	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::sendVendorOutput/3	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::setAutoRediscover/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::setKeyboardLayout/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::setKeyboardLeds/4	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::setKeyboardLeds/5	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidHost::setKeyboardLeds/6	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::BootProtocolMode	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::OutputReportCallback	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::ProtocolModeCallback	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::ReportProtocolMode	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::configure/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::configure/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::configured/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::enableNkro/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::enableNkro/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::heldState/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::layout/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::ledState/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::nkroEnabled/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::onOutputReport/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::onProtocolMode/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::pressKey/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::pressKey/2	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::pressUsage/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::pressUsage/2	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::pressUsage/3	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::protocolMode/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::ready/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::releaseAll/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::releaseUsage/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::sendReport/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::setBatteryLevel/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::setLayout/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::tapKey/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::tapKey/2	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::tapUsage/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::tapUsage/2	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::tapUsage/3	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::write/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboard::write/2	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardConfig	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardConfig::bootProtocol	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardConfig::layout	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardEvent	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardEvent::ascii	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardEvent::capsLock	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardEvent::compose	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardEvent::kana	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardEvent::modifiers	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardEvent::numLock	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardEvent::pressed	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardEvent::released	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardEvent::scrollLock	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardEvent::unicode	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardEvent::usage	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardHostDiscovery	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardHostDiscovery::batteryLevel	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardHostDiscovery::connectionId	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardHostDiscovery::countryCode	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardHostDiscovery::detail	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardHostDiscovery::error	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardHostDiscovery::hasBatteryLevel	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardHostDiscovery::hasCountryCode	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardHostDiscovery::hasOutputReport	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardHostDiscovery::reportId	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardHostDiscovery::success	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardInputReport	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardInputReport::LeftAlt	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardInputReport::LeftControl	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardInputReport::LeftGui	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardInputReport::LeftShift	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardInputReport::RightAlt	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardInputReport::RightControl	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardInputReport::RightGui	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardInputReport::RightShift	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardInputReport::keys	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardInputReport::modifiers	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardNkroReport	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardNkroReport::BitmapSize	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardNkroReport::MaxBitmapUsage	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardNkroReport::bitmap	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardNkroReport::modifiers	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardOutputReport	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardOutputReport::capsLock	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardOutputReport::compose	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardOutputReport::connectionId	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardOutputReport::kana	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardOutputReport::leds	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardOutputReport::numLock	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardOutputReport::scrollLock	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardReport	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardState	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardState::BitmapSize	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardState::bitmap	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardState::capsLock	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardState::changedBitmap	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardState::compose	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardState::connectionId	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardState::kana	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardState::modifiers	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardState::numLock	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardState::reportId	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidKeyboardState::scrollLock	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouse	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouse::buttons/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouse::click/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouse::click/2	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouse::configure/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouse::configure/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouse::configured/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouse::move/2	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouse::move/3	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouse::move/4	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouse::press/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouse::ready/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouse::release/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouse::releaseAll/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouse::sendReport/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouse::wheel/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouseConfig	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouseConfig::buttons	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouseEvent	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouseEvent::buttons	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouseEvent::buttonsChanged	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouseEvent::moved	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouseEvent::previousButtons	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouseEvent::wheel	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouseEvent::x	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouseEvent::y	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouseReport	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouseReport::buttons	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouseReport::wheel	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouseReport::x	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidMouseReport::y	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidReport	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidReport::connectionId	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidReport::rawData	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidReport::rawLength	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidReport::reportId	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidReportType	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidReportType::ESP_BLE_HID_REPORT_TYPE_FEATURE	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidReportType::ESP_BLE_HID_REPORT_TYPE_INPUT	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidReportType::ESP_BLE_HID_REPORT_TYPE_OUTPUT	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidSystemControl	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidSystemControl::click/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidSystemControl::click/2	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidSystemControl::configure/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidSystemControl::configure/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidSystemControl::configured/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidSystemControl::press/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidSystemControl::ready/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidSystemControl::release/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidSystemControl::releaseAll/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidSystemControl::sendReport/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidSystemControl::sendUsage/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidSystemControl::usage/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidSystemControlConfig	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidSystemControlEvent	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidSystemControlEvent::pressed	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidSystemControlEvent::released	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidSystemControlEvent::usage	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidVendor	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidVendor::ReportCallback	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidVendor::configure/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidVendor::configure/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidVendor::configured/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidVendor::onFeatureReport/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidVendor::onOutputReport/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidVendor::ready/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidVendor::sendInput/2	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidVendorConfig	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidVendorConfig::reportSize	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidVendorInputEvent	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidVendorReport	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidVendorReport::data	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidVendorReport::length	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleHidVendorReport::reportType	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
+espble_only	EspBleInvalidListenerId	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+espble_only	EspBleListenerId	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
+bluedroid_only	EspBle::capabilities/0	classic	compile-time snapshot of which Bluetooth Classic features this build has
+bluedroid_only	EspBle::classic/0	classic	entry point for every Bluetooth Classic profile; EspBle is BLE only
+bluedroid_only	EspBleConfig::classicSecurity	classic	Secure Simple Pairing configuration for Classic, a separate bond store from the BLE one in EspBleConfig::security
+bluedroid_only	EspBluedroidA2dpCodec	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpCodecConfig	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpCodecConfig::blockLength	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpCodecConfig::channelCount	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpCodecConfig::channelMode	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpCodecConfig::codec	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpCodecConfig::maxBitpool	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpCodecConfig::minBitpool	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpCodecConfig::sampleRate	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpCodecConfig::subbands	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpConnectionFailure	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpConnectionFailure::detail	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpConnectionFailure::error	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpConnectionFailure::peerAddress	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpConnectionFailure::role	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpPcmData	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpPcmData::data	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpPcmData::format	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpPcmData::length	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpPcmData::sessionId	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpPcmFormat	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpPcmFormat::bitsPerSample	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpPcmFormat::bytesPerSample	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpPcmFormat::channels	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpPcmFormat::interleaved	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpPcmFormat::sampleRate	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpPcmRequest	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpPcmRequest::capacity	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpPcmRequest::data	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpPcmRequest::flush	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpPcmRequest::format	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpPcmRequest::sessionId	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpPcmRequest::written	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpRole	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSession	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSession::audioMtu	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSession::codec	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSession::id	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSession::incoming	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSession::peerAddress	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSession::role	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSession::streaming	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSessionId	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSink	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSink::ConnectionFailureCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSink::PcmDataCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSink::SessionCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSink::StartCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSink::StreamCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSink::connect/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSink::disconnect/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSink::droppedEventCount/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSink::onConnected/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSink::onConnectionFailed/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSink::onDisconnected/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSink::onPcmData/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSink::onStarted/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSink::onStreamChanged/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSink::session/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSink::start/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSink::started/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSink::stop/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSource	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSource::ConnectionFailureCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSource::PcmRequestCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSource::SessionCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSource::StartCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSource::StreamCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSource::connect/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSource::disconnect/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSource::droppedEventCount/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSource::onConnected/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSource::onConnectionFailed/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSource::onDisconnected/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSource::onPcmRequested/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSource::onStarted/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSource::onStreamChanged/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSource::session/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSource::start/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSource::startStream/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSource::started/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSource::stop/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpSource::suspendStream/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpStartResult	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpStartResult::detail	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpStartResult::error	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpStartResult::role	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpStartResult::success	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpStreamChanged	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpStreamChanged::sessionId	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpStreamChanged::state	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidA2dpStreamState	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpCommand	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpCommandEvent	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpCommandEvent::accepted	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpCommandEvent::command	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpCommandEvent::state	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpConnection	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpConnection::peerAddress	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpController	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpController::CommandCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpController::ConnectionCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpController::VolumeCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpController::click/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpController::connected/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpController::droppedEventCount/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpController::onAbsoluteVolumeChanged/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpController::onCommandResponse/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpController::onConnected/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpController::onDisconnected/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpController::peerAddress/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpController::sendCommand/2	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpController::setAbsoluteVolume/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpController::start/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpController::started/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpController::stop/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpKeyState	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpTarget	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpTarget::CommandCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpTarget::ConnectionCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpTarget::VolumeCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpTarget::absoluteVolume/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpTarget::connected/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpTarget::droppedEventCount/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpTarget::onAbsoluteVolumeRequested/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpTarget::onCommand/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpTarget::onConnected/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpTarget::onDisconnected/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpTarget::peerAddress/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpTarget::setAbsoluteVolume/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpTarget::start/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpTarget::started/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpTarget::stop/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpVolumeEvent	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidAvrcpVolumeEvent::volume	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidCapabilities	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidCapabilities::ble	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidCapabilities::classic	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidCapabilities::classicInquiry	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidCapabilities::classicSpp	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidCapabilities::dualMode	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::NumericComparisonCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::PasskeyDisplayedCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::PasskeyRequestedCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::SecurityChangedCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::a2dpSink/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::a2dpSource/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::avrcpController/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::avrcpTarget/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::bond/2	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::bondCount/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::confirmNumericComparison/2	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::deleteAllBonds/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::deleteBond/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::hfpAudioGateway/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::hfpHandsFree/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::inquiry/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::onNumericComparisonRequested/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::onPasskeyDisplayed/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::onPasskeyRequested/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::onSecurityChanged/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::profileSupport/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::providePasskey/2	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassic::spp/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicBond	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicBond::peerAddress	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicInquiry	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicInquiry::CompleteCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicInquiry::ResultCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicInquiry::droppedResultCount/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicInquiry::isRunning/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicInquiry::onComplete/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicInquiry::onResult/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicInquiry::start/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicInquiry::start/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicInquiry::stop/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicInquiryComplete	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicInquiryComplete::cancelled	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicInquiryConfig	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicInquiryConfig::durationSeconds	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicInquiryConfig::maxResponses	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicInquiryResult	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicInquiryResult::address	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicInquiryResult::classOfDevice	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicInquiryResult::hasClassOfDevice	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicInquiryResult::hasRssi	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicInquiryResult::name	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicInquiryResult::rssi	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicNumericComparison	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicNumericComparison::peerAddress	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicNumericComparison::value	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicPasskeyDisplayed	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicPasskeyDisplayed::passkey	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicPasskeyDisplayed::peerAddress	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicPasskeyRequested	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicPasskeyRequested::peerAddress	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicProfile	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicProfileStatus	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicProfileSupport	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicProfileSupport::coreAvailable	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicProfileSupport::implemented	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicProfileSupport::profile	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicProfileSupport::reason	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicProfileSupport::status	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicSecurityChanged	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicSecurityChanged::peerAddress	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicSecurityChanged::status	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicSecurityChanged::success	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicSecurityConfig	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicSecurityConfig::enabled	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicSecurityConfig::ioCapability	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicSecurityConfig::responseTimeoutMilliseconds	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidClassicSecurityIoCapability	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioChanged	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioChanged::codec	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioChanged::connected	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioChanged::format	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioChanged::sessionId	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway::AudioCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway::ConnectionFailureCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway::PcmDataCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway::PcmRequestCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway::SessionCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway::StartCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway::connect/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway::connectAudio/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway::disconnect/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway::disconnectAudio/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway::droppedEventCount/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway::onAudioChanged/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway::onConnected/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway::onConnectionFailed/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway::onDisconnected/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway::onPcmData/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway::onPcmRequested/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway::onStarted/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway::session/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway::start/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway::started/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpAudioGateway::stop/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpCodec	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpConnectionFailure	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpConnectionFailure::detail	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpConnectionFailure::error	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpConnectionFailure::peerAddress	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpConnectionFailure::role	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree::AudioCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree::ConnectionFailureCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree::PcmDataCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree::PcmRequestCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree::SessionCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree::StartCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree::connect/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree::connectAudio/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree::disconnect/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree::disconnectAudio/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree::droppedEventCount/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree::onAudioChanged/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree::onConnected/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree::onConnectionFailed/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree::onDisconnected/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree::onPcmData/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree::onPcmRequested/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree::onStarted/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree::session/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree::start/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree::started/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpHandsFree::stop/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpPcmData	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpPcmData::data	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpPcmData::format	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpPcmData::length	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpPcmData::sessionId	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpPcmFormat	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpPcmFormat::bitsPerSample	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpPcmFormat::bytesPerSample	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpPcmFormat::channels	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpPcmFormat::interleaved	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpPcmFormat::sampleRate	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpPcmRequest	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpPcmRequest::capacity	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpPcmRequest::data	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpPcmRequest::format	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpPcmRequest::sessionId	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpPcmRequest::written	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpRole	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpSession	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpSession::audioConnected	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpSession::codec	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpSession::format	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpSession::id	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpSession::incoming	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpSession::peerAddress	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpSession::role	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpSessionId	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpStartResult	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpStartResult::detail	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpStartResult::error	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpStartResult::role	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidHfpStartResult::success	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::ConnectionFailureCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::DataCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::MaximumWriteSize	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::ReceiveBufferCapacity	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::ServerStartedCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::SessionCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::WriteCompletedCallback	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::WriteQueueCapacity	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::available/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::connect/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::connect/2	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::connect/3	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::disconnect/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::droppedEventCount/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::droppedReceiveByteCount/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::droppedWriteCount/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::onConnected/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::onConnectionFailed/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::onData/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::onDisconnected/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::onServerStarted/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::onWriteCompleted/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::peek/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::pendingWriteCount/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::pendingWriteCount/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::read/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::read/3	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::serverRunning/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::session/2	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::sessionCount/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::startServer/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::startServer/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::stopServer/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::write/2	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSpp::write/3	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppConnectionFailure	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppConnectionFailure::detail	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppConnectionFailure::error	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppConnectionFailure::peerAddress	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppData	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppData::sessionId	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppData::value	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppSecurity	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppSerial	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppSerial::EspBluedroidSppSerial/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppSerial::available/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppSerial::availableForWrite/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppSerial::bool/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppSerial::connected/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppSerial::flush/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppSerial::peek/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppSerial::read/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppSerial::sessionId/0	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppSerial::write	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppSerial::write/1	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppSerial::write/2	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppServerConfig	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppServerConfig::channel	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppServerConfig::security	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppServerConfig::serviceName	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppSession	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppSession::authenticated	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppSession::encrypted	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppSession::id	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppSession::incoming	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppSession::peerAddress	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppSessionId	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppWriteResult	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppWriteResult::detail	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppWriteResult::error	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppWriteResult::length	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppWriteResult::sessionId	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_only	EspBluedroidSppWriteResult::success	classic	Bluetooth Classic extension; EspBle is BLE only

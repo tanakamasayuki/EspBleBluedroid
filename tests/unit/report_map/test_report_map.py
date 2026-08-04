@@ -2,12 +2,12 @@ import subprocess
 from pathlib import Path
 
 
-def test_uuid_codec():
+def test_report_map_parser():
     here = Path(__file__).parent
-    source = here / "uuid_test.cpp"
+    source = here / "report_map_test.cpp"
     output = here / "output"
     output.mkdir(exist_ok=True)
-    binary = output / "uuid_test"
+    binary = output / "report_map_test"
 
     compile_result = subprocess.run(
         [
@@ -18,7 +18,7 @@ def test_uuid_codec():
             "-Wextra",
             "-Werror",
             "-I",
-                str(here / ".." / ".." / "src"),
+            str(here / ".." / ".." / ".." / "src"),
             str(source),
             "-o",
             str(binary),

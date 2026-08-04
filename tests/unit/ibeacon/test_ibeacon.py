@@ -2,11 +2,11 @@ import subprocess
 from pathlib import Path
 
 
-def test_cgm_crc_codec():
+def test_ibeacon_codec():
     here = Path(__file__).parent
     output = here / "output"
     output.mkdir(exist_ok=True)
-    binary = output / "cgm_crc_test"
+    binary = output / "ibeacon_test"
     result = subprocess.run(
         [
             "g++",
@@ -16,8 +16,8 @@ def test_cgm_crc_codec():
             "-Wextra",
             "-Werror",
             "-I",
-            str(here / ".." / ".." / "src"),
-            str(here / "cgm_crc_test.cpp"),
+            str(here / ".." / ".." / ".." / "src"),
+            str(here / "ibeacon_test.cpp"),
             "-o",
             str(binary),
         ],

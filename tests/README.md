@@ -127,6 +127,18 @@ callback contexts, disconnection, and shutdown.
 `peer/hfp_backend` verifies public HFP Hands-Free and Audio Gateway roles
 end-to-end, including SLC, SCO, bidirectional mono PCM through the built-in
 CVSD/mSBC codec, and disconnection.
+`peer/gatt_server` also verifies a real Indication: the peer rewrites the CCCD
+with 0x0002 and the send result reports success only after the confirmation.
+`peer/duplicate_uuid` verifies that the server rejects a duplicate Characteristic
+UUID inside one Service and a duplicate Descriptor UUID under one Characteristic
+with the exact error and detail, that the same UUID in another Service is
+accepted, and that the client reaches both of a peer's two same-UUID
+characteristics by attribute handle, with notifications routed to the sending
+handle.
+`peer/long_value` verifies that a value longer than the MTU is returned whole by
+both the UUID and the handle read forms, byte-for-byte against the peer's ramp.
+`peer/service_changed` verifies that Generic Attribute 0x1801 and Service Changed
+0x2a05 come from the stack, which the application neither registers nor triggers.
 
 ## EspBle interoperability suite (`interop/`, planned)
 

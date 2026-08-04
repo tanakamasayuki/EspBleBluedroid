@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 def test_codec(tmp_path):
-    repository = Path(__file__).resolve().parents[2]
+    repository = Path(__file__).resolve().parents[3]
     executable = tmp_path / "codec_test"
     subprocess.run(
         [
@@ -13,7 +13,7 @@ def test_codec(tmp_path):
             "-Wextra",
             "-Werror",
             f"-I{repository / 'src' / 'internal'}",
-            str(repository / "tests" / "unit" / "codec_test.cpp"),
+            str(repository / "tests" / "unit" / "codec" / "codec_test.cpp"),
             str(repository / "src" / "internal" / "EspBleBluedroidCodec.cpp"),
             str(repository / "src" / "internal" / "EspBleBluedroidGattcState.cpp"),
             "-o",

@@ -59,7 +59,10 @@ uv run --env-file .env pytest
 | `peer/accept_list` | 初期化前拒否、重複登録、一覧外Centralの接続拒否、Scan側`acceptListOnly`、`Any`変更後の接続と即時切断 |
 | `peer/directed_advertising` | 宛先CentralへのpayloadなしHigh Duty、接続・切断、1.28秒自動停止、Low Duty継続・明示停止 |
 | `peer/gatt_client` | Database snapshot、Characteristic単体探索、UUID/handle指定Characteristic操作、Descriptor handle Read/Write、Notification購読/解除、切断時無効化、`update()`配送 |
-| `peer/gatt_server` | 静的GATT Server、動的Read、binary Write、Descriptor、CCCD購読、Notification、`update()`配送 |
+| `peer/gatt_server` | 静的GATT Server、動的Read、binary Write、Descriptor、CCCD購読、Notification、Indication（CCCD 0x0002と確認応答後の完了）、`update()`配送 |
+| `peer/duplicate_uuid` | Server側の重複Characteristic / Descriptor UUID拒否（error名・detail文字列）、別Serviceの同一UUID受理、Client側のhandle指定Read・購読とNotificationの経路分離 |
+| `peer/long_value` | MTUを超える値のRead。UUID指定・handle指定の両方で全体が返り、内容がpeerのrampと一致すること |
+| `peer/service_changed` | Generic Attribute 0x1801 / Service Changed 0x2a05をstackが公開すること（applicationは登録しない） |
 | `peer/security_bond` | Just Works、暗号化GATT、bond保存、暗号化再接続、security callback、bond削除 |
 | `peer/security_passkey` | 静的passkey MITM、passkey表示、authenticated GATT、bond保存 |
 | `peer/runtime_passkey` | 実行時passkey入力、入力待ちの切断・終了、未回答timeout、再試行 |

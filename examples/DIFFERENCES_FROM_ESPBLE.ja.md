@@ -65,7 +65,7 @@ eventを配送しません。そのため、sketch自身がadvertisingを再開�
 | Scan結果 | BluedroidがPDUごとに1 eventを上げるため、同じaddressのAdvertisingとScan Responseをライブラリがmergeしてから配送する。結果queueは16件 | [Gap/Scan](Gap/Scan/)、[Info/ScanDump](Info/ScanDump/) |
 | RPA | `localAddress()`は空の`String`を返す。controllerが現在のRPAを公開しない | [Gap/PrivateAddress](Gap/PrivateAddress/) |
 | GATT Clientの操作 | 1接続につき同時1操作 | すべての`…Client` example |
-| GATT ClientのRead | 1 ReadにつきATT応答1回。`mtu - 1`より長い値は切り詰められ、Read Longの自動処理はない | [Gatt/Basics/Client](Gatt/Basics/Client/)ほかすべての`…Client` |
+| GATT ClientのRead | 1回のATT応答に収まらない値も全体が返る。Bluedroidが内部で読みを継続するため、EspBleと同じく`result.value`へ結合済みの全体が入る（`tests/peer/long_value`で実機確認） | [Gatt/Basics/Client](Gatt/Basics/Client/)ほかすべての`…Client` |
 | エラー詳細文字列 | 文言が異なる（例: `name does not fit in legacy scan response payload`） | [Gap/ScanResponse](Gap/ScanResponse/) |
 
 両ライブラリで**同じ**リソース上限（移植時に考える必要がないもの）: Advertisingは

@@ -4,9 +4,9 @@
 #include <esp_gap_ble_api.h>
 
 static constexpr const char *SERVICE_UUID =
-  "35c6a570-a63d-44a2-9003-706173736b79";
+  "00060000-b1dd-4d00-9e5a-627564726f69";
 static constexpr const char *CHARACTERISTIC_UUID =
-  "35c6a571-a63d-44a2-9003-706173736b79";
+  "00060001-b1dd-4d00-9e5a-627564726f69";
 static constexpr uint32_t PASSKEY = 438209;
 
 bool authenticated = false;

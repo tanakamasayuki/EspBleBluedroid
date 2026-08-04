@@ -93,10 +93,52 @@ dispatched from `update()`, runtime IDs, `lastError()`, bounded queues with drop
 accounting. **"The Classic side does not invent its own conventions" is itself a
 test objective.**
 
+## Test UUID allocation
+
+Another test suite may be running nearby at the same time, so the design assumes
+it. To keep an EspBle peer test running next to this one from ever being
+connected to by mistake, this repository uses **its own UUID space**.
+
+```text
+SSSSNNNN-b1dd-4d00-9e5a-627564726f69
+^^^^     suite tag (16-bit, table below)
+    ^^^^ attribute number inside that suite (0000 = service, 0001+ = characteristics / descriptors)
+```
+
+The `627564726f69` tail is ASCII `budroi` and matches no UUID on the EspBle side.
+Add a row here before using a new tag.
+
+| Suite tag | Suite |
+|---|---|
+| `0001` | reserved (queued GATT operations / discard on disconnect) |
+| `0002` | `service_changed` marker service |
+| `0003` | `duplicate_uuid` |
+| `0004` | `long_value` |
+| `0005` | `security_bond` |
+| `0006` | `security_passkey` |
+
+Suites not in the table still use individually chosen 128-bit UUIDs from before
+this scheme (`8d47a6xx`, `6b976bxx`, `48e8c1xx`, …). Those are confirmed not to
+collide with EspBle either, and move to the scheme whenever they are touched.
+`security_bond` and `security_passkey` **used the same UUIDs as EspBle** and were
+migrated first, since they were an actual source of crosstalk.
+
+Absence of overlap is checkable:
+
+```sh
+comm -12 \
+  <(grep -rhoiE "[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}" tests/peer --include=*.ino | tr A-F a-f | sort -u) \
+  <(grep -rhoiE "[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}" ../EspBle/tests/peer --include=*.ino | tr A-F a-f | sort -u)
+```
+
+Standard profile UUIDs (0x180a, 0x2a05, …) are fixed by specification and
+therefore shared. A profile suite **advertises its own marker service UUID** to
+choose its peer, and never picks a peer by a standard UUID alone.
+
 ## Peer test principles
 
 - Use a test-only 128-bit service UUID and a dedicated RFCOMM name to exclude
-  nearby devices.
+  nearby devices, taking an unused suite tag from the allocation table above.
 - Never pick the peer by device name alone.
 - Where practical, implement one side directly on the bundled Arduino-ESP32 API
   or on raw ESP-IDF/Bluedroid. If both sides run the public API, a wrong
@@ -199,14 +241,14 @@ is the cross-stack suite against EspBle.
 | Filter Accept List (advertising / scan) | | ✅ | ✅ `accept_list` | |
 | Directed advertising | | ✅ | ✅ `directed_advertising` | |
 | GATT client discovery / read / write / descriptor / notify | ✅ `unit/codec` | ✅ | ✅ `gatt_client` | planned `gatt_basic` |
-| GATT client handle-addressed ops (duplicate UUIDs) | | ✅ | **missing** → `duplicate_uuid` | planned `duplicate_uuid` |
-| GATT client one-operation-at-a-time and explicit rejection | | ✅ | **missing** → `gatt_queue_purge` | |
-| Read truncation contract for values above the MTU | | ✅ | **missing** → `long_value` | planned `long_value` |
+| GATT client handle-addressed ops (duplicate UUIDs) | | ✅ | ✅ `duplicate_uuid` | planned `duplicate_uuid` |
+| GATT client one-operation-at-a-time and explicit rejection | | ✅ | ✅ inside `gatt_client` | |
+| Reading a value above the MTU (the whole value arrives) | | ✅ | ✅ `long_value` | planned `long_value` |
 | GATT server read / write / descriptor / CCCD / notify | | ✅ | ✅ `gatt_server` | planned `gatt_basic` |
-| GATT server **indicate** (actually issued and completed) | | ✅ | **missing** (only the flag is printed today) | planned `gatt_basic` |
-| GATT server duplicate-UUID rejection error | | ✅ | **missing** → `duplicate_uuid` | |
-| Service Changed (0x2A05) | | ✅ | **missing** → `service_changed` | |
-| Queued GATT operations discarded on disconnect | | ✅ | **missing** → `gatt_queue_purge` | |
+| GATT server **indicate** (issued and confirmed) | | ✅ | ✅ `gatt_server` / `service_changed` | planned `gatt_basic` |
+| GATT server duplicate-UUID rejection error | | ✅ | ✅ `duplicate_uuid` | |
+| Service Changed (0x2A05) | | ✅ | ✅ `service_changed` | |
+| An in-flight GATT operation when the link drops | | ✅ | **missing** → `gatt_disconnect_purge` | |
 | Pairing / bonding (central) | | ✅ | ✅ `security_bond` | planned `security` |
 | Static passkey / MITM / authenticated attribute | | ✅ | ✅ `security_passkey` | planned `security` |
 | Runtime Passkey Entry | | ✅ | ✅ `runtime_passkey` | planned `security` |
@@ -253,9 +295,9 @@ once its prerequisites are met.
 
 | Area | unit | build | peer | interop |
 |---|---|---|---|---|
-| HID report map parser | planned `unit/report_map` (port) | — | — | |
-| Keyboard layout / keymap | planned `unit/keymap` (port) | — | — | |
-| BLE MIDI packet codec | planned `unit/midi` (port) | — | — | |
+| HID report map parser | ✅ `unit/report_map` | — | — | |
+| Keyboard layout / keymap | ✅ `unit/keymap` | — | — | |
+| BLE MIDI packet codec | ✅ `unit/midi` | — | — | |
 | Multi-observer dispatch (`add*Listener()`) | | planned | planned `multi_listener` | |
 | BLE MIDI device / host | codec above | planned | planned `midi_device` / `midi_host` | planned `interop/midi` |
 | HID device (keyboard / mouse / consumer / system / gamepad / vendor) | parser above | planned | planned `hid_keyboard_device`, `hid_robustness`, `hid_security`, `hid_boot_protocol`, `hid_custom`, `hid_convenience` | planned `interop/hid` |
@@ -277,7 +319,7 @@ once its prerequisites are met.
 | HFP HF / AG (SLC / SCO / CVSD / mSBC) | | ✅ | ✅ `hfp_backend` |
 | BLE + SPP dual mode | | ✅ | ✅ `dual_mode_scan_spp` |
 | Cross-profile resource conflicts (A2DP + SPP, …) | | — | **missing** → `profile_resource_conflict` |
-| Classic session APIs match EspBle vocabulary | ✅ planned `unit/api_parity` | ✅ | added as an objective of the existing suites |
+| Classic session APIs match EspBle vocabulary | ✅ `unit/api_parity` | ✅ | added as an objective of the existing suites |
 
 ## Implemented scenarios
 

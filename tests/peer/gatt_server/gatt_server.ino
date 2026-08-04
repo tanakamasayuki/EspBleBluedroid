@@ -28,6 +28,7 @@ void setup()
   characteristicConfig.readable = true;
   characteristicConfig.writable = true;
   characteristicConfig.notifiable = true;
+  characteristicConfig.indicatable = true;
   EspBleGattDescriptorConfig descriptorConfig;
   descriptorConfig.writable = true;
   const EspBleGattService service = server.addService(SERVICE_UUID);
@@ -86,11 +87,25 @@ void setup()
 void loop()
 {
   bluetooth.update();
-  if (Serial.available() && Serial.read() == 'n')
+  if (Serial.available())
   {
-    const uint8_t value[] = {0x4e, 0x00, 0xfd};
-    Serial.printf("SERVER_NOTIFY_ACCEPTED %u\n",
-      bluetooth.gattServer().notify(characteristic, value, sizeof(value)) ? 1 : 0);
+    const int command = Serial.read();
+    if (command == 'n')
+    {
+      const uint8_t value[] = {0x4e, 0x00, 0xfd};
+      Serial.printf("SERVER_NOTIFY_ACCEPTED %u\n",
+        bluetooth.gattServer().notify(characteristic, value, sizeof(value))
+          ? 1 : 0);
+    }
+    else if (command == 'i')
+    {
+      // Indication is a different ATT PDU with a peer confirmation, so the
+      // send result only reports success once that confirmation arrives.
+      const uint8_t value[] = {0x49, 0x00, 0xfc};
+      Serial.printf("SERVER_INDICATE_ACCEPTED %u\n",
+        bluetooth.gattServer().indicate(characteristic, value, sizeof(value))
+          ? 1 : 0);
+    }
   }
   delay(1);
 }

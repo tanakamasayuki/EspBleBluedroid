@@ -1,6 +1,42 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Add `tests/TEST_PLAN.md` / `.ja.md`: the EspBle test-plan structure plus the
+  Classic and interop layers, a documented test-UUID allocation, coverage tables,
+  and the priority order for the remaining gaps.
+- (JA) `tests/TEST_PLAN.md`・`.ja.md`を追加。EspBleのテスト計画構造にClassicとinterop層、
+  テスト用UUIDの割り当て、カバレッジ表、残り空白の優先順位を加えた。
+- (EN) Add `tests/unit/api_parity`, `docs/API_PARITY.tsv`, and
+  `tools/gen_api_parity.py`: every public-API difference from EspBle is now
+  machine-checked and classified as `backend`, `classic`, or `planned`.
+- (JA) `tests/unit/api_parity`・`docs/API_PARITY.tsv`・`tools/gen_api_parity.py`を追加。
+  EspBleとの公開API差分を機械チェックし、`backend` / `classic` / `planned`に分類する。
+- (EN) Add `EspBleBluedroid::NotificationCallback`,
+  `ClientCharacteristicConfigurationUuid`, and
+  `DisconnectReasonRemoteUserTerminated`, closing three EspBle naming gaps found
+  by the parity check.
+- (JA) parityチェックで見つかった3つの命名差を解消し、
+  `EspBleBluedroid::NotificationCallback`・`ClientCharacteristicConfigurationUuid`・
+  `DisconnectReasonRemoteUserTerminated`を追加。
+- (EN) Port the shared `EspBleHidReportMap.h`, `EspBleKeymap.h` (with the layout
+  tables) and `EspBleMidi.h` codecs verbatim from EspBle with their host unit
+  tests, as the foundation for HID over GATT and BLE MIDI.
+- (JA) 共通codec `EspBleHidReportMap.h`・`EspBleKeymap.h`（layout表を含む）・
+  `EspBleMidi.h`をEspBleからverbatim移植し、host unit testも移植。HID over GATTと
+  BLE MIDIの土台。
+- (EN) Add peer coverage for a real GATT Indication, duplicate UUIDs
+  (`duplicate_uuid`), reading above the MTU (`long_value`), and stack-owned
+  Service Changed (`service_changed`). `long_value` disproved the documented
+  assumption that a long read is truncated: Bluedroid continues the read and the
+  whole value arrives, so the examples now say so.
+- (JA) GATT Indicationの実発行、重複UUID（`duplicate_uuid`）、MTU超のRead
+  （`long_value`）、stackが所有するService Changed（`service_changed`）のpeerテストを追加。
+  `long_value`により「長いReadは切り詰められる」という既存記述が誤りであることが判明し、
+  Bluedroidが内部で読みを継続して全体が返ることをexamplesへ反映した。
+- (EN) Move the `security_bond` and `security_passkey` test UUIDs off the values
+  EspBle uses, so the two libraries' suites can run near each other.
+- (JA) `security_bond`と`security_passkey`のテスト用UUIDがEspBleと同一だったため変更。
+  両ライブラリのテストを近接して実行できるようにした。
 - (EN) Port the EspBle example set: 91 examples with bilingual READMEs, a shared
   `examples/DIFFERENCES_FROM_ESPBLE.md` list, and per-example "Differences from
   EspBle" sections where usage actually differs.

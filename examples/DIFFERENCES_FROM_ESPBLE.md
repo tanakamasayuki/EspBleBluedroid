@@ -67,7 +67,7 @@ approach, and say so where it appears in the sketch.
 | Scan results | Advertising and scan-response fields for the same address are merged by the library before delivery, because Bluedroid raises one event per PDU. The result queue holds 16 entries | [Gap/Scan](Gap/Scan/), [Info/ScanDump](Info/ScanDump/) |
 | RPA | `localAddress()` returns an empty `String`; the controller does not expose the current RPA | [Gap/PrivateAddress](Gap/PrivateAddress/) |
 | GATT client operations | One operation at a time per connection | every `…Client` example |
-| GATT client reads | One ATT response per read: a value longer than `mtu - 1` comes back truncated, with no automatic Read Long | [Gatt/Basics/Client](Gatt/Basics/Client/) and every other `…Client` |
+| GATT client reads | A value longer than one ATT response is still returned whole: Bluedroid continues the read internally, so `result.value` holds everything, as on EspBle. Verified on hardware by `tests/peer/long_value` | [Gatt/Basics/Client](Gatt/Basics/Client/) and every other `…Client` |
 | Error detail strings | Wording differs (e.g. `name does not fit in legacy scan response payload`) | [Gap/ScanResponse](Gap/ScanResponse/) |
 
 Resource limits that are **identical** in both libraries, and therefore need no

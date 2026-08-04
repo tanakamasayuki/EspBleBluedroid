@@ -7422,8 +7422,7 @@ void EspBleBluedroid::onUnsubscribed(GattResultCallback callback)
   unsubscribedCallback_ = std::move(callback);
 }
 
-void EspBleBluedroid::onNotification(
-  std::function<void(const EspBleGattNotification &notification)> callback)
+void EspBleBluedroid::onNotification(NotificationCallback callback)
 {
   notificationCallback_ = std::move(callback);
 }

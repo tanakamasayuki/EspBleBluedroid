@@ -20,7 +20,7 @@
 | Directed Advertising | `setDirectedTarget()` / `start()` / High・Low Duty / peer address type | 宛先Centralでの空payload受信・接続、High Duty自動停止、Low Duty継続・明示停止 |
 | Central接続 | `connect()` / `disconnect()` / connection snapshot / lifecycle・MTU・parameter callback | non-blocking要求、再接続ID、MTU交換、接続パラメータ取得・更新、HCI切断理由、timeout分類、切断、再初期化 |
 | GATT Client | Database Discovery / Characteristic単体Discovery / UUID・handle指定Characteristic操作 / Descriptor Read・Write / Notification | connection単位snapshot、Characteristic・Descriptor handle、binary-safe値、CCCD、専用task、`update()`配送 |
-| GATT Server | `gattServer()` / Service・Characteristic・Descriptor登録 / Read・Write / Notify・Indicate | begin前の静的定義、opaque handle、binary-safe値、動的Read、CCCD購読、Notificationを実機確認 |
+| GATT Server | `gattServer()` / Service・Characteristic・Descriptor登録 / Read・Write / Notify・Indicate | begin前の静的定義、opaque handle、binary-safe値、動的Read、CCCD購読、Notification、確認応答を伴うIndicationを実機確認 |
 | BLE Security | Just Works / Static・Runtime Passkey / Numeric Comparison / Bond | 暗号化・認証必須attribute、保存bond再接続、passkey表示・入力・比較確認、bond管理 |
 | Capability | `capabilities()` / `classic().profileSupport()` | 全体boolに加え、主要Classic profileを対応済み・library未実装・Core無効・Core APIなし・標準なしへ理由付き分類 |
 | Classic Inquiry | `classic().inquiry()` | name、address、Class of Device、RSSI、明示停止、完了event、`update()`配送 |
@@ -130,9 +130,17 @@ CCCD購読、notificationまで確認している。
   終了するが、復帰まで最大約1秒待つことがある。終了した試行のcallbackは配送しない。
 - GATT ClientはDatabase Discovery、Characteristic単体Discovery、Characteristic/Descriptor
   Read/Write、Subscribe/Unsubscribe。CharacteristicとDescriptorはUUID指定とhandle指定に
-  対応する。同時1操作。
+  対応する。同時1操作。MTUを超える値のReadは、BluedroidにRead Blobの公開APIが無いにも
+  かかわらず内部で継続され、`result.value`へ全体が入る（`tests/peer/long_value`で
+  300 byteを実機確認）。同一UUIDのCharacteristicが複数ある相手も、handle指定で個別に
+  Read・購読でき、Notificationは送信元handleへ対応づく（`tests/peer/duplicate_uuid`）。
 - GATT ServerはService 8、Characteristic 32、Descriptor 16までを`begin()`前に登録する。
-  Bluedroid wrapperの制約により、同じService内で同一UUIDのCharacteristicは登録時に拒否する。
+  現在の公開APIがUUIDで属性を指すため、同じService内で同一UUIDのCharacteristicは登録時に
+  拒否する（別Serviceなら可）。Bluedroid自体の制約ではなく、HID over GATT実装時に解除する
+  前提の制限で、契約は`tests/peer/duplicate_uuid`で固定している。
+  Generic Attribute 0x1801とService Changed 0x2a05はstackが公開・送信する
+  （`CONFIG_BT_GATTS_SEND_SERVICE_CHANGE_AUTO=y`）ため、applicationは登録しない
+  （`tests/peer/service_changed`）。
   Read callbackだけは応答前に値を決めるためstack task、Write・Descriptor・購読・送信完了は
   `update()`から配送する。Peripheral connection snapshot、複数observer、profile helper、
   自動再接続・再購読は未実装。

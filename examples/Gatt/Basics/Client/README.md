@@ -53,14 +53,14 @@ Enumeration results are held as a **per-connection snapshot**, valid until the c
 
 ## Notes
 
-- **A read returns one ATT response, so a long value is truncated.** `readCharacteristic()` issues a single ATT Read; a value that does not fit `mtu - 1` bytes comes back cut off, with no error. There is no automatic Read Long here — raise the MTU ([Gap/Mtu](../../../Gap/Mtu/)), or have the peer chunk the value across notifications, if it can exceed that.
+- **A read returns the whole value, even above the MTU.** Bluedroid exposes no Read Blob call, so it would be reasonable to expect truncation at `mtu - 1` bytes; it continues the read internally instead and `result.value` holds the complete value. `tests/peer/long_value` pins this on hardware, because nothing in the API surface promises it.
 - **Writes are not split.** A write goes out as a single ATT request; Long Write (writing across several requests) is not performed. The asymmetry with reads is because whether splitting works also depends on the peer's implementation. The limit for one request is MTU − 3 bytes, the same value as `maximumNotificationPayload()`.
 
 ## Differences from EspBle
 
 | | EspBle | EspBleBluedroid |
 |---|---|---|
-| Value longer than `mtu - 1` | read in pieces and joined automatically (Read Long) | **single ATT Read; the value is truncated** |
+| Value longer than `mtu - 1` | read in pieces and joined automatically | identical result: the complete value arrives in `result.value` |
 | Concurrent GATT operations | more than one may be issued | one at a time per connection |
 | Discovery snapshot limits | 16 services / 48 characteristics / 48 descriptors | identical |
 

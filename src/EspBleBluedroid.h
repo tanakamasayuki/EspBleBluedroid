@@ -1451,6 +1451,19 @@ public:
     std::function<void(const EspBleMtuChanged &event)>;
   using PasskeyDisplayedCallback =
     std::function<void(const EspBlePasskeyDisplayed &event)>;
+  using NotificationCallback =
+    std::function<void(const EspBleGattNotification &notification)>;
+  // The Client Characteristic Configuration Descriptor UUID, the descriptor a
+  // Central writes to turn Notification or Indication on. Useful when walking
+  // discoveredDescriptor() to find what a characteristic can be subscribed to.
+  static constexpr const char *ClientCharacteristicConfigurationUuid =
+    "00002902-0000-1000-8000-00805f9b34fb";
+  // The HCI "remote user terminated connection" reason code, which is what a
+  // peer reports in EspBleConnection::disconnectReason when this device closes
+  // the link. Bluedroid does not let disconnect() choose the code it sends, so
+  // this constant is for comparing a received reason (see
+  // examples/DIFFERENCES_FROM_ESPBLE.md).
+  static constexpr uint8_t DisconnectReasonRemoteUserTerminated = 0x13;
 
   EspBleBluedroid();
   ~EspBleBluedroid();
@@ -1667,8 +1680,7 @@ public:
   void onDescriptorWritten(GattResultCallback callback);
   void onSubscribed(GattResultCallback callback);
   void onUnsubscribed(GattResultCallback callback);
-  void onNotification(
-    std::function<void(const EspBleGattNotification &notification)> callback);
+  void onNotification(NotificationCallback callback);
   void onServicesDiscovered(GattResultCallback callback);
 
   EspBleError lastError() const;
@@ -1728,8 +1740,7 @@ private:
   GattResultCallback subscribedCallback_;
   GattResultCallback unsubscribedCallback_;
   GattResultCallback servicesDiscoveredCallback_;
-  std::function<void(const EspBleGattNotification &notification)>
-    notificationCallback_;
+  NotificationCallback notificationCallback_;
   bool initialized_ = false;
   String activeDeviceName_;
   uint16_t activePreferredMtu_ = 247;

@@ -77,9 +77,49 @@ Classic拡張APIも同じ扱いにする。`classic().spp()`、`classic().a2dpSi
 `lastError()`、bounded queueとdrop計数）で検証する。**Classic側だけ別の作法になっていないこと
 そのものをテストの観点にする。**
 
+## テスト用UUIDの割り当て
+
+周囲で別のテストが同時に走る前提で設計する。EspBleのpeer testが近くで動いていても
+互いのpeerへ接続しないよう、**このrepository専用のUUID空間**を使う。
+
+```text
+SSSSNNNN-b1dd-4d00-9e5a-627564726f69
+^^^^     suite tag（16-bit、下記の表）
+    ^^^^ そのsuite内の属性番号（0000 = Service、0001以降 = Characteristic / Descriptor）
+```
+
+末尾の`627564726f69`はASCIIの`budroi`で、EspBle側のどのUUIDとも一致しない。新しいsuiteは
+この表へ追記してから使う。
+
+| suite tag | suite |
+|---|---|
+| `0001` | 予約（GATT操作のqueue/切断時破棄） |
+| `0002` | `service_changed`のmarker service |
+| `0003` | `duplicate_uuid` |
+| `0004` | `long_value` |
+| `0005` | `security_bond` |
+| `0006` | `security_passkey` |
+
+既存suiteのうち上表に無いものは、移行前に個別に選んだ128-bit UUIDを使っている
+（`8d47a6xx`、`6b976bxx`、`48e8c1xx`など）。これらもEspBle側と重複しないことを確認済みで、
+触る機会があれば上の体系へ寄せる。`security_bond`と`security_passkey`はEspBleと**同一の
+UUIDを使っていた**ため、混信源として先に移行した。
+
+重複がないことは次で確認できる。
+
+```sh
+comm -12 \
+  <(grep -rhoiE "[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}" tests/peer --include=*.ino | tr A-F a-f | sort -u) \
+  <(grep -rhoiE "[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}" ../EspBle/tests/peer --include=*.ino | tr A-F a-f | sort -u)
+```
+
+標準profileのUUID（0x180a、0x2a05など）は仕様で決まっているため共有される。profile suiteでは
+**marker用の独自Service UUIDをadvertiseして相手を選び**、標準UUIDだけで接続先を決めない。
+
 ## Peerテスト原則
 
-- テスト専用128-bit Service UUID / 専用RFCOMM名で周囲の機器を除外する。
+- テスト専用128-bit Service UUID / 専用RFCOMM名で周囲の機器を除外する。上の割り当て表から
+  未使用のsuite tagを取る。
 - device nameだけで接続相手を決めない。
 - 可能な範囲で一方をArduino-ESP32同梱API、またはraw ESP-IDF/Bluedroid APIの直接実装にする。
   公開APIどうしだけの通信では、library固有の思い込みが両端で相殺されて見えなくなる。
@@ -136,7 +176,7 @@ skipは「相互接続を確認済み」という意味ではなく、「このf
 | `interop/security` | Just Works、静的passkey、Numeric Comparisonをcross-stackで。Bluedroid Peripheral側はconnection snapshot実装後に対象化する |
 | `interop/profile_wire` | 共有header（`EspBleMedicalFloat.h`、`EspBleCgmCrc.h`、`EspBleIBeacon.h`、`EspBleUuid.h`）で組んだ値が相手stackで同じbyte列としてdecodeできること |
 | `interop/duplicate_uuid` | 仕様が認める重複UUID（EspBle Peripheralが同一Service内に同一UUID Characteristicを2つ）を、Bluedroid Clientがhandle指定で扱えること。こちらのServer側制約が相手からどう見えるかも記録する |
-| `interop/long_value` | EspBle PeripheralがMTU超の値を公開したときのBluedroid Clientの挙動（切り詰め）を契約として固定し、回避策を文書へ紐付ける |
+| `interop/long_value` | EspBle PeripheralがMTU超の値を公開したときに、Bluedroid Clientが全体を読めること（同stack間では`peer/long_value`で確認済み） |
 | `interop/hid` / `interop/midi` | HID over GATT / BLE MIDI実装後。Device / Hostを入れ替えた両方向 |
 
 自動で合否を決められるscenarioだけを対象にする。スマートフォン操作、GUI確認、聴感評価、
@@ -165,14 +205,14 @@ cross-stack試験を指す。
 | Filter Accept List（advertising / scan） | | ✅ | ✅ `accept_list` | |
 | Directed Advertising | | ✅ | ✅ `directed_advertising` | |
 | GATT Client Discovery / Read / Write / Descriptor / Notify | ✅ `unit/codec` | ✅ | ✅ `gatt_client` | 予定 `gatt_basic` |
-| GATT Client handle指定操作（重複UUID） | | ✅ | **未** → `duplicate_uuid` | 予定 `duplicate_uuid` |
-| GATT Client 1操作ずつの直列化と明示拒否 | | ✅ | **未** → `gatt_queue_purge` | |
-| MTU超の値のRead切り詰め契約 | | ✅ | **未** → `long_value` | 予定 `long_value` |
+| GATT Client handle指定操作（重複UUID） | | ✅ | ✅ `duplicate_uuid` | 予定 `duplicate_uuid` |
+| GATT Client 1操作ずつの直列化と明示拒否 | | ✅ | ✅ `gatt_client`に同梱 | |
+| MTU超の値のRead（全体が返ること） | | ✅ | ✅ `long_value` | 予定 `long_value` |
 | GATT Server Read / Write / Descriptor / CCCD / Notify | | ✅ | ✅ `gatt_server` | 予定 `gatt_basic` |
-| GATT Server **Indicate**（実発行と完了） | | ✅ | **未**（現行はflag表示のみ） | 予定 `gatt_basic` |
-| GATT Server 重複UUID拒否の明示エラー | | ✅ | **未** → `duplicate_uuid` | |
-| Service Changed（0x2A05） | | ✅ | **未** → `service_changed` | |
-| 未処理GATT操作の切断時破棄 | | ✅ | **未** → `gatt_queue_purge` | |
+| GATT Server **Indicate**（実発行と確認応答） | | ✅ | ✅ `gatt_server` / `service_changed` | 予定 `gatt_basic` |
+| GATT Server 重複UUID拒否の明示エラー | | ✅ | ✅ `duplicate_uuid` | |
+| Service Changed（0x2A05、stackが所有） | | ✅ | ✅ `service_changed` | |
+| 実行中GATT操作の切断時の扱い | | ✅ | **未** → `gatt_disconnect_purge` | |
 | Pairing / Bonding（Central） | | ✅ | ✅ `security_bond` | 予定 `security` |
 | 静的passkey / MITM / authenticated attribute | | ✅ | ✅ `security_passkey` | 予定 `security` |
 | 実行時Passkey Entry | | ✅ | ✅ `runtime_passkey` | 予定 `security` |
@@ -217,9 +257,9 @@ cross-stack試験を指す。
 
 | 領域 | unit | build | peer | interop |
 |---|---|---|---|---|
-| HID Report Map parser | 予定 `unit/report_map`（移植） | — | — | |
-| keyboard layout / keymap | 予定 `unit/keymap`（移植） | — | — | |
-| BLE MIDI packet codec | 予定 `unit/midi`（移植） | — | — | |
+| HID Report Map parser | ✅ `unit/report_map` | — | — | |
+| keyboard layout / keymap | ✅ `unit/keymap` | — | — | |
+| BLE MIDI packet codec | ✅ `unit/midi` | — | — | |
 | 複数observer配送（`add*Listener()`） | | 予定 | 予定 `multi_listener` | |
 | BLE MIDI Device / Host | 上記codec | 予定 | 予定 `midi_device` / `midi_host` | 予定 `interop/midi` |
 | HID Device（keyboard / mouse / consumer / system / gamepad / vendor） | 上記parser | 予定 | 予定 `hid_keyboard_device`、`hid_robustness`、`hid_security`、`hid_boot_protocol`、`hid_custom`、`hid_convenience` | 予定 `interop/hid` |
@@ -241,11 +281,11 @@ cross-stack試験を指す。
 | HFP HF / AG（SLC / SCO / CVSD / mSBC） | | ✅ | ✅ `hfp_backend` |
 | BLE + SPP dual mode | | ✅ | ✅ `dual_mode_scan_spp` |
 | profile間resource競合（A2DP + SPP同時など） | | — | **未** → `profile_resource_conflict` |
-| Classic session APIのEspBle語彙整合 | ✅ 予定 `unit/api_parity` | ✅ | 既存suiteの観点として追加 |
+| Classic session APIのEspBle語彙整合 | ✅ `unit/api_parity` | ✅ | 既存suiteの観点として追加 |
 
 ## 実装済みscenario
 
-現状: peer 27 suite / 33 test関数、unit 5 test関数。
+現状: peer 30 suite / 36 test関数、unit 9 suite / 12 test関数（exampleのbuild確認は91件）。
 
 1. ✅ `stack_smoke`: Arduino-ESP32同梱APIで2台接続、GATT read/write、CCCD購読、notification。
 2. ✅ `advertise_scan`: 公開APIのlifecycle、Advertising / Scan Response二面構成、Service Data・
@@ -266,7 +306,8 @@ cross-stack試験を指す。
     指定Characteristic操作、Descriptor Read / Write、Notification購読・解除、binary-safe値、
     切断時の無効化、`update()`配送。
 11. ✅ `gatt_server`: 静的GATT Server、動的Read、binary Write、Descriptor Write、CCCD購読、
-    Notification、送信完了、`update()`配送。
+    Notification、**Indication**（peerがCCCDへ0x0002を書き、確認応答が返ってから
+    `onSent()`がsuccessを報告すること）、送信完了、`update()`配送。
 12. ✅ `security_bond`: Just Works、暗号化GATT、bond保存、暗号化再接続、security callback、bond削除。
 13. ✅ `security_passkey`: 静的passkey MITM、passkey表示、authenticated GATT、bond保存。
 14. ✅ `runtime_passkey`: KeyboardOnlyの実行時passkey入力、入力待ち中の`disconnect()` / `end()`、
@@ -294,21 +335,34 @@ cross-stack試験を指す。
 26. ✅ `dual_mode_scan_spp`: active SPP session中のBLE Scan・GATT接続・Discovery・Read / Write、
     同一接続で64→128→256通知、round別BLE event drop集計、配送済み通知のSPP往復、
     満杯時のGATT完了優先配送。
-27. ✅ host unit test: `uuid`、`codec`、`ibeacon`、`medical_float`、`cgm_crc`。
+27. ✅ `long_value`: MTUを超える値のRead。UUID指定・handle指定の両方で全体（300 byte）が返り、
+    既知のrampと1 byteずつ一致すること。BluedroidにRead Blobの公開APIがないため切り詰めを
+    想定していたが、実機で内部継続が確認されたため契約として固定した。
+28. ✅ `duplicate_uuid`: Server側は同一Service内の重複Characteristic UUIDと同一Characteristic
+    下の重複Descriptor UUIDを拒否し（error名とdetail文字列まで固定）、別Serviceの同一UUIDは
+    受理する。Client側はpeerの同一UUID Characteristic 2件を別handleとしてsnapshotへ保持し、
+    handle指定で個別Read・購読し、Notificationが送信元handleへ対応することを確認する。
+29. ✅ `service_changed`: Generic Attribute 0x1801とService Changed 0x2a05はstackが公開する。
+    applicationが登録しなくてもpeerからindicatableな0x2a05が見えることを確認し、
+    `notifyServicesChanged()`相当がこのライブラリに無い理由を固定する。
+30. ✅ host unit test: `uuid`、`codec`、`ibeacon`、`medical_float`、`cgm_crc`、`report_map`、
+    `keymap`、`midi`、`api_parity`。
 
 ## 優先順位
 
 現在の空白のうち、実装作業を伴わないものから着手する。
 
-**P1: 実装0行で埋まる穴**
+**P1: 実装0行で埋まる穴（このうち残りは1件）**
 
-- `unit/api_parity` と `docs/API_PARITY.tsv`（EspBleとの差分を機械チェックへ変換する）
-- `unit/report_map` / `unit/keymap` / `unit/midi`（EspBleからheaderごと移植。HID / MIDIの土台）
-- `gatt_server`への**Indicate実発行**追加（現状はflagを表示しているだけ）
-- `duplicate_uuid`（現行の拒否契約とエラー文字列の回帰。制限解除時はこのテストを反転させる）
-- `gatt_queue_purge`（実行中操作の遅延完了と、queue済み操作の切断時失敗配送）
-- `service_changed`
-- `long_value`（MTU超Readの切り詰めを契約として固定）
+- ✅ `unit/api_parity` と `docs/API_PARITY.tsv`（EspBleとの差分を機械チェックへ変換した）
+- ✅ `unit/report_map` / `unit/keymap` / `unit/midi`（EspBleからheaderごと移植。HID / MIDIの土台）
+- ✅ `gatt_server`への**Indicate実発行**追加
+- ✅ `duplicate_uuid`（現行の拒否契約とエラー文字列の回帰。制限解除時はこのテストを反転させる）
+- ✅ `service_changed`（stackが所有することの固定）
+- ✅ `long_value`（MTU超Readで全体が返ることの固定。当初の「切り詰め」想定は実機で否定された）
+- **未**: `gatt_disconnect_purge`（実行中GATT操作中の`disconnect()`。1操作ずつの明示拒否は
+  `gatt_client`で既に確認済みなので、残るのは「実行中に切断したときに完了が1件だけ届き、
+  再接続とDiscoveryが通る」こと）
 
 **P2: 既存実装の穴**
 

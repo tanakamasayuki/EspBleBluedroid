@@ -2,11 +2,11 @@ import subprocess
 from pathlib import Path
 
 
-def test_ibeacon_codec():
+def test_medical_float_codec():
     here = Path(__file__).parent
     output = here / "output"
     output.mkdir(exist_ok=True)
-    binary = output / "ibeacon_test"
+    binary = output / "medical_float_test"
     result = subprocess.run(
         [
             "g++",
@@ -16,8 +16,8 @@ def test_ibeacon_codec():
             "-Wextra",
             "-Werror",
             "-I",
-            str(here / ".." / ".." / "src"),
-            str(here / "ibeacon_test.cpp"),
+            str(here / ".." / ".." / ".." / "src"),
+            str(here / "medical_float_test.cpp"),
             "-o",
             str(binary),
         ],

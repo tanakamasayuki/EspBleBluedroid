@@ -11,6 +11,7 @@ static constexpr const char *DESCRIPTOR_UUID =
   "6b976b12-5e89-4e3f-8a94-676174747372";
 
 BLEClient *client;
+BLERemoteCharacteristic *subscribed;
 
 void notificationCallback(
   BLERemoteCharacteristic *, uint8_t *data, size_t length, bool isNotify)
@@ -31,9 +32,26 @@ void setup()
 
 void loop()
 {
-  if (!Serial.available() || Serial.read() != 'c')
+  if (!Serial.available())
   {
     delay(1);
+    return;
+  }
+  const int command = Serial.read();
+  if (command == 'i')
+  {
+    // Re-write the CCCD for indications (0x0002) on the same characteristic.
+    if (subscribed == nullptr)
+    {
+      Serial.println("PEER_NOT_SUBSCRIBED");
+      return;
+    }
+    subscribed->registerForNotify(notificationCallback, false);
+    Serial.println("PEER_INDICATION_SUBSCRIBED");
+    return;
+  }
+  if (command != 'c')
+  {
     return;
   }
   BLEScan *scan = BLEDevice::getScan();
@@ -83,5 +101,6 @@ void loop()
   descriptor->writeValue(
     const_cast<uint8_t *>(descriptorValue), sizeof(descriptorValue), true);
   characteristic->registerForNotify(notificationCallback, true);
+  subscribed = characteristic;
   Serial.println("PEER_SUBSCRIBED");
 }

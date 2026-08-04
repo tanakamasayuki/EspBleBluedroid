@@ -53,20 +53,20 @@ onDescriptorWritten → discoverCharacteristic(live) → readCharacteristic(live
 
 ## 注意
 
-- **Readは1回のATT応答で完結するため、長い値は切り詰められます。** `readCharacteristic()`はATT Readを1回だけ発行します。`mtu - 1` byteに収まらない値は、エラーなしで途中まで返ります。ここにRead Longの自動処理はありません。値がその長さを超えうる場合は、MTUを上げる（[Gap/Mtu](../../../Gap/Mtu/)）か、相手側でNotificationなどに分割してください。
+- **MTUを超える値もRead全体が返ります。** BluedroidはRead Blobの公開APIを持たないため`mtu - 1`で切り詰められそうに見えますが、実際には内部で読みを継続し、`result.value`へ全体が入ります。API上はどこにもその保証がないため、`tests/peer/long_value`で実機に固定しています。
 - **Writeは分割されません。** 書き込みはATTの1回の要求として送られ、Long Write（複数回に分けて書く手続き）は行いません。読み取りと非対称なのは、分割の可否が相手側の実装にも依存するためです。1回に載る上限はMTU − 3バイトで、`maximumNotificationPayload()` と同じ値です。
 
 ## EspBleとの違い
 
 | | EspBle | EspBleBluedroid |
 |---|---|---|
-| `mtu - 1`より長い値 | 自動的に分割Readして結合する（Read Long） | **ATT Read 1回のみ。値は切り詰められる** |
+| `mtu - 1`より長い値 | 自動的に分割Readして結合する | 結果は同じ。`result.value`へ全体が入る |
 | GATT操作の同時実行 | 複数を続けて発行できる | 1接続につき同時1操作 |
 | Discovery snapshotの上限 | Service 16 / Characteristic 48 / Descriptor 48 | 同じ |
 
-**なぜ違うのか:** Read経路は`esp_ble_gattc_read_char()`（およびwrapperの単発Read fallback）を使い、どちらもRead Blobの連続要求を行いません。できるふりをせず、1回の応答が運んだ内容をそのまま返します。
+**なぜ違うのか:** 残る差はGATT操作の同時実行だけです。Bluedroidは1接続につき1操作しか受け付けないため、2件目は電波に出る前に`InvalidState`で拒否されます。
 
-**移植のしかた:** 値を`mtu - 1` byte以内に収める、MTUを大きく交渉する、またはアプリケーション側で分割します。呼び出し自体は変わりません。
+**移植のしかた:** 次の操作を前の完了callbackから発行します。Readの長さについては移植時に考えることはありません。
 
 ## 期待されるSerial出力
 
