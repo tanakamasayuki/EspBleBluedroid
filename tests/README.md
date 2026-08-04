@@ -182,3 +182,8 @@ every byte against the peer's ramp.
 one service on the EspBle peripheral — the shape this library's server API
 rejects — attributing discovery, reads, the write, the subscription, and the
 notification to a handle on both sides.
+
+`interop/security` pairs across the two stacks twice: Just Works, then static
+passkey (DisplayOnly against KeyboardOnly, which is what selects Passkey Entry).
+Encrypted, authenticated, bonded and the key size are asserted on both sides, and
+the encrypted and authenticated attribute tiers show which link may reach what.

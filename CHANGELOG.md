@@ -52,6 +52,23 @@
   同一UUID Characteristic 2件——本ライブラリのServer APIが拒否する形であり、Client側は
   扱えなければならない形——に対して、Discoveryが2件を区別し、UUID指定は1件目に届き、
   Read、Write、購読、Notificationがすべて両側でhandleに帰属することを確認する。実機で確認済み。
+- (EN) Add `interop/security`: cross-stack pairing against an EspBle (NimBLE)
+  peripheral, twice over — Just Works, then static-passkey Passkey Entry
+  (DisplayOnly against KeyboardOnly, which is what selects an *authenticated*
+  link; two DisplayOnly sides fall back to Just Works). Encrypted, authenticated,
+  bonded and the 16-byte key size are asserted on both sides, both record the
+  bond, and two characteristics carry the encrypted and authenticated permission
+  tiers so what each link may reach is observed: the authenticated one is refused
+  on the Just Works link and readable/writable on the Passkey Entry link. Bonds
+  are cleared from NVS first, since a leftover bond would let a run pass without
+  pairing. Verified on hardware.
+- (JA) `interop/security`を追加。EspBle（NimBLE）Peripheral相手のcross-stack pairingを
+  2種類——Just Worksと静的passkeyのPasskey Entry（DisplayOnly対KeyboardOnly。これが
+  **authenticated** linkを選ぶ組み合わせで、両側DisplayOnlyではJust Worksに落ちる）——で
+  検証する。encrypted / authenticated / bonded / key size 16を両側でassertし、bondも両側で
+  確認。encryptedとauthenticatedの権限2段をCharacteristicで表現し、Just Works linkでは
+  authenticated側が拒否され、Passkey Entry linkではRead/Writeできることを観測する。
+  NVSのbondは事前に消す（残っていると pairingせずに通ってしまう）。実機で確認済み。
 - (EN) CI: the unit-test step of `compile-examples.yml` now runs `pytest unit/`
   instead of repeating the g++ command lines, which had gone stale after the unit
   suites moved into per-suite directories (it still referenced

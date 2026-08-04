@@ -64,9 +64,10 @@ uv run --env-file .env pytest interop/
 | [advertise_scan](advertise_scan/) | Both directions of advertising and scanning: name, manufacturer data, Service Data, Appearance and Tx Power built by one stack's payload builder and reconstructed by the other's parser, plus a passive scan of the same advertiser that must see the advertising payload alone |
 | [long_value](long_value/) | A 300-byte value published by an EspBle peripheral read whole across the 247-byte MTU, through both the UUID form and the handle form, with every byte checked against the peer's ramp |
 | [duplicate_uuid](duplicate_uuid/) | Two characteristics sharing one UUID in one service on the EspBle peripheral: discovery keeps them apart, the UUID form reaches the first, and read, write, subscribe and notification are each attributed to a handle on both sides. This library's server-side rejection of the same shape is recorded alongside |
+| [security](security/) | Just Works and static-passkey Passkey Entry, with encrypted / authenticated / bonded / key size asserted on both sides, the bond recorded by both, and the encrypted and authenticated attribute tiers exercised on each link type |
 
-The remaining planned scenarios — `security`, `profile_wire`, and the HID/MIDI
-pair — are listed with their
+The remaining planned scenarios — `profile_wire`, Numeric Comparison inside
+`security`, and the HID/MIDI pair — are listed with their
 content in [../TEST_PLAN.md](../TEST_PLAN.md#scenarios-added-as-each-layer-settles).
 
 ## UUIDs
@@ -75,8 +76,8 @@ Interop scenarios take suite tags from the `01xx` range of the test UUID scheme
 (`SSSSNNNN-b1dd-4d00-9e5a-627564726f69`), so they cannot collide with either
 library's own suites even when both run in the same room. `gatt_basic` uses
 `0100`, `advertise_scan` uses `0101` (one UUID per direction, so neither scanner
-can be satisfied by the other side's payload), `long_value` uses `0102`, and
-`duplicate_uuid` uses `0103`.
+can be satisfied by the other side's payload), `long_value` uses `0102`,
+`duplicate_uuid` uses `0103`, and `security` uses `0104`.
 
 ## Reading the logs
 

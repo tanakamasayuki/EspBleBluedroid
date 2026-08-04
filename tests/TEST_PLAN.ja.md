@@ -76,6 +76,14 @@ Peer側の出力を主にassertする。
    無反応になったりせず`lastError()`と理由文字列を返す。テストはその文字列を固定する
    （例: 重複Characteristic UUID、legacy payload超過、実行中GATT操作の二重発行）。
 
+**既知の穴: 整合の対象は名前と形であって戻り値ではない。** parityチェックはシンボルを
+比較するため、全signatureが一致していても戻り値が食い違う余地が残る。未決の実例が1件ある。
+`lastErrorName()`はEspBleが`NONE` / `INVALID_ARGUMENT`、こちらが`None` / `InvalidArgument`
+を返すため、この文字列をログや比較に使うコードは移植できない。backend制約による差ではない。
+方針決定が必要（EspBleの綴りへ寄せる——現在の文字列を固定しているpeer assertionも更新する
+——か、意図的な差として記録するか）。いずれの場合も、次の同種の差がscenarioの偶然ではなく
+テストで捕まるよう、値レベルのチェックを追加する。
+
 Classic拡張APIも同じ扱いにする。`classic().spp()`、`classic().a2dpSink()`などのsession API
 は、EspBleのconnection APIと同じ語彙（非同期要求 → `update()`からの完了event、runtime ID、
 `lastError()`、bounded queueとdrop計数）で検証する。**Classic側だけ別の作法になっていないこと
@@ -103,7 +111,7 @@ SSSSNNNN-b1dd-4d00-9e5a-627564726f69
 | `0004` | `long_value` |
 | `0005` | `security_bond` |
 | `0006` | `security_passkey` |
-| `01xx` | interop scenario専用の範囲（`0100` = `interop/gatt_basic`、`0101` = `interop/advertise_scan`、`0102` = `interop/long_value`、`0103` = `interop/duplicate_uuid`） |
+| `01xx` | interop scenario専用の範囲（`0100` = `interop/gatt_basic`、`0101` = `interop/advertise_scan`、`0102` = `interop/long_value`、`0103` = `interop/duplicate_uuid`、`0104` = `interop/security`） |
 
 既存suiteのうち上表に無いものは、移行前に個別に選んだ128-bit UUIDを使っている
 （`8d47a6xx`、`6b976bxx`、`48e8c1xx`など）。これらもEspBle側と重複しないことを確認済みで、
@@ -178,7 +186,7 @@ conftest hookは持たず、port設定と`sketch.yaml`だけで構成する。
 |---|---|
 | `interop/gatt_basic` | ✅ Bluedroid Central ↔ EspBle Peripheral。MTU 247交換、宣言propertyを含むDiscovery、Read、応答あり/なしWrite、Descriptor Read/Write、Notify、確認応答を伴うIndicate、購読解除、切断。逆向き（EspBle Central ↔ Bluedroid Peripheral）はPeripheral connection snapshot実装後 |
 | `interop/advertise_scan` | ✅ EspBleのpayload builderが出したAdvertising / Scan Responseを、Bluedroid Scannerがaddress単位でmergeして同じfieldへ復元すること（およびその逆）。同じadvertiserをpassive scanしたときはAdvertising payloadのfieldだけが見え、Scan Response側は一切見えないこと |
-| `interop/security` | Just Works、静的passkey、Numeric Comparisonをcross-stackで。Bluedroid Peripheral側はconnection snapshot実装後に対象化する |
+| `interop/security` | ✅ Just Worksと静的passkeyのPasskey Entryをcross-stackで検証。encrypted / authenticated / bonded / key sizeを**両側**でassertし、bondも両側で確認し、attribute権限の2段（authenticated CharacteristicがJust Works linkでは拒否され、Passkey Entry linkでは到達できること）も確認する。Numeric ComparisonとBluedroid Peripheral側は今後（後者はconnection snapshot実装後） |
 | `interop/profile_wire` | 共有header（`EspBleMedicalFloat.h`、`EspBleCgmCrc.h`、`EspBleIBeacon.h`、`EspBleUuid.h`）で組んだ値が相手stackで同じbyte列としてdecodeできること |
 | `interop/duplicate_uuid` | ✅ 仕様が認める重複UUID（EspBle Peripheralが同一Service内に同一UUID Characteristicを2つ）を、Bluedroid Clientがhandle指定で扱えること。Discoveryで2件を区別、UUID指定は1件目に届く、Read / Write / 購読 / Notificationがすべて両側でhandleに帰属することを確認。Server側の拒否も同じファイルに記録する |
 | `interop/long_value` | ✅ EspBle Peripheralが公開した合意MTU超の値が、UUID指定・handle指定の両方のReadで全体として返ること。`peer/long_value`は両端がBluedroidなので、clientの性質として言えるのはこちら |
@@ -218,10 +226,10 @@ cross-stack試験を指す。
 | GATT Server 重複UUID拒否の明示エラー | | ✅ | ✅ `duplicate_uuid` | |
 | Service Changed（0x2A05、stackが所有） | | ✅ | ✅ `service_changed` | |
 | 実行中GATT操作の切断時の扱い | | ✅ | ✅ `gatt_disconnect_purge` | |
-| Pairing / Bonding（Central） | | ✅ | ✅ `security_bond` | 予定 `security` |
-| 静的passkey / MITM / authenticated attribute | | ✅ | ✅ `security_passkey` | 予定 `security` |
+| Pairing / Bonding（Central） | | ✅ | ✅ `security_bond` | ✅ `security` |
+| 静的passkey / MITM / authenticated attribute | | ✅ | ✅ `security_passkey` | ✅ `security` |
 | 実行時Passkey Entry | | ✅ | ✅ `runtime_passkey` | 予定 `security` |
-| Numeric Comparison（確認 / 拒否 / timeout） | | ✅ | ✅ `numeric_comparison` | 予定 `security` |
+| Numeric Comparison（確認 / 拒否 / timeout） | | ✅ | ✅ `numeric_comparison` | 予定（`security`内） |
 | Peripheral connection snapshot / security event | | | **未**（API未実装） | |
 | lifecycle反復 / heap / task / event leak | | ✅ | **未** → `lifecycle_stress` | |
 | Wi-Fi / BLE共存（無印ESP32の内蔵radio共有） | | ✅ | **未** → `wifi_ble_coexistence` | |
@@ -394,8 +402,8 @@ cross-stack試験を指す。
 - BLE HID Device（重複Characteristic UUID制限の解除が前提）→ HID Host
 
 **interop**: 各層でAPIとwire動作が固まった順に`interop/`へ写す。`gatt_basic`、
-`advertise_scan`、`long_value`、`duplicate_uuid`は実装済み。以降は`security`、
-`profile_wire`の順。
+`advertise_scan`、`long_value`、`duplicate_uuid`、`security`は実装済み。以降は
+`profile_wire`。
 
 ## 合格条件
 
