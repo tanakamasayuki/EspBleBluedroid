@@ -709,16 +709,99 @@ bool EspBleGattServer::indicate(
 { return indicate(connectionId, characteristic,
     reinterpret_cast<const uint8_t *>(value.c_str()), value.length()); }
 
+namespace
+{
+// Copy the primary and the listeners out, then invoke them with the lock
+// released: a callback is free to add or remove listeners, and one that blocks
+// cannot stall a registration.
+template <typename Callback, typename Argument>
+void dispatch(
+  std::mutex &mutex,
+  const EspBleCallbackList<Callback> &list,
+  const Argument &argument)
+{
+  std::shared_ptr<Callback> callbacks[EspBleCallbackList<Callback>::Capacity];
+  size_t count = 0;
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    count = list.snapshot(callbacks);
+  }
+  for (size_t index = 0; index < count; ++index)
+  {
+    (*callbacks[index])(argument);
+  }
+}
+}
+
 void EspBleGattServer::onWritten(WriteCallback callback)
-{ writtenCallback_ = std::move(callback); }
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  writtenListeners_.setPrimary(std::move(callback));
+}
 void EspBleGattServer::onRead(ReadCallback callback)
 { readCallback_ = std::move(callback); }
 void EspBleGattServer::onDescriptorWritten(DescriptorWriteCallback callback)
-{ descriptorWrittenCallback_ = std::move(callback); }
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  descriptorWrittenListeners_.setPrimary(std::move(callback));
+}
 void EspBleGattServer::onSubscriptionChanged(SubscriptionCallback callback)
-{ subscriptionCallback_ = std::move(callback); }
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  subscriptionListeners_.setPrimary(std::move(callback));
+}
 void EspBleGattServer::onSent(SendCallback callback)
-{ sentCallback_ = std::move(callback); }
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  sentListeners_.setPrimary(std::move(callback));
+}
+
+EspBleListenerId EspBleGattServer::allocateListenerIdLocked()
+{
+  // Unique across every list on this object, so removeListener() needs no hint
+  // about which event the id belongs to.
+  const EspBleListenerId id = nextListenerId_++;
+  if (nextListenerId_ == EspBleInvalidListenerId) nextListenerId_ = 1;
+  return id;
+}
+
+EspBleListenerId EspBleGattServer::addWrittenListener(WriteCallback callback)
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  return writtenListeners_.add(
+    std::move(callback), allocateListenerIdLocked());
+}
+
+EspBleListenerId EspBleGattServer::addDescriptorWrittenListener(
+  DescriptorWriteCallback callback)
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  return descriptorWrittenListeners_.add(
+    std::move(callback), allocateListenerIdLocked());
+}
+
+EspBleListenerId EspBleGattServer::addSubscriptionChangedListener(
+  SubscriptionCallback callback)
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  return subscriptionListeners_.add(
+    std::move(callback), allocateListenerIdLocked());
+}
+
+EspBleListenerId EspBleGattServer::addSentListener(SendCallback callback)
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  return sentListeners_.add(std::move(callback), allocateListenerIdLocked());
+}
+
+bool EspBleGattServer::removeListener(EspBleListenerId listenerId)
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  return writtenListeners_.remove(listenerId) ||
+    descriptorWrittenListeners_.remove(listenerId) ||
+    subscriptionListeners_.remove(listenerId) ||
+    sentListeners_.remove(listenerId);
+}
 
 void EspBleGattServer::update()
 {
@@ -733,15 +816,14 @@ void EspBleGattServer::update()
       impl_->eventHead = (impl_->eventHead + 1) % EspBleGattServerImpl::EventCapacity;
       --impl_->eventCount;
     }
-    if (event.type == EspBleGattServerImpl::EventType::Write && writtenCallback_)
-      writtenCallback_(event.write);
-    else if (event.type == EspBleGattServerImpl::EventType::DescriptorWrite &&
-             descriptorWrittenCallback_)
-      descriptorWrittenCallback_(event.descriptorWrite);
-    else if (event.type == EspBleGattServerImpl::EventType::Subscription &&
-             subscriptionCallback_)
-      subscriptionCallback_(event.subscription);
-    else if (event.type == EspBleGattServerImpl::EventType::Sent && sentCallback_)
-      sentCallback_(event.sent);
+    if (event.type == EspBleGattServerImpl::EventType::Write)
+      dispatch(listenerMutex_, writtenListeners_, event.write);
+    else if (event.type == EspBleGattServerImpl::EventType::DescriptorWrite)
+      dispatch(listenerMutex_, descriptorWrittenListeners_,
+        event.descriptorWrite);
+    else if (event.type == EspBleGattServerImpl::EventType::Subscription)
+      dispatch(listenerMutex_, subscriptionListeners_, event.subscription);
+    else if (event.type == EspBleGattServerImpl::EventType::Sent)
+      dispatch(listenerMutex_, sentListeners_, event.sent);
   }
 }

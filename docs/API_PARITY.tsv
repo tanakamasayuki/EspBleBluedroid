@@ -43,22 +43,7 @@ espble_only	ESP_BLE_HID_SYSTEM_CONTROL_WAKE_HOST	planned	HID over GATT / BLE MID
 espble_only	EspBle::Phy1MMask	backend	Bluetooth 4.2 LE radio: no LE 2M or Coded PHY to select or report
 espble_only	EspBle::Phy2MMask	backend	Bluetooth 4.2 LE radio: no LE 2M or Coded PHY to select or report
 espble_only	EspBle::PhyCodedMask	backend	Bluetooth 4.2 LE radio: no LE 2M or Coded PHY to select or report
-espble_only	EspBle::addCharacteristicDiscoveredListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
-espble_only	EspBle::addCharacteristicReadListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
-espble_only	EspBle::addCharacteristicWrittenListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
-espble_only	EspBle::addConnectedListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
-espble_only	EspBle::addConnectionFailedListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
-espble_only	EspBle::addConnectionParametersUpdatedListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
-espble_only	EspBle::addDescriptorReadListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
-espble_only	EspBle::addDescriptorWrittenListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
-espble_only	EspBle::addDisconnectedListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
-espble_only	EspBle::addMtuChangedListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
-espble_only	EspBle::addNotificationListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
 espble_only	EspBle::addPhyUpdatedListener/1	backend	Bluetooth 4.2 LE radio: no LE 2M or Coded PHY to select or report
-espble_only	EspBle::addSecurityChangedListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
-espble_only	EspBle::addServicesDiscoveredListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
-espble_only	EspBle::addSubscribedListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
-espble_only	EspBle::addUnsubscribedListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
 espble_only	EspBle::autoReconnect/0	planned	library-level feature, not a backend limit; examples/Gatt/Basics/AutoReconnectClient shows the manual pattern
 espble_only	EspBle::disconnect/2	backend	Bluedroid closes a link through esp_ble_gattc_close(), which sends no application-chosen HCI reason code; disconnect(id) is the whole API here
 espble_only	EspBle::droppedPersistentSubscriptionCount/0	planned	library-level feature, not a backend limit; examples/Gatt/Basics/AutoReconnectClient shows the manual pattern
@@ -72,20 +57,11 @@ espble_only	EspBle::hidSystemControl/0	planned	HID over GATT / BLE MIDI; docs/PR
 espble_only	EspBle::hidVendor/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
 espble_only	EspBle::notifyServicesChanged/2	backend	Bluedroid owns Service Changed: Arduino-ESP32 builds it with CONFIG_BT_GATTS_SEND_SERVICE_CHANGE_AUTO=y and publishes Generic Attribute 0x1801 itself, so the application has nothing to announce (tests/peer/service_changed)
 espble_only	EspBle::onPhyUpdated/1	backend	Bluetooth 4.2 LE radio: no LE 2M or Coded PHY to select or report
-espble_only	EspBle::removeConnectionListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
-espble_only	EspBle::removeGattListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
 espble_only	EspBle::setAutoReconnect/1	planned	library-level feature, not a backend limit; examples/Gatt/Basics/AutoReconnectClient shows the manual pattern
 espble_only	EspBle::updatePhy/3	backend	Bluetooth 4.2 LE radio: no LE 2M or Coded PHY to select or report
-espble_only	EspBleCallbackList	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
-espble_only	EspBleCallbackList::Capacity	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
 espble_only	EspBleConfig::persistentSubscriptions	planned	library-level feature, not a backend limit; examples/Gatt/Basics/AutoReconnectClient shows the manual pattern
 espble_only	EspBleConnection::rxPhy	backend	Bluetooth 4.2 LE radio: no LE 2M or Coded PHY to select or report
 espble_only	EspBleConnection::txPhy	backend	Bluetooth 4.2 LE radio: no LE 2M or Coded PHY to select or report
-espble_only	EspBleGattServer::addDescriptorWrittenListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
-espble_only	EspBleGattServer::addSentListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
-espble_only	EspBleGattServer::addSubscriptionChangedListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
-espble_only	EspBleGattServer::addWrittenListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
-espble_only	EspBleGattServer::removeListener/1	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
 espble_only	EspBleHidConsumerControl	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
 espble_only	EspBleHidConsumerControl::click/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
 espble_only	EspBleHidConsumerControl::click/2	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
@@ -369,8 +345,6 @@ espble_only	EspBleHidVendorReport	planned	HID over GATT / BLE MIDI; docs/PROFILE
 espble_only	EspBleHidVendorReport::data	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
 espble_only	EspBleHidVendorReport::length	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
 espble_only	EspBleHidVendorReport::reportType	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleInvalidListenerId	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
-espble_only	EspBleListenerId	planned	multi-observer dispatch; tests/TEST_PLAN.md P3. Only the single on*() primary exists here, which is why the MIDI and HID helpers cannot be ported unchanged
 bluedroid_only	EspBle::capabilities/0	classic	compile-time snapshot of which Bluetooth Classic features this build has
 bluedroid_only	EspBle::classic/0	classic	entry point for every Bluetooth Classic profile; EspBle is BLE only
 bluedroid_only	EspBleConfig::classicSecurity	classic	Secure Simple Pairing configuration for Classic, a separate bond store from the BLE one in EspBleConfig::security

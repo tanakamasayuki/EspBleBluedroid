@@ -150,7 +150,9 @@ CCCD購読、notificationまで確認している。
   解放され、次の接続のDiscovery / Readへ引き継がない（`tests/peer/gatt_disconnect_purge`）。
   GATT Serverへ接続してきた相手も接続event・MTU event・接続パラメータ・pairing event・
   切断理由を`localRole = Peripheral`で配送し、Server eventのconnection IDは
-  `connection()`で引ける（`tests/peer/peripheral_connection`）。複数observer、
+  `connection()`で引ける（`tests/peer/peripheral_connection`）。
+  connection系・GATT Client系・GATT Server系のeventは`add*Listener()`で複数observerを
+  登録できる（primary→登録順、1 event 4件まで、`tests/peer/multi_listener`）。
   profile helper、自動再接続・再購読は未実装。
 - Discovery snapshot上限はService 16、Characteristic 48、Descriptor 48。
   PSRAMは使用せずDiscovery時だけheapへ確保し、切断時に無効化する。

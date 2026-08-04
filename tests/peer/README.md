@@ -25,6 +25,10 @@ handle-separated bidirectional data and cleanup without claiming public
 multi-session support.
 `dual_mode_scan_spp` verifies BLE Scan and binary SPP traffic on one active
 dual-mode stack.
+`multi_listener` verifies multi-observer dispatch: the primary `on*()` callback
+plus `add*Listener()` on the connection, GATT client and GATT Server events, in
+registration order, with the four-listener limit, per-owner ids, and the rule that
+a listener added during a dispatch is left out of it.
 `peripheral_connection` verifies the peripheral half of the connection lifecycle
 against a raw Arduino-ESP32 BLE client: the connect event, the MTU exchange this
 side only observes, the `connection()` snapshot with its parameters, pairing in

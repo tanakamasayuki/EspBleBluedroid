@@ -112,6 +112,7 @@ SSSSNNNN-b1dd-4d00-9e5a-627564726f69
 | `0005` | `security_bond` |
 | `0006` | `security_passkey` |
 | `0007` | `peripheral_connection` |
+| `0008` | `multi_listener` |
 | `01xx` | interop scenario専用の範囲（`0100` = `interop/gatt_basic`、`0101` = `interop/advertise_scan`、`0102` = `interop/long_value`、`0103` = `interop/duplicate_uuid`、`0104` = `interop/security`、`0105` = `interop/profile_wire`） |
 
 既存suiteのうち上表に無いものは、移行前に個別に選んだ128-bit UUIDを使っている
@@ -274,7 +275,7 @@ cross-stack試験を指す。
 | HID Report Map parser | ✅ `unit/report_map` | — | — | |
 | keyboard layout / keymap | ✅ `unit/keymap` | — | — | |
 | BLE MIDI packet codec | ✅ `unit/midi` | — | — | |
-| 複数observer配送（`add*Listener()`） | | 予定 | 予定 `multi_listener` | |
+| 複数observer配送（`add*Listener()`） | | ✅ | ✅ `multi_listener` | |
 | BLE MIDI Device / Host | 上記codec | 予定 | 予定 `midi_device` / `midi_host` | 予定 `interop/midi` |
 | HID Device（keyboard / mouse / consumer / system / gamepad / vendor） | 上記parser | 予定 | 予定 `hid_keyboard_device`、`hid_robustness`、`hid_security`、`hid_boot_protocol`、`hid_custom`、`hid_convenience` | 予定 `interop/hid` |
 | HID Host | 上記parser | 予定 | 予定 `hid_keyboard_host`、`hid_boot_keyboard`、`hid_keyboard_nkro` | 予定 `interop/hid` |
@@ -396,11 +397,12 @@ cross-stack試験を指す。
 - ✅ Peripheral connection snapshot / security event（`peripheral_connection`）。
   interop scenarioの逆方向、Security Server scenario、
   [examples/Security](../examples/Security/)の非対称解消、HID Deviceの前提を解禁した
-- `add*Listener()` → `multi_listener`
+- ✅ `add*Listener()`（`multi_listener`）。event毎にprimary＋listener 4件、idはowner単位、
+  dispatch中の追加・削除の規則。MIDI / HID helperをそのまま移植できる状態になった
 
 **P4: profile実装**
 
-- BLE MIDI Device / Host（P1のcodec移植と`add*Listener()`が済めば最短）
+- BLE MIDI Device / Host（P1のcodec移植と`add*Listener()`が済んだので最短経路）
 - BLE HID Device（重複Characteristic UUID制限の解除が前提）→ HID Host
 
 **interop**: 各層でAPIとwire動作が固まった順に`interop/`へ写す。`gatt_basic`、

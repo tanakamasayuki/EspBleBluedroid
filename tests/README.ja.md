@@ -62,6 +62,7 @@ uv run --env-file .env pytest
 | `peer/gatt_client` | Database snapshot、Characteristic単体探索、UUID/handle指定Characteristic操作、Descriptor handle Read/Write、Notification購読/解除、切断時無効化、`update()`配送 |
 | `peer/gatt_server` | 静的GATT Server、動的Read、binary Write、Descriptor、CCCD購読、Notification、Indication（CCCD 0x0002と確認応答後の完了）、`update()`配送 |
 | `peer/peripheral_connection` | 相手から接続されたlink（`localRole = Peripheral`）の接続event・MTU event・connection snapshot・接続パラメータ・pairing event・HCI切断理由、Server eventのconnection IDがsnapshotと一致すること |
+| `peer/multi_listener` | `add*Listener()`の多重observer配送。primary→登録順、1 event 4件上限と5件目の拒否、owner単位のlistener id、dispatch中に追加したlistenerが同じdispatchで呼ばれないこと |
 | `peer/gatt_disconnect_purge` | 実行中Read中の`disconnect()`受理、完了が1件だけ届くこと、drop 0、再接続後のDiscovery/Read |
 | `peer/duplicate_uuid` | Server側の重複Characteristic / Descriptor UUID拒否と不正UUID拒否（error名・detail文字列）、別Serviceの同一UUID受理、Client側のhandle指定Read・購読とNotificationの経路分離 |
 | `peer/long_value` | MTUを超える値のRead。UUID指定・handle指定の両方で全体が返り、内容がpeerのrampと一致すること |

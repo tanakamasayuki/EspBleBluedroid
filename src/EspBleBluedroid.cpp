@@ -7587,33 +7587,39 @@ size_t EspBleBluedroid::droppedEventCount() const
 
 void EspBleBluedroid::onConnected(ConnectionCallback callback)
 {
-  connectedCallback_ = std::move(callback);
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  connectedListeners_.setPrimary(std::move(callback));
 }
 
 void EspBleBluedroid::onDisconnected(ConnectionCallback callback)
 {
-  disconnectedCallback_ = std::move(callback);
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  disconnectedListeners_.setPrimary(std::move(callback));
 }
 
 void EspBleBluedroid::onConnectionFailed(ConnectionFailureCallback callback)
 {
-  connectionFailedCallback_ = std::move(callback);
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  connectionFailedListeners_.setPrimary(std::move(callback));
 }
 
 void EspBleBluedroid::onMtuChanged(MtuChangedCallback callback)
 {
-  mtuChangedCallback_ = std::move(callback);
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  mtuChangedListeners_.setPrimary(std::move(callback));
 }
 
 void EspBleBluedroid::onConnectionParametersUpdated(
   ConnectionCallback callback)
 {
-  connectionParametersUpdatedCallback_ = std::move(callback);
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  connectionParametersUpdatedListeners_.setPrimary(std::move(callback));
 }
 
 void EspBleBluedroid::onSecurityChanged(SecurityChangedCallback callback)
 {
-  securityChangedCallback_ = std::move(callback);
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  securityChangedListeners_.setPrimary(std::move(callback));
 }
 
 void EspBleBluedroid::onPasskeyDisplayed(PasskeyDisplayedCallback callback)
@@ -7628,47 +7634,210 @@ void EspBleBluedroid::onNumericComparison(PasskeyDisplayedCallback callback)
 
 void EspBleBluedroid::onCharacteristicDiscovered(GattResultCallback callback)
 {
-  characteristicDiscoveredCallback_ = std::move(callback);
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  characteristicDiscoveredListeners_.setPrimary(std::move(callback));
 }
 
 void EspBleBluedroid::onCharacteristicRead(GattResultCallback callback)
 {
-  characteristicReadCallback_ = std::move(callback);
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  characteristicReadListeners_.setPrimary(std::move(callback));
 }
 
 void EspBleBluedroid::onCharacteristicWritten(GattResultCallback callback)
 {
-  characteristicWrittenCallback_ = std::move(callback);
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  characteristicWrittenListeners_.setPrimary(std::move(callback));
 }
 
 void EspBleBluedroid::onDescriptorRead(GattResultCallback callback)
 {
-  descriptorReadCallback_ = std::move(callback);
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  descriptorReadListeners_.setPrimary(std::move(callback));
 }
 
 void EspBleBluedroid::onDescriptorWritten(GattResultCallback callback)
 {
-  descriptorWrittenCallback_ = std::move(callback);
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  descriptorWrittenListeners_.setPrimary(std::move(callback));
 }
 
 void EspBleBluedroid::onSubscribed(GattResultCallback callback)
 {
-  subscribedCallback_ = std::move(callback);
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  subscribedListeners_.setPrimary(std::move(callback));
 }
 
 void EspBleBluedroid::onUnsubscribed(GattResultCallback callback)
 {
-  unsubscribedCallback_ = std::move(callback);
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  unsubscribedListeners_.setPrimary(std::move(callback));
 }
 
 void EspBleBluedroid::onNotification(NotificationCallback callback)
 {
-  notificationCallback_ = std::move(callback);
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  notificationListeners_.setPrimary(std::move(callback));
 }
 
 void EspBleBluedroid::onServicesDiscovered(GattResultCallback callback)
 {
-  servicesDiscoveredCallback_ = std::move(callback);
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  servicesDiscoveredListeners_.setPrimary(std::move(callback));
+}
+
+EspBleListenerId EspBleBluedroid::allocateListenerIdLocked()
+{
+  // Unique across every list on this object, so removeConnectionListener() and
+  // removeGattListener() need no hint about which event an id belongs to.
+  const EspBleListenerId id = nextListenerId_++;
+  if (nextListenerId_ == EspBleInvalidListenerId) nextListenerId_ = 1;
+  return id;
+}
+
+EspBleListenerId EspBleBluedroid::addConnectedListener(
+  ConnectionCallback callback)
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  return connectedListeners_.add(
+    std::move(callback), allocateListenerIdLocked());
+}
+
+EspBleListenerId EspBleBluedroid::addDisconnectedListener(
+  ConnectionCallback callback)
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  return disconnectedListeners_.add(
+    std::move(callback), allocateListenerIdLocked());
+}
+
+EspBleListenerId EspBleBluedroid::addConnectionFailedListener(
+  ConnectionFailureCallback callback)
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  return connectionFailedListeners_.add(
+    std::move(callback), allocateListenerIdLocked());
+}
+
+EspBleListenerId EspBleBluedroid::addMtuChangedListener(
+  MtuChangedCallback callback)
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  return mtuChangedListeners_.add(
+    std::move(callback), allocateListenerIdLocked());
+}
+
+EspBleListenerId EspBleBluedroid::addConnectionParametersUpdatedListener(
+  ConnectionCallback callback)
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  return connectionParametersUpdatedListeners_.add(
+    std::move(callback), allocateListenerIdLocked());
+}
+
+EspBleListenerId EspBleBluedroid::addSecurityChangedListener(
+  SecurityChangedCallback callback)
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  return securityChangedListeners_.add(
+    std::move(callback), allocateListenerIdLocked());
+}
+
+bool EspBleBluedroid::removeConnectionListener(EspBleListenerId listenerId)
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  return connectedListeners_.remove(listenerId) ||
+    disconnectedListeners_.remove(listenerId) ||
+    connectionFailedListeners_.remove(listenerId) ||
+    mtuChangedListeners_.remove(listenerId) ||
+    connectionParametersUpdatedListeners_.remove(listenerId) ||
+    securityChangedListeners_.remove(listenerId);
+}
+
+EspBleListenerId EspBleBluedroid::addCharacteristicDiscoveredListener(
+  GattResultCallback callback)
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  return characteristicDiscoveredListeners_.add(
+    std::move(callback), allocateListenerIdLocked());
+}
+
+EspBleListenerId EspBleBluedroid::addCharacteristicReadListener(
+  GattResultCallback callback)
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  return characteristicReadListeners_.add(
+    std::move(callback), allocateListenerIdLocked());
+}
+
+EspBleListenerId EspBleBluedroid::addCharacteristicWrittenListener(
+  GattResultCallback callback)
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  return characteristicWrittenListeners_.add(
+    std::move(callback), allocateListenerIdLocked());
+}
+
+EspBleListenerId EspBleBluedroid::addServicesDiscoveredListener(
+  GattResultCallback callback)
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  return servicesDiscoveredListeners_.add(
+    std::move(callback), allocateListenerIdLocked());
+}
+
+EspBleListenerId EspBleBluedroid::addDescriptorReadListener(
+  GattResultCallback callback)
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  return descriptorReadListeners_.add(
+    std::move(callback), allocateListenerIdLocked());
+}
+
+EspBleListenerId EspBleBluedroid::addDescriptorWrittenListener(
+  GattResultCallback callback)
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  return descriptorWrittenListeners_.add(
+    std::move(callback), allocateListenerIdLocked());
+}
+
+EspBleListenerId EspBleBluedroid::addSubscribedListener(
+  GattResultCallback callback)
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  return subscribedListeners_.add(
+    std::move(callback), allocateListenerIdLocked());
+}
+
+EspBleListenerId EspBleBluedroid::addUnsubscribedListener(
+  GattResultCallback callback)
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  return unsubscribedListeners_.add(
+    std::move(callback), allocateListenerIdLocked());
+}
+
+EspBleListenerId EspBleBluedroid::addNotificationListener(
+  NotificationCallback callback)
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  return notificationListeners_.add(
+    std::move(callback), allocateListenerIdLocked());
+}
+
+bool EspBleBluedroid::removeGattListener(EspBleListenerId listenerId)
+{
+  std::lock_guard<std::mutex> lock(listenerMutex_);
+  return characteristicDiscoveredListeners_.remove(listenerId) ||
+    characteristicReadListeners_.remove(listenerId) ||
+    characteristicWrittenListeners_.remove(listenerId) ||
+    servicesDiscoveredListeners_.remove(listenerId) ||
+    descriptorReadListeners_.remove(listenerId) ||
+    descriptorWrittenListeners_.remove(listenerId) ||
+    subscribedListeners_.remove(listenerId) ||
+    unsubscribedListeners_.remove(listenerId) ||
+    notificationListeners_.remove(listenerId);
 }
 
 void EspBleBluedroid::expireGattOperation()
@@ -7718,112 +7887,89 @@ void EspBleBluedroid::dispatchConnectionEvents()
         (connectionImpl_->eventHead + 1) % EspBleConnectionImpl::EventCapacity;
       --connectionImpl_->eventCount;
     }
-    if (event.type == EspBleConnectionImpl::EventType::Connected &&
-        connectedCallback_)
+    // One event goes to the primary callback and then to every listener, in
+    // registration order. The copy is taken with the lock released before the
+    // calls, so a callback may add or remove listeners.
+    using Type = EspBleConnectionImpl::EventType;
+    const bool gattResult = event.type == Type::GattResult;
+    if (event.type == Type::Connected)
     {
-      connectedCallback_(event.connection);
+      dispatchListeners(connectedListeners_, event.connection);
     }
-    else if (event.type == EspBleConnectionImpl::EventType::Disconnected &&
-             disconnectedCallback_)
+    else if (event.type == Type::Disconnected)
     {
-      disconnectedCallback_(event.connection);
+      dispatchListeners(disconnectedListeners_, event.connection);
     }
-    else if (event.type == EspBleConnectionImpl::EventType::Failed &&
-             connectionFailedCallback_)
+    else if (event.type == Type::Failed)
     {
-      connectionFailedCallback_(event.failure);
+      dispatchListeners(connectionFailedListeners_, event.failure);
     }
-    else if (event.type == EspBleConnectionImpl::EventType::MtuChanged &&
-             mtuChangedCallback_)
+    else if (event.type == Type::MtuChanged)
     {
-      mtuChangedCallback_(event.mtuChanged);
+      dispatchListeners(mtuChangedListeners_, event.mtuChanged);
     }
-    else if (
-      event.type ==
-        EspBleConnectionImpl::EventType::ConnectionParametersUpdated &&
-      connectionParametersUpdatedCallback_)
+    else if (event.type == Type::ConnectionParametersUpdated)
     {
-      connectionParametersUpdatedCallback_(event.connection);
+      dispatchListeners(
+        connectionParametersUpdatedListeners_, event.connection);
     }
-    else if (
-      event.type == EspBleConnectionImpl::EventType::SecurityChanged &&
-      securityChangedCallback_)
+    else if (event.type == Type::SecurityChanged)
     {
-      securityChangedCallback_(event.securityChanged);
+      dispatchListeners(securityChangedListeners_, event.securityChanged);
     }
-    else if (
-      event.type == EspBleConnectionImpl::EventType::PasskeyDisplayed &&
-      passkeyDisplayedCallback_)
+    else if (event.type == Type::PasskeyDisplayed && passkeyDisplayedCallback_)
     {
+      // The passkey callbacks ask for an answer rather than observe, so they
+      // keep the single-callback form.
       passkeyDisplayedCallback_(event.passkeyDisplayed);
     }
-    else if (
-      event.type == EspBleConnectionImpl::EventType::NumericComparison &&
-      numericComparisonCallback_)
+    else if (event.type == Type::NumericComparison && numericComparisonCallback_)
     {
       numericComparisonCallback_(event.passkeyDisplayed);
     }
-    else if (
-      event.type == EspBleConnectionImpl::EventType::GattResult &&
-      event.gattResult.operation == EspBleGattOperation::Discover &&
-      characteristicDiscoveredCallback_)
+    else if (gattResult &&
+      event.gattResult.operation == EspBleGattOperation::Discover)
     {
-      characteristicDiscoveredCallback_(event.gattResult);
+      dispatchListeners(characteristicDiscoveredListeners_, event.gattResult);
     }
-    else if (
-      event.type == EspBleConnectionImpl::EventType::GattResult &&
-      event.gattResult.operation == EspBleGattOperation::Read &&
-      characteristicReadCallback_)
+    else if (gattResult &&
+      event.gattResult.operation == EspBleGattOperation::Read)
     {
-      characteristicReadCallback_(event.gattResult);
+      dispatchListeners(characteristicReadListeners_, event.gattResult);
     }
-    else if (
-      event.type == EspBleConnectionImpl::EventType::GattResult &&
-      event.gattResult.operation == EspBleGattOperation::Write &&
-      characteristicWrittenCallback_)
+    else if (gattResult &&
+      event.gattResult.operation == EspBleGattOperation::Write)
     {
-      characteristicWrittenCallback_(event.gattResult);
+      dispatchListeners(characteristicWrittenListeners_, event.gattResult);
     }
-    else if (
-      event.type == EspBleConnectionImpl::EventType::GattResult &&
-      event.gattResult.operation == EspBleGattOperation::ReadDescriptor &&
-      descriptorReadCallback_)
+    else if (gattResult &&
+      event.gattResult.operation == EspBleGattOperation::ReadDescriptor)
     {
-      descriptorReadCallback_(event.gattResult);
+      dispatchListeners(descriptorReadListeners_, event.gattResult);
     }
-    else if (
-      event.type == EspBleConnectionImpl::EventType::GattResult &&
-      event.gattResult.operation == EspBleGattOperation::WriteDescriptor &&
-      descriptorWrittenCallback_)
+    else if (gattResult &&
+      event.gattResult.operation == EspBleGattOperation::WriteDescriptor)
     {
-      descriptorWrittenCallback_(event.gattResult);
+      dispatchListeners(descriptorWrittenListeners_, event.gattResult);
     }
-    else if (
-      event.type == EspBleConnectionImpl::EventType::GattResult &&
-      event.gattResult.operation == EspBleGattOperation::Subscribe &&
-      subscribedCallback_)
+    else if (gattResult &&
+      event.gattResult.operation == EspBleGattOperation::Subscribe)
     {
-      subscribedCallback_(event.gattResult);
+      dispatchListeners(subscribedListeners_, event.gattResult);
     }
-    else if (
-      event.type == EspBleConnectionImpl::EventType::GattResult &&
-      event.gattResult.operation == EspBleGattOperation::Unsubscribe &&
-      unsubscribedCallback_)
+    else if (gattResult &&
+      event.gattResult.operation == EspBleGattOperation::Unsubscribe)
     {
-      unsubscribedCallback_(event.gattResult);
+      dispatchListeners(unsubscribedListeners_, event.gattResult);
     }
-    else if (
-      event.type == EspBleConnectionImpl::EventType::GattResult &&
-      event.gattResult.operation == EspBleGattOperation::DiscoverServices &&
-      servicesDiscoveredCallback_)
+    else if (gattResult &&
+      event.gattResult.operation == EspBleGattOperation::DiscoverServices)
     {
-      servicesDiscoveredCallback_(event.gattResult);
+      dispatchListeners(servicesDiscoveredListeners_, event.gattResult);
     }
-    else if (
-      event.type == EspBleConnectionImpl::EventType::Notification &&
-      notificationCallback_)
+    else if (event.type == Type::Notification)
     {
-      notificationCallback_(event.notification);
+      dispatchListeners(notificationListeners_, event.notification);
     }
   }
 }

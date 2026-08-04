@@ -133,6 +133,7 @@ Add a row here before using a new tag.
 | `0005` | `security_bond` |
 | `0006` | `security_passkey` |
 | `0007` | `peripheral_connection` |
+| `0008` | `multi_listener` |
 | `01xx` | reserved for interop scenarios (`0100` = `interop/gatt_basic`, `0101` = `interop/advertise_scan`, `0102` = `interop/long_value`, `0103` = `interop/duplicate_uuid`, `0104` = `interop/security`, `0105` = `interop/profile_wire`) |
 
 Suites not in the table still use individually chosen 128-bit UUIDs from before
@@ -313,7 +314,7 @@ once its prerequisites are met.
 | HID report map parser | ✅ `unit/report_map` | — | — | |
 | Keyboard layout / keymap | ✅ `unit/keymap` | — | — | |
 | BLE MIDI packet codec | ✅ `unit/midi` | — | — | |
-| Multi-observer dispatch (`add*Listener()`) | | planned | planned `multi_listener` | |
+| Multi-observer dispatch (`add*Listener()`) | | ✅ | ✅ `multi_listener` | |
 | BLE MIDI device / host | codec above | planned | planned `midi_device` / `midi_host` | planned `interop/midi` |
 | HID device (keyboard / mouse / consumer / system / gamepad / vendor) | parser above | planned | planned `hid_keyboard_device`, `hid_robustness`, `hid_security`, `hid_boot_protocol`, `hid_custom`, `hid_convenience` | planned `interop/hid` |
 | HID host | parser above | planned | planned `hid_keyboard_host`, `hid_boot_keyboard`, `hid_keyboard_nkro` | planned `interop/hid` |
@@ -444,12 +445,14 @@ Start with the gaps that need no implementation work.
   Unblocks the reverse direction of the interop scenarios, security server
   scenarios, resolving the asymmetry in
   [examples/Security](../examples/Security/), and a HID device
-- `add*Listener()` → `multi_listener`
+- ✅ `add*Listener()` (`multi_listener`): the primary plus four listeners per
+  event, ids per owner, and the dispatch-time add/remove rules. The MIDI and HID
+  helpers can now be ported unchanged
 
 **P4 — profile implementations**
 
-- BLE MIDI device / host (shortest path once the P1 codecs and `add*Listener()`
-  are in)
+- BLE MIDI device / host (the shortest path, now that the P1 codecs and
+  `add*Listener()` are in)
 - BLE HID device (needs the duplicate-characteristic-UUID restriction lifted) →
   HID host
 

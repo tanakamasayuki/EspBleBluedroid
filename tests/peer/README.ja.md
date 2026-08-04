@@ -35,6 +35,10 @@ overflow、再接続ID、remote切断、stack終了を検証します。
 
 `dual_mode_scan_spp`は1つのdual-mode stack上でBLE Scanとbinary SPP trafficを
 同時利用できることを検証します。
+`multi_listener`は多重observer配送を検証します。primaryの`on*()`に加えてconnection系・
+GATT Client系・GATT Server系eventの`add*Listener()`が登録順に配送されること、1 event
+4件の上限、owner単位のlistener id、dispatch中に追加したlistenerがそのdispatchに
+含まれないことを確認します。
 `peripheral_connection`はraw Arduino-ESP32 BLE client相手に、Peripheral側の接続
 lifecycleを検証します。接続event、こちらが観測するだけのMTU交換、パラメータを含む
 `connection()` snapshot、その役割でのpairing、HCI切断理由、GATT Server eventが持つ

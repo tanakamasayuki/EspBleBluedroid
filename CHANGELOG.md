@@ -140,6 +140,25 @@
   connection IDは`connection()`で引ける。Centralとして自分から開いたlinkはlink roleで
   除外するので、ClientとServerを兼ねるsketchでも1 linkにつき1接続しか見えない。
   raw Arduino-ESP32 BLE client相手の`tests/peer/peripheral_connection`で確認。
+- (EN) Add `add*Listener()`: several observers on one event, alongside the primary
+  `on*()` callback. `EspBleListenerId`, `EspBleInvalidListenerId` and
+  `EspBleCallbackList` are verbatim copies of EspBle's, and the connection, GATT
+  client and GATT Server events all take listeners, so a profile helper no longer
+  has to take the slot the application wanted — the prerequisite for porting the
+  BLE MIDI and HID helpers. The primary runs first, then the listeners in
+  registration order; four listeners fit per event and the fifth is refused with
+  `EspBleInvalidListenerId`; ids are unique per owner; dispatch copies the
+  callbacks out before calling them, so one may add or remove listeners without
+  being invoked in that same dispatch. 26 rows left `docs/API_PARITY.tsv`.
+  Covered by `tests/peer/multi_listener`.
+- (JA) `add*Listener()`を追加。1つのeventをprimaryの`on*()`と複数のlistenerで観測できる。
+  `EspBleListenerId`・`EspBleInvalidListenerId`・`EspBleCallbackList`はEspBleからの
+  verbatim copyで、connection系・GATT Client系・GATT Server系のeventすべてがlistenerを
+  受け付ける。profile helperがapplicationの枠を奪う必要がなくなり、BLE MIDI / HID helper
+  移植の前提が整った。配送はprimary→登録順、1 event 4件までで5件目は
+  `EspBleInvalidListenerId`で拒否、listener idはowner単位で一意。dispatchはcallbackを
+  コピーしてから呼ぶため、callback内での追加・削除が同じdispatchに影響しない。
+  `docs/API_PARITY.tsv`から26行が消えた。`tests/peer/multi_listener`で確認。
 - (EN) CI: the unit-test step of `compile-examples.yml` now runs `pytest unit/`
   instead of repeating the g++ command lines, which had gone stale after the unit
   suites moved into per-suite directories (it still referenced

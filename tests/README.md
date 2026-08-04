@@ -128,6 +128,11 @@ callback contexts, disconnection, and shutdown.
 `peer/hfp_backend` verifies public HFP Hands-Free and Audio Gateway roles
 end-to-end, including SLC, SCO, bidirectional mono PCM through the built-in
 CVSD/mSBC codec, and disconnection.
+`peer/multi_listener` covers multi-observer dispatch: the primary `on*()` callback
+and the `add*Listener()` observers of the connection, GATT client and GATT Server
+events, the order they run in, the four-listener limit, per-owner listener ids, and
+the rule that a listener added during a dispatch is left out of it.
+
 `peer/peripheral_connection` covers the peripheral half of the connection
 lifecycle: a peer connecting to this device's GATT Server produces the connect
 event, the MTU event, a `connection()` snapshot with the negotiated parameters, a
