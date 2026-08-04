@@ -86,8 +86,3 @@ EspBle側の出力は`ESPBLE_`で始まります。どちらのstackが出した
 - EspBle側は起動行を待つのではなく`?`の状態要求に応答します。相手のボードをflashしている
   間に起動が終わるため、起動行だけをassertするとmonitorの読み出し開始タイミングに
   依存してしまいます。
-- `duplicate_uuid`はEspBleの実装に依拠しており、文書には依拠していません。EspBle 1.1.0の
-  `addCharacteristic()`のコメントは「同一Service内で同一UUIDのCharacteristicは2つ置けない」
-  と書いていますが、実装は両方を登録し、実機でも両方をserveします（本scenarioが必要とし、
-  実際に確認した挙動）。上の規則どおりinstalledパッケージにはpatchを当てず、差異をここに
-  記録します。upstream側の修正対象です。

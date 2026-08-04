@@ -47,15 +47,11 @@
   server API rejects, and the shape its client half must still consume. Discovery
   keeps both apart, the UUID form reaches the first, and the reads, the write, the
   subscription and the notification are each attributed to a handle on both sides.
-  Verified on hardware. Note: EspBle 1.1.0's `addCharacteristic()` comment still
-  says duplicates are rejected while its implementation registers them; the
-  discrepancy is recorded in `tests/interop/README.md` rather than patched.
+  Verified on hardware.
 - (JA) `interop/duplicate_uuid`を追加。EspBle（NimBLE）Peripheralが同一Service内に置いた
   同一UUID Characteristic 2件——本ライブラリのServer APIが拒否する形であり、Client側は
   扱えなければならない形——に対して、Discoveryが2件を区別し、UUID指定は1件目に届き、
   Read、Write、購読、Notificationがすべて両側でhandleに帰属することを確認する。実機で確認済み。
-  なおEspBle 1.1.0は`addCharacteristic()`のコメントで重複を拒否すると書いているが実装は
-  登録する。この差異はpatchを当てず`tests/interop/README.md`に記録した。
 - (EN) CI: the unit-test step of `compile-examples.yml` now runs `pytest unit/`
   instead of repeating the g++ command lines, which had gone stale after the unit
   suites moved into per-suite directories (it still referenced

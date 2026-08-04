@@ -93,9 +93,3 @@ which stack produced it.
   It finishes booting while the other board is still being flashed, so an
   assertion on its startup line alone would depend on when the monitor started
   reading.
-- `duplicate_uuid` relies on EspBle's implementation, not on its documentation:
-  the `addCharacteristic()` comment in EspBle 1.1.0 still says two characteristics
-  in one service may not share a UUID, while the code registers both and the peer
-  serves them on the air (which is what this scenario needed and confirmed). Per
-  the rules above the installed package is not patched; the discrepancy is
-  recorded here and belongs upstream.
