@@ -61,9 +61,9 @@ uv run --env-file .env pytest interop/
 | [gatt_basic](gatt_basic/) | Bluedroid CentralとEspBle Peripheral。MTU 247交換、宣言propertyを含むDiscovery、Characteristic Read、応答あり/なしWrite、Descriptor Read/Write、Notification、確認応答を伴うIndication、購読解除、切断 |
 | [advertise_scan](advertise_scan/) | Advertising / Scanの両方向。device name、manufacturer data、Service Data、Appearance、Tx Powerを一方のpayload builderで組み、相手のparserが同じfieldへ復元すること。同じadvertiserをpassive scanしたときはAdvertising payloadだけが見えること |
 | [long_value](long_value/) | EspBle Peripheralが公開した300 byteの値を、MTU 247をまたいでUUID指定・handle指定の両方のReadで全体取得。全byteを相手のramp列と照合 |
+| [duplicate_uuid](duplicate_uuid/) | EspBle Peripheralが同一Service内に置いた同一UUID Characteristic 2件を、Discoveryで区別し、UUID指定は1件目に届き、Read / Write / 購読 / Notificationがすべて両側でhandleに帰属することを確認。こちらのServer側が同じ形を拒否することも併記 |
 
-残りの予定scenario（`security`、`profile_wire`、`duplicate_uuid`、HID/MIDI）は
-内容とともに
+残りの予定scenario（`security`、`profile_wire`、HID/MIDI）は内容とともに
 [../TEST_PLAN.ja.md](../TEST_PLAN.ja.md#対象scenario実装が固まった順に追加)にあります。
 
 ## UUID
@@ -71,7 +71,8 @@ uv run --env-file .env pytest interop/
 interop scenarioはテスト用UUID体系（`SSSSNNNN-b1dd-4d00-9e5a-627564726f69`）のうち
 `01xx`のsuite tagを使います。両ライブラリのsuiteを同じ部屋で同時に走らせても衝突しません。
 `gatt_basic`は`0100`、`advertise_scan`は`0101`（方向ごとに別UUIDを使い、どちらのscanner
-も相手側のpayloadでは満たされないようにしています）、`long_value`は`0102`です。
+も相手側のpayloadでは満たされないようにしています）、`long_value`は`0102`、
+`duplicate_uuid`は`0103`です。
 
 ## logの読み方
 
@@ -85,3 +86,8 @@ EspBle側の出力は`ESPBLE_`で始まります。どちらのstackが出した
 - EspBle側は起動行を待つのではなく`?`の状態要求に応答します。相手のボードをflashしている
   間に起動が終わるため、起動行だけをassertするとmonitorの読み出し開始タイミングに
   依存してしまいます。
+- `duplicate_uuid`はEspBleの実装に依拠しており、文書には依拠していません。EspBle 1.1.0の
+  `addCharacteristic()`のコメントは「同一Service内で同一UUIDのCharacteristicは2つ置けない」
+  と書いていますが、実装は両方を登録し、実機でも両方をserveします（本scenarioが必要とし、
+  実際に確認した挙動）。上の規則どおりinstalledパッケージにはpatchを当てず、差異をここに
+  記録します。upstream側の修正対象です。

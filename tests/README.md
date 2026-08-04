@@ -177,3 +177,8 @@ the same advertiser that must see the advertising payload alone.
 `interop/long_value` reads a 300-byte value published by an EspBle peripheral
 across the 247-byte MTU, through both the UUID form and the handle form, checking
 every byte against the peer's ramp.
+
+`interop/duplicate_uuid` works with two characteristics that share a UUID inside
+one service on the EspBle peripheral — the shape this library's server API
+rejects — attributing discovery, reads, the write, the subscription, and the
+notification to a handle on both sides.

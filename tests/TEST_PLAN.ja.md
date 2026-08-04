@@ -103,7 +103,7 @@ SSSSNNNN-b1dd-4d00-9e5a-627564726f69
 | `0004` | `long_value` |
 | `0005` | `security_bond` |
 | `0006` | `security_passkey` |
-| `01xx` | interop scenario専用の範囲（`0100` = `interop/gatt_basic`、`0101` = `interop/advertise_scan`、`0102` = `interop/long_value`） |
+| `01xx` | interop scenario専用の範囲（`0100` = `interop/gatt_basic`、`0101` = `interop/advertise_scan`、`0102` = `interop/long_value`、`0103` = `interop/duplicate_uuid`） |
 
 既存suiteのうち上表に無いものは、移行前に個別に選んだ128-bit UUIDを使っている
 （`8d47a6xx`、`6b976bxx`、`48e8c1xx`など）。これらもEspBle側と重複しないことを確認済みで、
@@ -180,7 +180,7 @@ conftest hookは持たず、port設定と`sketch.yaml`だけで構成する。
 | `interop/advertise_scan` | ✅ EspBleのpayload builderが出したAdvertising / Scan Responseを、Bluedroid Scannerがaddress単位でmergeして同じfieldへ復元すること（およびその逆）。同じadvertiserをpassive scanしたときはAdvertising payloadのfieldだけが見え、Scan Response側は一切見えないこと |
 | `interop/security` | Just Works、静的passkey、Numeric Comparisonをcross-stackで。Bluedroid Peripheral側はconnection snapshot実装後に対象化する |
 | `interop/profile_wire` | 共有header（`EspBleMedicalFloat.h`、`EspBleCgmCrc.h`、`EspBleIBeacon.h`、`EspBleUuid.h`）で組んだ値が相手stackで同じbyte列としてdecodeできること |
-| `interop/duplicate_uuid` | 仕様が認める重複UUID（EspBle Peripheralが同一Service内に同一UUID Characteristicを2つ）を、Bluedroid Clientがhandle指定で扱えること。こちらのServer側制約が相手からどう見えるかも記録する |
+| `interop/duplicate_uuid` | ✅ 仕様が認める重複UUID（EspBle Peripheralが同一Service内に同一UUID Characteristicを2つ）を、Bluedroid Clientがhandle指定で扱えること。Discoveryで2件を区別、UUID指定は1件目に届く、Read / Write / 購読 / Notificationがすべて両側でhandleに帰属することを確認。Server側の拒否も同じファイルに記録する |
 | `interop/long_value` | ✅ EspBle Peripheralが公開した合意MTU超の値が、UUID指定・handle指定の両方のReadで全体として返ること。`peer/long_value`は両端がBluedroidなので、clientの性質として言えるのはこちら |
 | `interop/hid` / `interop/midi` | HID over GATT / BLE MIDI実装後。Device / Hostを入れ替えた両方向 |
 
@@ -394,8 +394,8 @@ cross-stack試験を指す。
 - BLE HID Device（重複Characteristic UUID制限の解除が前提）→ HID Host
 
 **interop**: 各層でAPIとwire動作が固まった順に`interop/`へ写す。`gatt_basic`、
-`advertise_scan`、`long_value`は実装済み。以降は`security`、`profile_wire`、
-`duplicate_uuid`の順。
+`advertise_scan`、`long_value`、`duplicate_uuid`は実装済み。以降は`security`、
+`profile_wire`の順。
 
 ## 合格条件
 

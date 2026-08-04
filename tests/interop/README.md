@@ -63,9 +63,10 @@ uv run --env-file .env pytest interop/
 | [gatt_basic](gatt_basic/) | Bluedroid central against an EspBle peripheral: MTU 247 exchange, discovery including declared properties, characteristic read, write with and without response, descriptor read/write, notification, indication with its confirmation, unsubscribe, disconnect |
 | [advertise_scan](advertise_scan/) | Both directions of advertising and scanning: name, manufacturer data, Service Data, Appearance and Tx Power built by one stack's payload builder and reconstructed by the other's parser, plus a passive scan of the same advertiser that must see the advertising payload alone |
 | [long_value](long_value/) | A 300-byte value published by an EspBle peripheral read whole across the 247-byte MTU, through both the UUID form and the handle form, with every byte checked against the peer's ramp |
+| [duplicate_uuid](duplicate_uuid/) | Two characteristics sharing one UUID in one service on the EspBle peripheral: discovery keeps them apart, the UUID form reaches the first, and read, write, subscribe and notification are each attributed to a handle on both sides. This library's server-side rejection of the same shape is recorded alongside |
 
-The remaining planned scenarios — `security`, `profile_wire`, `duplicate_uuid`,
-and the HID/MIDI pair — are listed with their
+The remaining planned scenarios — `security`, `profile_wire`, and the HID/MIDI
+pair — are listed with their
 content in [../TEST_PLAN.md](../TEST_PLAN.md#scenarios-added-as-each-layer-settles).
 
 ## UUIDs
@@ -74,7 +75,8 @@ Interop scenarios take suite tags from the `01xx` range of the test UUID scheme
 (`SSSSNNNN-b1dd-4d00-9e5a-627564726f69`), so they cannot collide with either
 library's own suites even when both run in the same room. `gatt_basic` uses
 `0100`, `advertise_scan` uses `0101` (one UUID per direction, so neither scanner
-can be satisfied by the other side's payload), and `long_value` uses `0102`.
+can be satisfied by the other side's payload), `long_value` uses `0102`, and
+`duplicate_uuid` uses `0103`.
 
 ## Reading the logs
 
@@ -91,3 +93,9 @@ which stack produced it.
   It finishes booting while the other board is still being flashed, so an
   assertion on its startup line alone would depend on when the monitor started
   reading.
+- `duplicate_uuid` relies on EspBle's implementation, not on its documentation:
+  the `addCharacteristic()` comment in EspBle 1.1.0 still says two characteristics
+  in one service may not share a UUID, while the code registers both and the peer
+  serves them on the air (which is what this scenario needed and confirmed). Per
+  the rules above the installed package is not patched; the discrepancy is
+  recorded here and belongs upstream.
