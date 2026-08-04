@@ -41,7 +41,7 @@ be added if a scenario needs it.
 | Fixture | Host DUT | Second peer | Purpose | Connection |
 |---|---|---|---|---|
 | Standard regression | original ESP32 | original ESP32 | Full public API, Bluedroid paths, Classic, dual mode | always connected |
-| EspBle interop | original ESP32 | ESP32-S3 (EspBle release) | Bluedroid ↔ NimBLE wire and procedure agreement | connect when needed |
+| EspBle interop | ESP32-S3 (EspBle release) | original ESP32 | Bluedroid ↔ NimBLE wire and procedure agreement | always connected (EspBle's main board) |
 | Manual interop | original ESP32 | phone / PC / commercial device | Interoperability with OS stacks | manual |
 
 EspBle does not run on the original ESP32 — it drives NimBLE directly and
@@ -51,10 +51,15 @@ BLE nor Classic needs wiring between boards; only serial/power to the PC.
 
 The existing pytest-embedded-cli conventions apply.
 
-- Host profile: `esp32_peer_host`
-- Second-board profile: `esp32_peer_device` (same-SoC peer) / `s3_peer_device` (EspBle peer)
+- Host profile: `esp32_peer_host` / `s3_peer_host` (the EspBle side of interop)
+- Second-board profile: `esp32_peer_device`
 - Second-board directory: `peer_device/`
 - Python fixture: `peers["device"]`
+
+Interop makes the S3 the parent fixture and reuses the same second ESP32 as
+`peer/`, so the only extra setting is `TEST_SERIAL_PORT_S3_PEER_HOST`. That board
+is EspBle's own permanently connected fixture, so a bare `pytest` includes the
+interop suite.
 
 `host` / `device` are pytest fixture names, not BLE or Classic roles. Current
 scenarios pin the host side to central / SPP client / one audio role and do not
@@ -116,6 +121,7 @@ Add a row here before using a new tag.
 | `0004` | `long_value` |
 | `0005` | `security_bond` |
 | `0006` | `security_passkey` |
+| `01xx` | reserved for interop scenarios (`0100` = `interop/gatt_basic`) |
 
 Suites not in the table still use individually chosen 128-bit UUIDs from before
 this scheme (`8d47a6xx`, `6b976bxx`, `48e8c1xx`, …). Those are confirmed not to
@@ -176,37 +182,34 @@ repository.
 
 - The in-development `../EspBle`, its default branch, and unreleased commits are
   **never the reference**.
-- Fetch a published EspBle release package (zip) and pin its version and sha256
-  in `tests/interop/espble.lock.json`. `tests/interop/fetch_espble.py`
-  downloads, verifies, and extracts it into
-  `tests/interop/vendor/EspBle-<version>/` (not tracked by Git).
-- The peer `sketch.yaml` references it with
-  `libraries: [- dir: ../vendor/EspBle-<version>]`. The package is never
-  patched. If a scenario only passes with a change on the EspBle side, that fact
-  is recorded in the result instead.
-- Version bumps are explicit changes reviewed together with the diff and a full
-  interop run — never automatic tracking of the latest release.
+- Pin a published release from the Arduino library index in `sketch.yaml`
+  (`libraries: [- EspBle (1.1.0)]`), the same way the platform version is pinned.
+  Arduino CLI installs exactly that release; nothing is fetched or unpacked by
+  hand. How to run it: [interop/README.md](interop/README.md).
+- The installed package is never patched. If a scenario only passes with a change
+  on the EspBle side, that fact is recorded in the result instead.
+- Version bumps come from the separate release tooling as explicit changes,
+  reviewed together with the diff and a full interop run — never automatic
+  tracking of the latest release.
 
-### Default runs
+### Runs
 
-A bare `pytest` and `pytest peer/` must complete with only the two permanently
-connected original ESP32 boards. The S3 fixture must never become
-`default_profile`. `interop/` skips itself automatically when no S3 port is
-configured in `.env`.
+All three boards are permanently connected, so a bare `pytest` covers every layer.
+To run this one alone:
 
 ```sh
 uv run --env-file .env pytest interop/
 ```
 
-A skip does not mean "interop verified"; it means "explicitly confirmed out of
-scope for this fixture". Claiming interop coverage requires a run with the S3
-port configured.
+`.env` carries `TEST_SERIAL_PORT_S3_PEER_HOST` next to the two original ESP32
+ports. The suite needs no conftest hook of its own: port settings and
+`sketch.yaml` are the whole configuration.
 
 ### Scenarios (added as each layer settles)
 
 | Scenario | Content |
 |---|---|
-| `interop/gatt_basic` | Both directions: Bluedroid central ↔ EspBle peripheral and EspBle central ↔ Bluedroid peripheral — discovery, read, write with and without response, notify, indicate, MTU 247 exchange |
+| `interop/gatt_basic` | ✅ Bluedroid central ↔ EspBle peripheral: MTU 247 exchange, discovery including declared properties, read, write with and without response, descriptor read/write, notify, indicate with its confirmation, unsubscribe, disconnect. The reverse direction waits for the peripheral connection snapshot |
 | `interop/advertise_scan` | Advertising / scan response built by EspBle's payload builder reconstructed field-for-field by the Bluedroid scanner's per-address merge, and the reverse |
 | `interop/security` | Just Works, static passkey, and Numeric Comparison across stacks. The Bluedroid peripheral side joins once the connection snapshot exists |
 | `interop/profile_wire` | Values built with the shared headers (`EspBleMedicalFloat.h`, `EspBleCgmCrc.h`, `EspBleIBeacon.h`, `EspBleUuid.h`) decode to the same bytes on the other stack |

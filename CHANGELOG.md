@@ -6,6 +6,19 @@
   and the priority order for the remaining gaps.
 - (JA) `tests/TEST_PLAN.md`・`.ja.md`を追加。EspBleのテスト計画構造にClassicとinterop層、
   テスト用UUIDの割り当て、カバレッジ表、残り空白の優先順位を加えた。
+- (EN) Add the EspBle cross-stack suite `tests/interop`: the EspBle side runs on an
+  ESP32-S3 with the released version pinned in `sketch.yaml`, and
+  `interop/gatt_basic` drives a Bluedroid central against an EspBle (NimBLE)
+  peripheral through MTU exchange, discovery, read, both write modes, descriptor
+  access, notification, and confirmed indication. The S3 is part of the standard
+  fixture, so a bare `pytest` covers it.
+- (JA) EspBleとのcross-stack suite `tests/interop`を追加。EspBle側はESP32-S3で動かし、
+  対象releaseは`sketch.yaml`でversion固定する。`interop/gatt_basic`がBluedroid Centralと
+  EspBle（NimBLE）Peripheralの間でMTU交換、Discovery、Read、2種のWrite、Descriptor操作、
+  Notification、確認応答付きIndicationを検証する。S3は標準fixtureの一部なので、無指定の
+  `pytest`にも含まれる。実機で確認済み（MTU 247交換、Service 3件・
+  Characteristic handle 16のDiscovery、Read/Write、Descriptor、Notification、Indication、
+  購読解除、切断）。
 - (EN) Add `tests/unit/api_parity`, `docs/API_PARITY.tsv`, and
   `tools/gen_api_parity.py`: every public-API difference from EspBle is now
   machine-checked and classified as `backend`, `classic`, or `planned`.

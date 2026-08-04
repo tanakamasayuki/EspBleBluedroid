@@ -20,3 +20,5 @@
 - [Peerテスト](../tests/README.ja.md) — 無印ESP32 2台での実機テスト手順
 - [テスト計画](../tests/TEST_PLAN.ja.md) — 層の分け方、カバレッジ、EspBleとのAPI整合、
   EspBle相互接続suite、優先順位
+- [EspBle相互接続テスト](../tests/interop/README.ja.md) — 固定したEspBleリリースを
+  peerにしたcross-stack試験の手順と規則

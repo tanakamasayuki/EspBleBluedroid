@@ -8,7 +8,7 @@
 ```text
 unit/     backend非依存のcodec、parser、状態変換（実機不要）
 peer/     無印ESP32 2台のBluedroid BLE / Classic接続自動テスト
-interop/  無印ESP32＋ESP32-S3（EspBleリリースパッケージ）のcross-stack試験（予定）
+interop/  無印ESP32＋ESP32-S3（EspBleリリースパッケージ）のcross-stack試験
 ```
 
 層の分け方、fixture、カバレッジ表、優先順位は[TEST_PLAN.ja.md](TEST_PLAN.ja.md)にあります。
@@ -27,11 +27,12 @@ uv sync
 `.env`はGit管理されません。別のPCやUSB接続順でポートが変わった場合は、各環境の
 `.env`だけを編集してください。テストコードや`sketch.yaml`の変更は不要です。
 
-初期設定では次の2台を使用します。
+初期設定では次の3台を使用します。3台目はEspBleを動かすESP32-S3で、`interop/`だけが使います。
 
 ```dotenv
 TEST_SERIAL_PORT_ESP32_PEER_HOST=/dev/ttyUSB0
 TEST_SERIAL_PORT_PEER_DEVICE_ESP32_PEER_DEVICE=/dev/ttyUSB1
+TEST_SERIAL_PORT_S3_PEER_HOST=/dev/ttyACM0
 ```
 
 `host`と`device`はpytest fixture上の識別名で、BLE roleではありません。現在の
@@ -87,27 +88,22 @@ uv run --env-file .env pytest
 uv run --env-file .env pytest peer/stack_smoke/ -v
 ```
 
-## EspBle相互接続suite（`interop/`、実装中）
+## EspBle相互接続suite（`interop/`）
 
-EspBle（NimBLE）との相互接続を他stack試験としてこの`tests/`へ置きます。兄弟directoryや
-開発branchは参照せず、versionとchecksumを固定した公開済みEspBleリリースパッケージを
-peer firmwareの依存に使用します。
-
-EspBleは無印ESP32では動作しないため、2台目はESP32-S3（profile `s3_peer_device`）です。
-そのportを設定するとsuiteが有効になり、未設定なら自動skipします。したがって無指定の
-`pytest`は常設の無印ESP32 2台だけで完走します。
+EspBle（NimBLE）との相互接続試験です。EspBle側はESP32-S3（親fixture、profile
+`s3_peer_host`、常設）で動かし、versionは各`sketch.yaml`で固定しています（`EspBle (1.1.0)`）。
+2台目は`peer/`と同じ無印ESP32です。
 
 ```dotenv
-TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB2
+TEST_SERIAL_PORT_S3_PEER_HOST=/dev/ttyACM0
 ```
 
 ```sh
 uv run --env-file .env pytest interop/
 ```
-
-追加対象は、build、flash、接続操作、期待値判定、timeout、cleanupまでpytestから自動実行できる
-scenarioだけです。スマートフォン、GUI、聴感確認など手動操作を必要とするものはこのsuiteへ
-含めません。対象versionの更新は明示的な変更としてreviewし、自動でlatest releaseへ追従させません。
-
-scenario一覧、パッケージ固定の規則、skipの意味は
+手順と規則は[interop/README.ja.md](interop/README.ja.md)、scenario一覧は
 [TEST_PLAN.ja.md](TEST_PLAN.ja.md#espbleリリースパッケージとの相互接続suiteinterop)にあります。
+
+| suite | 確認範囲 |
+|---|---|
+| `interop/gatt_basic` | Bluedroid CentralとEspBle Peripheral。MTU 247交換、宣言propertyを含むDiscovery、Read、応答あり/なしWrite、Descriptor Read/Write、Notification、確認応答を伴うIndication、購読解除、切断 |

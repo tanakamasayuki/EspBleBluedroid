@@ -1,0 +1,84 @@
+# EspBle相互接続テスト
+
+> English: [README.md](README.md)
+> 規則とscenario一覧: [../TEST_PLAN.ja.md](../TEST_PLAN.ja.md#espbleリリースパッケージとの相互接続suiteinterop)
+
+このライブラリ（Bluedroid、無印ESP32）と兄弟ライブラリ
+[EspBle](https://github.com/tanakamasayuki/EspBle)（NimBLE、ESP32-S3）の
+cross-stack試験です。
+
+同梱Bluedroidどうしの通信では、実装が「Bluedroidの癖」に依存していても両端で相殺されて
+見えません。ここでは相手側を別のhost stackにします。
+
+## fixture
+
+| fixture | ボード | profile | firmware |
+|---|---|---|---|
+| `dut` | ESP32-S3 | `s3_peer_host` | 公開EspBleリリース（`sketch.yaml`で固定） |
+| `peers["device"]` | 無印ESP32 | `esp32_peer_device` | このrepository |
+
+EspBleは無印ESP32では動作しないため、EspBle側は常にNimBLE対応SoCになります。S3（EspBleの
+メイン機材）は常設で、peerは`peer/`各suiteと同じ2台目の無印ESP32を使います。ボード間の配線は
+不要で、Serialと給電だけを使います。
+
+## 準備
+
+手動での取得は不要です。EspBleのversionは各interop `sketch.yaml`で固定してあり、
+Arduino CLIがそのreleaseをそのままinstallします。
+
+```yaml
+    libraries:
+      - EspBle (1.1.0)
+```
+
+S3のportは他の2台と同じく`tests/.env`へ置きます。無指定の`pytest`にもこのsuiteが含まれます。
+
+```dotenv
+TEST_SERIAL_PORT_S3_PEER_HOST=/dev/ttyACM0
+```
+
+```sh
+uv run --env-file .env pytest interop/
+```
+
+## 規則
+
+- peer firmwareはArduino library index上の**公開release**を使い、`../EspBle`や
+  default branch、未release commitは使いません。ここで確認するのは「実際にinstallできる
+  version」との整合です。
+- versionは`sketch.yaml`に置き、更新は別途のreleaseツールで行う明示的な変更として扱います。
+  差分をreviewし、suite全体を再実行します。
+- installされたpackageへpatchを当ててテストを通すことはしません。EspBle側を直さないと
+  通らない場合は、その事実を結果に残します。
+- build、flash、操作、期待値判定、timeout、cleanupまでpytestから無人実行できるscenarioだけを
+  対象にします。スマートフォン操作、GUI確認、聴感評価はrelease checklistの手動相互運用へ
+  分離します。
+
+## scenario
+
+| scenario | 内容 |
+|---|---|
+| [gatt_basic](gatt_basic/) | Bluedroid CentralとEspBle Peripheral。MTU 247交換、宣言propertyを含むDiscovery、Characteristic Read、応答あり/なしWrite、Descriptor Read/Write、Notification、確認応答を伴うIndication、購読解除、切断 |
+
+残りの予定scenario（`advertise_scan`、`security`、`profile_wire`、`duplicate_uuid`、
+`long_value`、HID/MIDI）は内容とともに
+[../TEST_PLAN.ja.md](../TEST_PLAN.ja.md#対象scenario実装が固まった順に追加)にあります。
+
+## UUID
+
+interop scenarioはテスト用UUID体系（`SSSSNNNN-b1dd-4d00-9e5a-627564726f69`）のうち
+`01xx`のsuite tagを使います。両ライブラリのsuiteを同じ部屋で同時に走らせても衝突しません。
+`gatt_basic`は`0100`です。
+
+## logの読み方
+
+EspBle側の出力は`ESPBLE_`で始まります。どちらのstackが出した行かがlog上で曖昧になりません。
+
+## fixtureの注意点
+
+- S3の`Serial`はboard既定のUART0のままにします。このfixtureのS3はCH9102の
+  USB-serial bridge経由で接続しているため、「USB CDC On Boot」を有効にすると出力が
+  native USB側へ移り、正常動作しているのに無言に見えます。
+- EspBle側は起動行を待つのではなく`?`の状態要求に応答します。相手のボードをflashしている
+  間に起動が終わるため、起動行だけをassertするとmonitorの読み出し開始タイミングに
+  依存してしまいます。

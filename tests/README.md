@@ -10,7 +10,7 @@ hardware tests.
 ```text
 unit/     backend-independent codecs, parsers, state transitions (no hardware)
 peer/     two original ESP32 boards on the bundled Bluedroid stack
-interop/  original ESP32 + ESP32-S3 running a released EspBle package (planned)
+interop/  original ESP32 + ESP32-S3 running a released EspBle package
 ```
 
 The layers, the fixtures, the coverage tables, and the priority order live in
@@ -23,8 +23,9 @@ uv sync
 uv run --env-file .env pytest
 ```
 
-The default ports are `/dev/ttyUSB0` for the central and `/dev/ttyUSB1` for the
-peripheral. `.env` is ignored by Git; edit only that local file when ports vary
+The default ports are `/dev/ttyUSB0` for the central, `/dev/ttyUSB1` for the
+peripheral, and `/dev/ttyACM0` for the ESP32-S3 that `interop/` uses. `.env` is
+ignored by Git; edit only that local file when ports vary
 between machines or USB connection order. Running the test flashes both boards
 and overwrites their existing firmware.
 
@@ -143,29 +144,26 @@ both the UUID and the handle read forms, byte-for-byte against the peer's ramp.
 `peer/service_changed` verifies that Generic Attribute 0x1801 and Service Changed
 0x2a05 come from the stack, which the application neither registers nor triggers.
 
-## EspBle interoperability suite (`interop/`, planned)
+## EspBle interoperability suite (`interop/`)
 
-Cross-stack tests against EspBle (NimBLE) live in this `tests/` tree. They
-consume a released EspBle package pinned by version and artifact checksum, never
-`../EspBle` or a development branch.
-
-Because EspBle does not run on the original ESP32, the second board is an
-ESP32-S3 (profile `s3_peer_device`). Configure its port to enable the suite; it
-skips itself when the port is absent, so a bare `pytest` still completes with
-the two permanently connected ESP32 boards.
+Cross-stack tests against EspBle (NimBLE). The EspBle side runs on the
+permanently connected ESP32-S3 — the parent fixture, profile `s3_peer_host` — with
+the version pinned in each `sketch.yaml` (`EspBle (1.1.0)`); the second board is
+the same original ESP32 the `peer/` suites use.
 
 ```dotenv
-TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB2
+TEST_SERIAL_PORT_S3_PEER_HOST=/dev/ttyACM0
 ```
 
 ```sh
 uv run --env-file .env pytest interop/
 ```
 
-Only scenarios that pytest can build, flash, drive, assert, time out, and clean
-up without human interaction are in scope. Smartphone UI, manual pairing, and
-subjective audio checks remain outside this suite. Package updates are explicit
-reviewed changes rather than automatic latest-release tracking.
-
-The scenario list, the package pinning rules, and the skip semantics are in
+All three boards are permanently connected, so a bare `pytest` covers this suite
+too. Procedure and rules: [interop/README.md](interop/README.md); scenario list:
 [TEST_PLAN.md](TEST_PLAN.md#espble-release-package-interop-suite-interop).
+
+`interop/gatt_basic` verifies a Bluedroid central against an EspBle peripheral:
+the MTU 247 exchange, discovery including the declared properties, characteristic
+read, write with and without response, descriptor read/write, notification,
+indication with its confirmation, unsubscribe, and disconnection.

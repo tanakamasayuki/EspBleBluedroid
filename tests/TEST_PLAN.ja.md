@@ -34,7 +34,7 @@ Peer不要のruntime behaviorを1台で検証する「single」層は使用し�
 | fixture | 親側DUT | 2台目Peer | 目的 | 接続方針 |
 |---|---|---|---|---|
 | 標準回帰 | 無印ESP32 | 無印ESP32 | 公開APIの全機能、Bluedroid経路、Classic、dual mode | 常時接続 |
-| EspBle相互接続 | 無印ESP32 | ESP32-S3（EspBleリリース） | Bluedroid ↔ NimBLEのwire・手続き整合 | 必要時の接続でよい |
+| EspBle相互接続 | ESP32-S3（EspBleリリース） | 無印ESP32 | Bluedroid ↔ NimBLEのwire・手続き整合 | 常時接続（EspBleのメイン機材） |
 | 手動相互運用 | 無印ESP32 | スマートフォン / PC / 市販機器 | OS実装との相互運用 | 手動 |
 
 EspBleは無印ESP32では動作しない（NimBLEを直接使用し、Coreの制約でclassic ESP32を対象外に
@@ -43,10 +43,14 @@ EspBleは無印ESP32では動作しない（NimBLEを直接使用し、Coreの�
 
 pytest-embedded-cliの既存規約に従う。
 
-- 親側profile: `esp32_peer_host`
-- 2台目profile: `esp32_peer_device`（同一SoCのpeer）／`s3_peer_device`（EspBle peer）
+- 親側profile: `esp32_peer_host`／`s3_peer_host`（interopのEspBle側）
+- 2台目profile: `esp32_peer_device`
 - 2台目directory: `peer_device/`
 - Python fixture: `peers["device"]`
+
+interopではS3を親fixtureにし、2台目は`peer/`と同じ無印ESP32を使う。したがって追加で必要な
+設定は`TEST_SERIAL_PORT_S3_PEER_HOST`だけである。S3はEspBle側の常設機材なので、無指定の
+`pytest`にもinterop suiteが含まれる。
 
 `host` / `device`はpytest fixture上の識別名であり、BLE roleでもClassic roleでもない。
 現行scenarioは親側をCentral / SPP Client / A2DP片側などに固定し、役割の入れ替えを前提にしない。
@@ -99,6 +103,7 @@ SSSSNNNN-b1dd-4d00-9e5a-627564726f69
 | `0004` | `long_value` |
 | `0005` | `security_bond` |
 | `0006` | `security_passkey` |
+| `01xx` | interop scenario専用の範囲（`0100` = `interop/gatt_basic`） |
 
 既存suiteのうち上表に無いものは、移行前に個別に選んだ128-bit UUIDを使っている
 （`8d47a6xx`、`6b976bxx`、`48e8c1xx`など）。これらもEspBle側と重複しないことを確認済みで、
@@ -147,31 +152,31 @@ EspBle（NimBLE）を相手にしたcross-stack試験をこのrepositoryへ置�
 ### 依存の固定
 
 - 開発中の`../EspBle`、default branch、未release commitは**基準にしない**。
-- 公開済みEspBleリリースパッケージ（zip）を取得し、`tests/interop/espble.lock.json`へ
-  versionとsha256を固定する。`tests/interop/fetch_espble.py`が取得・検証・展開し、
-  `tests/interop/vendor/EspBle-<version>/`へ置く（Git管理外）。
-- Peer側`sketch.yaml`は`libraries: [- dir: ../vendor/EspBle-<version>]`でそれを参照する。
-  package自体へpatchを当てない。EspBle側を直さないと通らない場合は、その事実を結果に残す。
-- version更新は自動追従させず、差分と全相互接続結果をreviewする明示的な変更として扱う。
+- Arduino library index上の公開releaseを`sketch.yaml`で固定する
+  （`libraries: [- EspBle (1.1.0)]`）。platform versionと同じ書き方で、Arduino CLIがその
+  releaseをinstallする。手動の取得・展開は不要。実行手順は
+  [interop/README.ja.md](interop/README.ja.md)。
+- installされたpackageへpatchを当てない。EspBle側を直さないと通らない場合は、その事実を
+  結果に残す。
+- version更新は自動追従させず、別途のreleaseツールによる明示的な変更として扱い、差分と
+  全相互接続結果をreviewする。
 
-### 実行と既定suiteの扱い
+### 実行
 
-無指定の`pytest`および`pytest peer/`は、常設可能な無印ESP32 2台だけで完走できることを原則と
-する。S3 fixtureを`default_profile`にしてはならない。`interop/`は`.env`にS3のportが
-設定されていないとき自動skipする。
+3台とも常設なので、無指定の`pytest`にすべての層が含まれる。individual実行は次のとおり。
 
 ```sh
 uv run --env-file .env pytest interop/
 ```
 
-skipは「相互接続を確認済み」という意味ではなく、「このfixtureでは対象外であることを明示的に
-確認した」という意味である。相互接続を実施したことにするには、S3 portを設定した実行結果を使う。
+`.env`には無印ESP32 2台に加えて`TEST_SERIAL_PORT_S3_PEER_HOST`を置く。テスト側にfixture用の
+conftest hookは持たず、port設定と`sketch.yaml`だけで構成する。
 
 ### 対象scenario（実装が固まった順に追加）
 
 | scenario | 内容 |
 |---|---|
-| `interop/gatt_basic` | 両方向。Bluedroid Central ↔ EspBle Peripheral、EspBle Central ↔ Bluedroid Peripheralで、Discovery、Read、応答あり/なしWrite、Notify、Indicate、MTU 247交換 |
+| `interop/gatt_basic` | ✅ Bluedroid Central ↔ EspBle Peripheral。MTU 247交換、宣言propertyを含むDiscovery、Read、応答あり/なしWrite、Descriptor Read/Write、Notify、確認応答を伴うIndicate、購読解除、切断。逆向き（EspBle Central ↔ Bluedroid Peripheral）はPeripheral connection snapshot実装後 |
 | `interop/advertise_scan` | EspBleのpayload builderが出したAdvertising / Scan Responseを、Bluedroid Scannerがaddress単位でmergeして同じfieldへ復元すること（およびその逆） |
 | `interop/security` | Just Works、静的passkey、Numeric Comparisonをcross-stackで。Bluedroid Peripheral側はconnection snapshot実装後に対象化する |
 | `interop/profile_wire` | 共有header（`EspBleMedicalFloat.h`、`EspBleCgmCrc.h`、`EspBleIBeacon.h`、`EspBleUuid.h`）で組んだ値が相手stackで同じbyte列としてdecodeできること |
