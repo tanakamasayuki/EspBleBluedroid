@@ -64,12 +64,11 @@ uv run --env-file .env pytest interop/
 | [advertise_scan](advertise_scan/) | Both directions of advertising and scanning: name, manufacturer data, Service Data, Appearance and Tx Power built by one stack's payload builder and reconstructed by the other's parser, plus a passive scan of the same advertiser that must see the advertising payload alone |
 | [long_value](long_value/) | A 300-byte value published by an EspBle peripheral read whole across the 247-byte MTU, through both the UUID form and the handle form, with every byte checked against the peer's ramp |
 | [duplicate_uuid](duplicate_uuid/) | Two characteristics sharing one UUID in one service on the EspBle peripheral: discovery keeps them apart, the UUID form reaches the first, and read, write, subscribe and notification are each attributed to a handle on both sides. This library's server-side rejection of the same shape is recorded alongside |
-| [security](security/) | Just Works and static-passkey Passkey Entry, with encrypted / authenticated / bonded / key size asserted on both sides, the bond recorded by both, and the encrypted and authenticated attribute tiers exercised on each link type |
+| [security](security/) | Just Works, static-passkey Passkey Entry, and Numeric Comparison (confirmed and refused): encrypted / authenticated / bonded / key size asserted on both sides, the bond recorded by both, the attribute tiers exercised on each link type, the same six digits derived by both implementations, and nothing left behind after a refusal |
 | [profile_wire](profile_wire/) | The shared codec headers across the two libraries: a FLOAT32 read and notified, a CGM E2E-CRC appended by one copy and verified by the other, an SFLOAT written back, and an iBeacon decoded from the advertisement. Roles reversed — the library under test is the GATT server and the beacon |
 
-The remaining planned scenarios — Numeric Comparison inside `security`, the
-reverse direction of the connection-oriented scenarios, and the HID/MIDI pair —
-are listed with their
+The remaining planned scenarios — the reverse direction of the connection-oriented
+scenarios and the HID/MIDI pair — are listed with their
 content in [../TEST_PLAN.md](../TEST_PLAN.md#scenarios-added-as-each-layer-settles).
 
 ## UUIDs

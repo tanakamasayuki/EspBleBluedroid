@@ -14,11 +14,15 @@ def start(espble, bluedroid, mode):
     bluedroid.write("?")
     bluedroid.expect(re.compile(rb"READY_STATE started=\d"), timeout=40)
 
+    # `M` is `m` with this side answering no to the comparison, so the peer runs
+    # the same configuration either way: only the library under test refuses.
+    #
     # Both libraries spell the EspBleError names the same way, so the same string
     # is asserted on both boards. That agreement is machine-checked by
     # `unit/api_parity`; here it simply reads naturally.
-    espble.write(mode)
-    espble.expect_exact("ESPBLE_MODE_STARTED mode=%s ok=1 error=NONE" % mode,
+    peer_mode = "m" if mode == "M" else mode
+    espble.write(peer_mode)
+    espble.expect_exact("ESPBLE_MODE_STARTED mode=%s ok=1 error=NONE" % peer_mode,
                         timeout=30)
     bluedroid.write(mode)
     bluedroid.expect_exact("MODE_STARTED mode=%s ok=1 error=NONE" % mode,
@@ -194,3 +198,99 @@ def test_static_passkey_authenticates_across_stacks(dut, peers):
         re.compile(rb"DISCONNECTED id=\d+ encrypted=1 bonded=1 context=loop"),
         timeout=25,
     )
+
+
+def test_numeric_comparison_confirmed_across_stacks(dut, peers):
+    """Numeric Comparison: the same six digits derived by two implementations.
+
+    DisplayYesNo on both sides and no passkey, so LE Secure Connections selects
+    Numeric Comparison. The number is derived from the exchanged public keys, and
+    each host computes it independently — so the assertion is that the two numbers
+    are **equal**, which is the whole safety property of the model. A cross-stack
+    mismatch would mean a user comparing two screens is told to accept something
+    the stacks do not agree on.
+
+    `peer/numeric_comparison` covers confirm / reject / timeout with Bluedroid on
+    both ends, where one derivation would be compared against itself.
+    """
+    espble = dut
+    bluedroid = peers["device"]
+    start(espble, bluedroid, "m")
+    connect(espble, bluedroid)
+
+    ours = bluedroid.expect(
+        re.compile(rb"NUMERIC number=(\d{6}) accept=1 answered=1 context=loop"),
+        timeout=40,
+    )
+    theirs = espble.expect(
+        re.compile(rb"ESPBLE_NUMERIC number=(\d{6}) confirmed=1"), timeout=30
+    )
+    assert ours.group(1) == theirs.group(1), (
+        "the two stacks derived different numbers (%s here, %s on the peer); a "
+        "user comparing two screens would be asked to accept a mismatch"
+        % (ours.group(1).decode(), theirs.group(1).decode())
+    )
+
+    # Confirming on both sides yields an authenticated, bonded link — the same
+    # tier Passkey Entry reaches, by a different association model.
+    bluedroid.expect_exact(
+        "SECURITY success=1 encrypted=1 authenticated=1 bonded=1 key=16 "
+        "context=loop",
+        timeout=40,
+    )
+    espble.expect_exact(
+        "ESPBLE_SECURITY success=1 encrypted=1 authenticated=1 bonded=1 key=16",
+        timeout=30,
+    )
+    bluedroid.write("d")
+    bluedroid.expect_exact("DISCOVERY_REQUESTED 1", timeout=10)
+    bluedroid.expect(
+        re.compile(rb"DISCOVERY success=1 services=\d+ context=loop"), timeout=30
+    )
+    bluedroid.write("a")
+    bluedroid.expect_exact("AUTHENTICATED_READ_REQUESTED 1", timeout=10)
+    bluedroid.expect_exact(
+        "READ success=1 error=NONE value=authenticated-ready context=loop",
+        timeout=25,
+    )
+
+    bluedroid.write("X")
+    bluedroid.expect_exact("DISCONNECT_REQUESTED 1", timeout=10)
+    bluedroid.expect(
+        re.compile(rb"DISCONNECTED id=\d+ encrypted=1 bonded=1 context=loop"),
+        timeout=25,
+    )
+
+
+def test_numeric_comparison_rejected_leaves_nothing_behind(dut, peers):
+    """Answering no has to fail the pairing and leave no bond on either side.
+
+    The peer accepts and this side refuses, so the refusal is what has to travel:
+    a stack that treated the local "no" as a local matter would still end up
+    encrypted with a peer that thinks the user confirmed. The link is left
+    unencrypted and unbonded, and the encrypted characteristic stays out of reach.
+    """
+    espble = dut
+    bluedroid = peers["device"]
+    start(espble, bluedroid, "M")
+    connect(espble, bluedroid)
+
+    bluedroid.expect(
+        re.compile(rb"NUMERIC number=(\d{6}) accept=0 answered=1 context=loop"),
+        timeout=40,
+    )
+    security = bluedroid.expect(
+        re.compile(
+            rb"SECURITY success=(\d) encrypted=(\d) authenticated=\d bonded=(\d) "
+            rb"key=\d+ context=loop"
+        ),
+        timeout=40,
+    )
+    assert security.group(1) == b"0", "a refused comparison must not succeed"
+    assert security.group(2) == b"0", "a refused comparison must not encrypt"
+    assert security.group(3) == b"0", "a refused comparison must not bond"
+
+    bluedroid.write("b")
+    bluedroid.expect_exact("BONDS count=0", timeout=20)
+    espble.write("b")
+    espble.expect_exact("ESPBLE_BONDS count=0", timeout=20)

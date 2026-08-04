@@ -69,6 +69,19 @@
   確認。encryptedとauthenticatedの権限2段をCharacteristicで表現し、Just Works linkでは
   authenticated側が拒否され、Passkey Entry linkではRead/Writeできることを観測する。
   NVSのbondは事前に消す（残っていると pairingせずに通ってしまう）。実機で確認済み。
+- (EN) Extend `interop/security` with Numeric Comparison, confirmed and refused.
+  Both hosts derive the six digits independently, so the test asserts they are
+  **equal** — a cross-stack mismatch would ask a user comparing two screens to
+  accept something the stacks disagree on — and that confirming yields an
+  authenticated, bonded link. Refusing on the library-under-test side must leave
+  the link unencrypted and unbonded on *both* sides, so a local "no" cannot end
+  with the peer believing the user confirmed. Verified on hardware.
+- (JA) `interop/security`にNumeric Comparison（承認と拒否）を追加。6桁の数字は両host
+  それぞれが導出するため、**一致すること**をassertする（食い違えば、2つの画面を見比べる
+  利用者にstack間で不一致な値の承認を求めることになる）。承認時はauthenticated + bondedに
+  なること、被検ライブラリ側が拒否した場合は**両側**でlinkが暗号化されずbondも残らないこと
+  （ローカルの「いいえ」が相手側では承認扱い、という終わり方をしないこと）を確認する。
+  実機で確認済み。
 - (EN) `lastErrorName()` now returns EspBle's spelling: `NONE`,
   `INVALID_ARGUMENT`, `INVALID_STATE`, … instead of `None`, `InvalidArgument`,
   `InvalidState`. **Behaviour change** for code that logs or compares the string —

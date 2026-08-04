@@ -33,6 +33,7 @@ static constexpr uint32_t PASSKEY = 438209;
 EspBleBluedroid bluetooth;
 TaskHandle_t loopTask = nullptr;
 bool started = false;
+bool rejectNumericComparison = false;
 bool connectionRequested = false;
 EspBleConnectionId connectionId = 0;
 
@@ -73,6 +74,13 @@ void installCallbacks()
   bluetooth.onPasskeyDisplayed([](const EspBlePasskeyDisplayed &event) {
     Serial.printf("PASSKEY_DISPLAYED passkey=%06u context=%s\n",
       static_cast<unsigned>(event.passkey), contextName());
+  });
+  bluetooth.onNumericComparison([](const EspBlePasskeyDisplayed &event) {
+    const bool accept = !rejectNumericComparison;
+    const bool answered = bluetooth.confirmNumericComparison(accept);
+    Serial.printf("NUMERIC number=%06u accept=%u answered=%u context=%s\n",
+      static_cast<unsigned>(event.passkey), accept ? 1 : 0, answered ? 1 : 0,
+      contextName());
   });
   bluetooth.onServicesDiscovered([](const EspBleGattResult &result) {
     Serial.printf("DISCOVERY success=%u services=%u context=%s\n",
@@ -122,11 +130,23 @@ bool startWithMode(char mode)
     started = false;
   }
 
+  rejectNumericComparison = mode == 'M';
+
   EspBleConfig config;
   config.deviceName = "Bluedroid Security Central";
   config.security.enabled = true;
   config.security.bonding = true;
   config.security.pairOnConnect = true;
+  if (mode == 'm' || mode == 'M')
+  {
+    // Numeric Comparison: DisplayYesNo on both sides, no passkey. Both hosts
+    // derive a 6-digit number from the exchanged public keys and each side
+    // confirms it, so the two implementations have to arrive at the same number.
+    // 'M' is the same configuration with this side answering no, which is the
+    // only way to watch a rejection travel between the stacks.
+    config.security.mitm = true;
+    config.security.ioCapability = EspBleSecurityIoCapability::DisplayYesNo;
+  }
   if (mode == 'p')
   {
     config.security.mitm = true;
@@ -159,7 +179,8 @@ void loop()
       // waited for the boot output alone would depend on that timing.
       Serial.printf("READY_STATE started=%u\n", started ? 1 : 0);
     }
-    else if (command == 'j' || command == 'p')
+    else if (command == 'j' || command == 'p' || command == 'm' ||
+             command == 'M')
     {
       started = startWithMode(command);
       Serial.printf("MODE_STARTED mode=%c ok=%u error=%s\n", command,

@@ -62,11 +62,10 @@ uv run --env-file .env pytest interop/
 | [advertise_scan](advertise_scan/) | Advertising / Scanの両方向。device name、manufacturer data、Service Data、Appearance、Tx Powerを一方のpayload builderで組み、相手のparserが同じfieldへ復元すること。同じadvertiserをpassive scanしたときはAdvertising payloadだけが見えること |
 | [long_value](long_value/) | EspBle Peripheralが公開した300 byteの値を、MTU 247をまたいでUUID指定・handle指定の両方のReadで全体取得。全byteを相手のramp列と照合 |
 | [duplicate_uuid](duplicate_uuid/) | EspBle Peripheralが同一Service内に置いた同一UUID Characteristic 2件を、Discoveryで区別し、UUID指定は1件目に届き、Read / Write / 購読 / Notificationがすべて両側でhandleに帰属することを確認。こちらのServer側が同じ形を拒否することも併記 |
-| [security](security/) | Just Worksと静的passkeyのPasskey Entry。encrypted / authenticated / bonded / key sizeを両側でassertし、bondも両側で確認。encrypted / authenticatedのattribute権限2段を各link種別で検証 |
+| [security](security/) | Just Works、静的passkeyのPasskey Entry、Numeric Comparison（承認と拒否）。encrypted / authenticated / bonded / key sizeを両側でassertし、bondも両側で確認。attribute権限2段を各link種別で検証し、Numeric Comparisonでは2実装が同一の6桁を導出すること、拒否後は何も残らないことを確認 |
 | [profile_wire](profile_wire/) | 共有codec headerの相互運用。FLOAT32をRead / Notificationで、CGMのE2E-CRCを一方が付与し他方が検証、SFLOATを逆方向のWriteで、iBeaconをadvertisementからdecode。役割を反転し、被検ライブラリがGATT Server兼beaconになる |
 
-残りの予定scenario（`security`内のNumeric Comparison、接続系scenarioの逆方向、
-HID/MIDI）は内容とともに
+残りの予定scenario（接続系scenarioの逆方向、HID/MIDI）は内容とともに
 [../TEST_PLAN.ja.md](../TEST_PLAN.ja.md#対象scenario実装が固まった順に追加)にあります。
 
 ## UUID

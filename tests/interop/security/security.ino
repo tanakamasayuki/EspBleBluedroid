@@ -56,6 +56,14 @@ bool startWithMode(char mode)
   config.security.enabled = true;
   config.security.bonding = true;
   config.security.pairOnConnect = true;
+  if (mode == 'm')
+  {
+    // Numeric Comparison: DisplayYesNo on both sides, no passkey. Both hosts
+    // derive a 6-digit number from the exchanged public keys and each side
+    // confirms it, so the two implementations have to arrive at the same number.
+    config.security.mitm = true;
+    config.security.ioCapability = EspBleSecurityIoCapability::DisplayYesNo;
+  }
   if (mode == 'p')
   {
     // Static passkey: MITM protection with a value the peer already knows, which
@@ -130,6 +138,13 @@ void setup()
     Serial.printf("ESPBLE_PASSKEY_DISPLAYED passkey=%06u\n",
       static_cast<unsigned>(event.passkey));
   });
+  ble.onNumericComparison([](const EspBlePasskeyDisplayed &event) {
+    // This side always accepts; the rejection case is driven from the central,
+    // which is the library under test.
+    const bool confirmed = ble.confirmNumericComparison(true);
+    Serial.printf("ESPBLE_NUMERIC number=%06u confirmed=%u\n",
+      static_cast<unsigned>(event.passkey), confirmed ? 1 : 0);
+  });
   ble.onDisconnected([](const EspBleConnection &connection) {
     Serial.printf("ESPBLE_DISCONNECTED id=%u encrypted=%u bonded=%u\n",
       static_cast<unsigned>(connection.id), connection.encrypted ? 1 : 0,
@@ -159,7 +174,7 @@ void loop()
       // would depend on when the monitor started reading.
       Serial.printf("ESPBLE_SECURITY_STATE started=%u\n", started ? 1 : 0);
     }
-    else if (command == 'j' || command == 'p')
+    else if (command == 'j' || command == 'p' || command == 'm')
     {
       started = startWithMode(static_cast<char>(command));
       Serial.printf("ESPBLE_MODE_STARTED mode=%c ok=%u error=%s\n",

@@ -222,7 +222,7 @@ ports. The suite needs no conftest hook of its own: port settings and
 |---|---|
 | `interop/gatt_basic` | ✅ Bluedroid central ↔ EspBle peripheral: MTU 247 exchange, discovery including declared properties, read, write with and without response, descriptor read/write, notify, indicate with its confirmation, unsubscribe, disconnect. The reverse direction waits for the peripheral connection snapshot |
 | `interop/advertise_scan` | ✅ Advertising / scan response built by EspBle's payload builder reconstructed field-for-field by the Bluedroid scanner's per-address merge, and the reverse. A passive scan of the same advertiser must see the advertising payload's fields and nothing from the scan response |
-| `interop/security` | ✅ Just Works and static-passkey Passkey Entry across stacks, with encrypted / authenticated / bonded / key size asserted on *both* sides, the bond recorded by both, and the two attribute permission tiers exercised (an authenticated characteristic is refused on a Just Works link and reachable on a Passkey Entry one). Numeric Comparison and the Bluedroid peripheral side remain: the latter waits for the connection snapshot |
+| `interop/security` | ✅ Just Works, static-passkey Passkey Entry, and Numeric Comparison (confirmed and refused) across stacks, with encrypted / authenticated / bonded / key size asserted on *both* sides, the bond recorded by both, and the two attribute permission tiers exercised (an authenticated characteristic is refused on a Just Works link and reachable on an authenticated one). Numeric Comparison asserts that the two implementations derived the **same** six digits, and that a refusal leaves no encryption and no bond on either side. The Bluedroid peripheral side remains: it waits for the connection snapshot |
 | `interop/profile_wire` | ✅ Values built with the shared headers (`EspBleMedicalFloat.h`, `EspBleCgmCrc.h`, `EspBleIBeacon.h`) decode to the same value on the other stack, asserted as both the wire bytes and the decode in milli-units: FLOAT32 by read and by notification, a CGM E2E-CRC one copy appends and the other verifies, an SFLOAT the other way round, and an iBeacon decoded from the advertisement alone. Roles reversed for the first time in interop — the library under test is the server and the beacon |
 | `interop/duplicate_uuid` | ✅ Spec-legal duplicates (an EspBle peripheral with two same-UUID characteristics in one service) handled by the Bluedroid client through handle-addressed operations: discovery keeps both apart, the UUID form reaches the first, reads/write/subscribe/notification are each attributed to a handle on both sides. The server-side rejection is recorded in the same file |
 | `interop/long_value` | ✅ A value longer than the negotiated MTU, published by an EspBle peripheral, arrives whole through both the UUID form and the handle form of the read. `peer/long_value` has Bluedroid on both ends, so this is what makes the claim about the client rather than about the pair |
@@ -266,7 +266,7 @@ is the cross-stack suite against EspBle.
 | Pairing / bonding (central) | | ✅ | ✅ `security_bond` | ✅ `security` |
 | Static passkey / MITM / authenticated attribute | | ✅ | ✅ `security_passkey` | ✅ `security` |
 | Runtime Passkey Entry | | ✅ | ✅ `runtime_passkey` | planned `security` |
-| Numeric Comparison (confirm / reject / timeout) | | ✅ | ✅ `numeric_comparison` | planned (inside `security`) |
+| Numeric Comparison (confirm / reject / timeout) | | ✅ | ✅ `numeric_comparison` | ✅ inside `security` (confirm / reject) |
 | Peripheral connection snapshot / security events | | | **missing** (API not implemented) | |
 | Lifecycle repetition / heap / task / event leaks | | ✅ | **missing** → `lifecycle_stress` | |
 | Wi-Fi / BLE coexistence (shared on-chip radio) | | ✅ | **missing** → `wifi_ble_coexistence` | |
@@ -453,9 +453,9 @@ Start with the gaps that need no implementation work.
 
 **interop**: each layer moves into `interop/` once its API and wire behaviour
 settle. `gatt_basic`, `advertise_scan`, `long_value`, `duplicate_uuid`,
-`security` and `profile_wire` are done. What remains is Numeric Comparison inside
-`security`, the reverse direction of the connection-oriented scenarios (waiting
-for the peripheral connection snapshot), and the HID/MIDI pair.
+`security` and `profile_wire` are done. What remains is the reverse direction of
+the connection-oriented scenarios (waiting for the peripheral connection
+snapshot) and the HID/MIDI pair.
 
 ## Pass criteria
 

@@ -183,10 +183,12 @@ one service on the EspBle peripheral — the shape this library's server API
 rejects — attributing discovery, reads, the write, the subscription, and the
 notification to a handle on both sides.
 
-`interop/security` pairs across the two stacks twice: Just Works, then static
-passkey (DisplayOnly against KeyboardOnly, which is what selects Passkey Entry).
-Encrypted, authenticated, bonded and the key size are asserted on both sides, and
-the encrypted and authenticated attribute tiers show which link may reach what.
+`interop/security` pairs across the two stacks four times: Just Works, static
+passkey (DisplayOnly against KeyboardOnly, which is what selects Passkey Entry),
+and Numeric Comparison both confirmed and refused. Encrypted, authenticated,
+bonded and the key size are asserted on both sides, the attribute tiers show which
+link may reach what, the two implementations must derive the same six digits, and a
+refusal must leave no encryption and no bond.
 
 `interop/profile_wire` exchanges values built with the shared codec headers — a
 FLOAT32, a CGM measurement with its E2E-CRC, an SFLOAT the other way, and an

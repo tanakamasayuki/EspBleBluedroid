@@ -110,5 +110,5 @@ uv run --env-file .env pytest interop/
 | `interop/advertise_scan` | Advertising / Scanの両方向。一方のbuilderで組んだpayload（name、manufacturer data、Service Data、Appearance、Tx PowerをAdvertising payloadとScan Responseへ分割）を相手のparserが同じfieldへ復元すること、およびpassive scanではAdvertising payloadだけが見えること |
 | `interop/long_value` | EspBle Peripheralが公開した300 byteの値を、MTU 247をまたいでUUID指定・handle指定の両方のReadで全体取得すること |
 | `interop/duplicate_uuid` | EspBle Peripheral上の同一Service内・同一UUID Characteristic 2件（こちらのServer APIが拒否する形）に対し、Discovery、Read、Write、購読、Notificationが両側でhandleに帰属すること |
-| `interop/security` | Just Worksと静的passkey（DisplayOnly対KeyboardOnly＝Passkey Entry）のcross-stack pairing。encrypted / authenticated / bonded / key sizeを両側でassertし、encrypted / authenticatedのattribute権限2段でどのlinkが何に到達できるかを確認 |
+| `interop/security` | Just Works、静的passkey（DisplayOnly対KeyboardOnly＝Passkey Entry）、Numeric Comparison（承認・拒否）のcross-stack pairing。encrypted / authenticated / bonded / key sizeを両側でassertし、attribute権限2段でどのlinkが何に到達できるかを確認。Numeric Comparisonは両実装が同一の6桁を導出すること、拒否時に何も残らないことも確認 |
 | `interop/profile_wire` | 共有codec headerで組んだ値（FLOAT32、E2E-CRC付きCGM Measurement、逆方向のSFLOAT、iBeacon）をwire byteとdecode結果の両方で照合。被検ライブラリがGATT Server兼beacon、EspBleがCentral |
