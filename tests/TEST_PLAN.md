@@ -143,6 +143,7 @@ Add a row here before using a new tag.
 | `0006` | `security_passkey` |
 | `0007` | `peripheral_connection` |
 | `0008` | `multi_listener` |
+| `000b` | `duplicate_uuid_server` |
 | `0009` / `000a` | `midi_device` / `midi_host` — **tags only, not UUIDs**: the BLE MIDI service and characteristic UUIDs are fixed by the specification, so these suites cannot pick unused ones. Isolation is by device name instead (`Bluedroid MIDI 0009`, `Bluedroid MIDI Peer 000a`), and each side requires both the name and the service UUID to match |
 | `01xx` | reserved for interop scenarios (`0100` = `interop/gatt_basic`, `0101` = `interop/advertise_scan`, `0102` = `interop/long_value`, `0103` = `interop/duplicate_uuid`, `0104` = `interop/security`, `0105` = `interop/profile_wire`; `0106` = `interop/midi`, a tag only — the BLE MIDI UUIDs are fixed by the specification, so that scenario is isolated by device name (`EspBle MIDI Device 0106` / `Bluedroid MIDI Device 0106`) with the role in the name) |
 
@@ -236,7 +237,7 @@ ports. The suite needs no conftest hook of its own: port settings and
 | `interop/advertise_scan` | ✅ Advertising / scan response built by EspBle's payload builder reconstructed field-for-field by the Bluedroid scanner's per-address merge, and the reverse. A passive scan of the same advertiser must see the advertising payload's fields and nothing from the scan response |
 | `interop/security` | ✅ Just Works, static-passkey Passkey Entry, and Numeric Comparison (confirmed and refused) across stacks, with encrypted / authenticated / bonded / key size asserted on *both* sides, the bond recorded by both, and the two attribute permission tiers exercised (an authenticated characteristic is refused on a Just Works link and reachable on an authenticated one). Numeric Comparison asserts that the two implementations derived the **same** six digits, and that a refusal leaves no encryption and no bond on either side. The Bluedroid peripheral side is now possible (`peer/peripheral_connection` reports pairing in that role) and is planned |
 | `interop/profile_wire` | ✅ Values built with the shared headers (`EspBleMedicalFloat.h`, `EspBleCgmCrc.h`, `EspBleIBeacon.h`) decode to the same value on the other stack, asserted as both the wire bytes and the decode in milli-units: FLOAT32 by read and by notification, a CGM E2E-CRC one copy appends and the other verifies, an SFLOAT the other way round, and an iBeacon decoded from the advertisement alone. Roles reversed for the first time in interop — the library under test is the server and the beacon |
-| `interop/duplicate_uuid` | ✅ Spec-legal duplicates (an EspBle peripheral with two same-UUID characteristics in one service) handled by the Bluedroid client through handle-addressed operations: discovery keeps both apart, the UUID form reaches the first, reads/write/subscribe/notification are each attributed to a handle on both sides. The server-side rejection is recorded in the same file |
+| `interop/duplicate_uuid` | ✅ Spec-legal duplicates (an EspBle peripheral with two same-UUID characteristics in one service) handled by the Bluedroid client through handle-addressed operations: discovery keeps both apart, the UUID form reaches the first, reads/write/subscribe/notification are each attributed to a handle on both sides. Local registration of the same shape is recorded in the same file; `peer/duplicate_uuid_server` is where the publication is read back |
 | `interop/long_value` | ✅ A value longer than the negotiated MTU, published by an EspBle peripheral, arrives whole through both the UUID form and the handle form of the read. `peer/long_value` has Bluedroid on both ends, so this is what makes the claim about the client rather than about the pair |
 | `interop/midi` | ✅ BLE MIDI in both directions, each side encoding and decoding with its own library: channel-voice messages of one, two and no data bytes, and a 99-byte SysEx reassembled with its ramp intact. The codec header is byte-identical and the profile helper differs only in one type, both already machine-checked, so what this adds is the transport — the CCCD write, notifications against the negotiated MTU, Write Without Response, and a SysEx spanning packets — with the roles swapped in the second test because notifying as a peripheral and writing as a central are different paths. Isolation is by device name: the BLE MIDI UUIDs are fixed by the specification |
 | `interop/hid` | After HID over GATT lands; device and host roles in both directions |
@@ -273,7 +274,7 @@ is the cross-stack suite against EspBle.
 | Reading a value above the MTU (the whole value arrives) | | ✅ | ✅ `long_value` | ✅ `long_value` |
 | GATT server read / write / descriptor / CCCD / notify | | ✅ | ✅ `gatt_server` | ✅ `gatt_basic` |
 | GATT server **indicate** (issued and confirmed) | | ✅ | ✅ `gatt_server` / `service_changed` | ✅ `gatt_basic` |
-| GATT server duplicate-UUID rejection error | | ✅ | ✅ `duplicate_uuid` | |
+| GATT server duplicate UUIDs published and addressable | | ✅ | ✅ `duplicate_uuid` + `duplicate_uuid_server` | |
 | Service Changed (0x2A05) | | ✅ | ✅ `service_changed` | |
 | An in-flight GATT operation when the link drops | | ✅ | ✅ `gatt_disconnect_purge` | |
 | Pairing / bonding (central) | | ✅ | ✅ `security_bond` | ✅ `security` |
@@ -435,7 +436,9 @@ Start with the gaps that need no implementation work.
 - `unit/report_map` / `unit/keymap` / `unit/midi` (port the headers from EspBle;
   the foundation for HID / MIDI)
 - Add a **real indication** to `gatt_server` (today only the flag is printed)
-- `duplicate_uuid` (regression for the current rejection contract and its error
+- `duplicate_uuid` / `duplicate_uuid_server` (registration accepts the duplicate
+  with its own handle, the published pair is two real attributes on the air, and
+  the descriptor and malformed-UUID rejections keep their error
   string; invert this test when the restriction is lifted)
 - `gatt_queue_purge` (deferred completion of the in-flight operation and failure
   delivery for queued ones on disconnect)
@@ -467,8 +470,9 @@ Start with the gaps that need no implementation work.
   with the library reference retyped; both peer tests decode the BLE MIDI header
   with their own arithmetic, so the wire format is checked against the
   specification rather than against the same codec twice
-- BLE HID device (needs the duplicate-characteristic-UUID restriction lifted) →
-  HID host
+- BLE HID device. The duplicate-characteristic-UUID restriction it needed is
+  lifted (`duplicate_uuid_server` reads the published pair back from a peer), so
+  what remains is the profile itself → HID host
 
 **interop**: each layer moves into `interop/` once its API and wire behaviour
 settle. `gatt_basic`, `advertise_scan`, `long_value`, `duplicate_uuid`,

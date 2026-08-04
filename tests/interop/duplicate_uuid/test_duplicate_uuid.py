@@ -4,12 +4,11 @@ import re
 def test_duplicate_uuids_published_by_a_nimble_peripheral(dut, peers):
     """Two characteristics sharing a UUID, addressed by handle across stacks.
 
-    The spec allows the duplicates, this library's server API rejects them (it
-    addresses local attributes by UUID), and its client half still has to work
-    with a peer that publishes them. `peer/duplicate_uuid` pins both halves
-    against the bundled Arduino Bluedroid wrapper; here the responder is NimBLE,
-    so the routing is checked against a second implementation rather than the
-    stack this library sits on.
+    The spec allows the duplicates, both libraries publish them, and a client has
+    to work with a peer that does. `peer/duplicate_uuid` pins the client half
+    against the bundled Arduino Bluedroid wrapper; here the responder is NimBLE, so
+    the routing is checked against a second implementation rather than the stack
+    this library sits on.
 
     Every operation is attributed: reads and the write report the handle they
     completed on, and the peer reports which of its two attributes a write landed
@@ -29,16 +28,12 @@ def test_duplicate_uuids_published_by_a_nimble_peripheral(dut, peers):
     espble.expect_exact("ESPBLE_DUPLICATE_STATE ready=1 distinct=1", timeout=40)
     bluedroid.expect_exact("INTEROP_DUPLICATE_UUID_READY", timeout=40)
 
-    # The server-side restriction, recorded next to the client behaviour it
-    # forces. Same error string as `peer/duplicate_uuid` asserts.
+    # Local registration of the same shape, recorded next to the client behaviour:
+    # what this library consumes here it can also publish, with a handle per call.
+    # `peer/duplicate_uuid_server` is where that publication is read back by a peer.
     bluedroid.write("r")
     bluedroid.expect_exact("LOCAL_BASE_ACCEPTED 1", timeout=20)
-    bluedroid.expect_exact(
-        "LOCAL_DUPLICATE_REJECTED 1 error=INVALID_ARGUMENT "
-        "detail=this library cannot address duplicate Characteristic UUIDs in "
-        "one Service",
-        timeout=20,
-    )
+    bluedroid.expect_exact("LOCAL_DUPLICATE_ACCEPTED 1 distinct=1 error=NONE", timeout=20)
 
     bluedroid.write("c")
     bluedroid.expect_exact("SCAN_STARTED 1", timeout=10)

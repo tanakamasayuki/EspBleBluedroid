@@ -43,3 +43,11 @@ interleaved System Real-Time byte, and a SysEx spread over several packets in ea
 direction — plus the refusal of a second transfer while one is in flight. The BLE
 MIDI UUIDs are fixed by the specification, so these two suites are isolated by
 device name instead of by a suite UUID tag.
+`duplicate_uuid_server` verifies that two Characteristics sharing one UUID inside
+one Service, published by this library, are two real attributes on the air: a raw
+Arduino-ESP32 central walks the handle-keyed map (the wrapper's UUID-keyed map can
+only return one of a duplicated pair) and reads both values, both
+Report-Reference-style descriptors, and both CCCDs, while a write aimed at the
+second handle is attributed to the second characteristic and each notification
+arrives on the handle that sent it. This is the prerequisite HID over GATT rests
+on, since a keyboard's Report characteristics all carry UUID 0x2a4d.

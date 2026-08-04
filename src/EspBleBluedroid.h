@@ -987,11 +987,23 @@ public:
   using SendCallback =
     std::function<void(const EspBleGattSendResult &result)>;
 
+  // Register a Service. Two calls with the same UUID create two independent
+  // instances, as the spec allows. Returns an invalid handle on failure.
   EspBleGattService addService(const char *serviceUuid);
+  // Register a Characteristic inside a Service and return its handle; every
+  // later operation takes that handle. Two characteristics in one service may
+  // share a UUID, as the spec allows (the several HID Report characteristics of
+  // a keyboard are the everyday case): the attribute table is built here and
+  // each call returns its own handle, so a shared UUID is never ambiguous. Two
+  // services may share a UUID as well (see addService).
   EspBleGattCharacteristic addCharacteristic(
     EspBleGattService service,
     const char *characteristicUuid,
     const EspBleGattCharacteristicConfig &config);
+  // Register a Descriptor under a Characteristic. Unlike services and
+  // characteristics, one characteristic may not carry the same descriptor UUID
+  // twice: a descriptor is looked up by UUID within its characteristic, so a
+  // duplicate would be unreachable and is rejected with InvalidArgument.
   EspBleGattDescriptor addDescriptor(
     EspBleGattCharacteristic characteristic,
     const char *descriptorUuid,

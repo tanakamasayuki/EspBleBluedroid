@@ -1,13 +1,16 @@
 import re
 
 
-def test_duplicate_uuids_are_rejected_locally_and_handled_remotely(dut, peers):
+def test_duplicate_uuids_are_registered_locally_and_handled_remotely(dut, peers):
     """Both halves of the duplicate-UUID contract, in one connection.
 
-    The server half is a restriction of this library, not of Bluedroid, so the
-    test pins the exact error and detail: lifting the restriction (a prerequisite
-    for HID over GATT, whose Report characteristics all share UUID 0x2a4d) has to
-    be a deliberate change that inverts these assertions.
+    The server half is registration: a second characteristic with the same UUID in
+    one service is accepted and gets a handle of its own, which is what HID over
+    GATT needs (its Report characteristics all carry 0x2a4d). Equal handles would
+    mean the backend had reused the first entry, so `distinct=1` is the real
+    assertion. A duplicate *descriptor* is still refused, and for a reason that
+    does not go away: a descriptor is looked up by UUID inside its characteristic.
+    What the accepted pair looks like on the air is `peer/duplicate_uuid_server`.
 
     The client half is the opposite requirement: a peer is allowed to publish
     duplicates, so the handle-addressed operations must reach each one and route
@@ -26,17 +29,15 @@ def test_duplicate_uuids_are_rejected_locally_and_handled_remotely(dut, peers):
 
     dut.expect_exact("DUPLICATE_UUID_READY", timeout=30)
 
-    # Server side: the base registration is accepted, the duplicates are not, and
-    # the same UUID in another Service still is. The sketch reports on request
-    # rather than from setup(), because output from the first second after
-    # flashing can be lost while the serial port reopens.
+    # Server side: the base registration is accepted, the duplicate characteristic
+    # is accepted with its own handle, the duplicate descriptor is not, and the
+    # same UUID in another Service is. The sketch reports on request rather than
+    # from setup(), because output from the first second after flashing can be lost
+    # while the serial port reopens.
     dut.write("r")
     dut.expect_exact("LOCAL_BASE_ACCEPTED 1", timeout=20)
     dut.expect_exact(
-        "DUPLICATE_CHARACTERISTIC_REJECTED 1 error=INVALID_ARGUMENT "
-        "detail=this library cannot address duplicate Characteristic UUIDs in "
-        "one Service",
-        timeout=10,
+        "DUPLICATE_CHARACTERISTIC_ACCEPTED 1 distinct=1 error=NONE", timeout=10
     )
     dut.expect_exact(
         "DUPLICATE_DESCRIPTOR_REJECTED 1 error=INVALID_ARGUMENT "

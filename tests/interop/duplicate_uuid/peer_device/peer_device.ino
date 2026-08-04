@@ -3,19 +3,16 @@
 // a single Service. This is the `peer_device` half — the board running the
 // library under test — while the ESP32-S3 running EspBle is the parent fixture.
 //
-// The spec allows the duplicates and this library's *server* API rejects them,
-// because it addresses local attributes by UUID and two attributes with one name
-// cannot be told apart (`peer/duplicate_uuid` pins that rejection and its error
-// string). The *client* half has no such excuse: a peer may publish them, so the
-// handle-addressed operations must select one exact attribute out of the
-// discovery snapshot. `peer/duplicate_uuid` verifies that against the bundled
-// Arduino Bluedroid wrapper; here the responder is NimBLE, so the routing is
-// checked against a second implementation instead of the stack this library sits
-// on.
+// The spec allows the duplicates, both libraries publish them, and a client has
+// to be able to consume them: the handle-addressed operations select one exact
+// attribute out of the discovery snapshot, which is the only way to reach the
+// second one. `peer/duplicate_uuid` verifies that against the bundled Arduino
+// Bluedroid wrapper; here the responder is NimBLE, so the routing is checked
+// against a second implementation instead of the stack this library sits on.
 //
-// The local rejection is reported here too, so this file records both halves of
-// the asymmetry in one place: what this library refuses to publish is exactly
-// what it must still be able to consume.
+// Local registration is reported here too, so one file records that this library
+// can publish the same shape it consumes. What it looks like on the air is
+// `peer/duplicate_uuid_server`.
 //
 // Every step is driven by a serial command, so a failure names the step.
 
@@ -50,7 +47,8 @@ uint16_t secondHandle = 0;
 struct RegistrationReport
 {
   bool baseAccepted = false;
-  bool duplicateRejected = false;
+  bool duplicateAccepted = false;
+  bool duplicateDistinct = false;
   String error;
   String detail;
 } registration;
@@ -93,11 +91,13 @@ void registerLocalServer()
     service, LOCAL_CHARACTERISTIC_UUID, characteristicConfig);
   registration.baseAccepted = service.valid() && characteristic.valid();
 
+  // Accepted, with a handle of its own: equal handles would mean the backend had
+  // reused the first entry.
   const EspBleGattCharacteristic duplicate = server.addCharacteristic(
     service, LOCAL_CHARACTERISTIC_UUID, characteristicConfig);
-  registration.duplicateRejected = !duplicate.valid();
+  registration.duplicateAccepted = duplicate.valid();
+  registration.duplicateDistinct = duplicate.valid() && duplicate != characteristic;
   registration.error = bluetooth.lastErrorName();
-  registration.detail = bluetooth.lastErrorDetail();
 }
 
 void setup()
@@ -209,9 +209,9 @@ void loop()
     if (command == 'r')
     {
       Serial.printf("LOCAL_BASE_ACCEPTED %u\n", registration.baseAccepted ? 1 : 0);
-      Serial.printf("LOCAL_DUPLICATE_REJECTED %u error=%s detail=%s\n",
-        registration.duplicateRejected ? 1 : 0, registration.error.c_str(),
-        registration.detail.c_str());
+      Serial.printf("LOCAL_DUPLICATE_ACCEPTED %u distinct=%u error=%s\n",
+        registration.duplicateAccepted ? 1 : 0,
+        registration.duplicateDistinct ? 1 : 0, registration.error.c_str());
     }
     else if (command == 'c')
     {

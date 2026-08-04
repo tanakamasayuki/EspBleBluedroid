@@ -50,3 +50,9 @@ Device・Host両方の役割で検証します。相手はraw Arduino-ESP32で�
 status、間に挟まったSystem Real-Time byte、複数packetに分かれるSysExを両方向で確認し、
 転送中の2本目が拒否されることも固定します。BLE MIDIのUUIDは仕様で固定されているため、
 この2つのsuiteはsuite UUID tagではなくデバイス名で隔離します。
+`duplicate_uuid_server`は、同一Service内で同一UUIDを共有するCharacteristic 2件を
+本ライブラリが公開したとき、電波上に実体が2つあることを検証します。raw Arduino-ESP32の
+Centralがhandle keyのmapを辿り（wrapperのUUID key mapは重複の一方しか返せません）、
+2つの値、2つのReport Reference相当のDescriptor、2つのCCCDを読み出します。2件目のhandleへの
+Writeは2件目のCharacteristicへ帰属し、Notificationは送信元handleへ届きます。これはHID over
+GATTの前提です（キーボードのReport Characteristicはすべて0x2a4dを持つため）。

@@ -408,17 +408,12 @@ EspBleGattCharacteristic EspBleGattServer::addCharacteristic(
       : "too many GATT Characteristics");
     return result;
   }
-  for (size_t index = 0; index < impl_->characteristicCount; ++index)
-  {
-    const auto &existing = impl_->characteristics[index];
-    if (existing.serviceId == service.id &&
-        BLEUUID(existing.uuid.c_str()).equals(BLEUUID(uuid)))
-    {
-      owner_->setError(EspBleError::InvalidArgument,
-        "this library cannot address duplicate Characteristic UUIDs in one Service");
-      return result;
-    }
-  }
+  // Two characteristics in one service may share a UUID, as the spec allows and
+  // as EspBle allows: the several HID Report characteristics of a keyboard are
+  // the everyday case. Every operation here takes the returned handle, and the
+  // backend identifies a characteristic by the object it just created rather than
+  // by looking the UUID up, so a shared UUID is never ambiguous. Only descriptors
+  // are restricted, because those *are* looked up by UUID (see addDescriptor).
   result.id = ++impl_->characteristicCount;
   auto &definition = impl_->characteristics[result.id - 1];
   definition.serviceId = service.id;

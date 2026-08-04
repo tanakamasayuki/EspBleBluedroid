@@ -1,14 +1,14 @@
 // Pins both halves of the duplicate-UUID contract.
 //
-// Server: this library refuses a second Characteristic with the same UUID inside
-// one Service, and a second Descriptor with the same UUID under one
-// Characteristic. The spec allows both, and the Arduino Bluedroid wrapper can
-// create them (its own BLEHIDDevice makes several 0x2a4d Report characteristics),
-// so this is a restriction of *this library*, not of Bluedroid: the public API
-// addresses server attributes by UUID, and two attributes with one name cannot
-// be told apart. The test exists so that lifting the restriction is a deliberate
-// change with a test to invert — it is a prerequisite for HID over GATT.
-// The same UUID in a *different* Service stays legal and is verified here too.
+// Server: registration accepts a second Characteristic with the same UUID inside
+// one Service — the spec allows it, EspBle allows it, and HID over GATT needs it
+// (the Report characteristics of a keyboard all carry 0x2a4d). Each call returns
+// its own handle, which is what keeps the pair unambiguous. A second Descriptor
+// with the same UUID under one Characteristic is still refused, because a
+// descriptor *is* looked up by UUID within its characteristic and the second one
+// would be unreachable. What the two duplicates look like on the air is
+// `peer/duplicate_uuid_server`; here it is the registration contract.
+// The same UUID in a *different* Service is legal too and is verified here.
 //
 // Client: a peer may legally publish duplicates, so the client half must be able
 // to work with them. The handle-addressed operations select one exact
@@ -55,9 +55,9 @@ bool scanning = false;
 struct RegistrationReport
 {
   bool baseAccepted = false;
-  bool duplicateCharacteristicRejected = false;
+  bool duplicateCharacteristicAccepted = false;
+  bool duplicateCharacteristicDistinct = false;
   String characteristicError;
-  String characteristicDetail;
   bool duplicateDescriptorRejected = false;
   String descriptorError;
   String descriptorDetail;
@@ -88,11 +88,15 @@ void registerLocalServer()
     server.addCharacteristic(service, LOCAL_CHARACTERISTIC_UUID, characteristicConfig);
   registration.baseAccepted = service.valid() && characteristic.valid();
 
+  // The second one with the same UUID: accepted, and with a handle of its own.
+  // Equal handles would mean the backend had reused the first entry, which is the
+  // failure this assertion exists to catch.
   const EspBleGattCharacteristic duplicate =
     server.addCharacteristic(service, LOCAL_CHARACTERISTIC_UUID, characteristicConfig);
-  registration.duplicateCharacteristicRejected = !duplicate.valid();
+  registration.duplicateCharacteristicAccepted = duplicate.valid();
+  registration.duplicateCharacteristicDistinct =
+    duplicate.valid() && duplicate != characteristic;
   registration.characteristicError = bluetooth.lastErrorName();
-  registration.characteristicDetail = bluetooth.lastErrorDetail();
 
   const EspBleGattDescriptor descriptor =
     server.addDescriptor(characteristic, LOCAL_DESCRIPTOR_UUID, descriptorConfig);
@@ -103,8 +107,8 @@ void registerLocalServer()
   registration.descriptorError = bluetooth.lastErrorName();
   registration.descriptorDetail = bluetooth.lastErrorDetail();
 
-  // The restriction is per Service: the same UUID in another Service is legal
-  // here as well as in the spec.
+  // The same UUID in another Service is legal too, and for a different reason:
+  // services are independent instances.
   const EspBleGattService secondService =
     server.addService(LOCAL_SECOND_SERVICE_UUID);
   const EspBleGattCharacteristic sameUuidElsewhere = server.addCharacteristic(
@@ -123,10 +127,10 @@ void registerLocalServer()
 void reportRegistration()
 {
   Serial.printf("LOCAL_BASE_ACCEPTED %u\n", registration.baseAccepted ? 1 : 0);
-  Serial.printf("DUPLICATE_CHARACTERISTIC_REJECTED %u error=%s detail=%s\n",
-    registration.duplicateCharacteristicRejected ? 1 : 0,
-    registration.characteristicError.c_str(),
-    registration.characteristicDetail.c_str());
+  Serial.printf("DUPLICATE_CHARACTERISTIC_ACCEPTED %u distinct=%u error=%s\n",
+    registration.duplicateCharacteristicAccepted ? 1 : 0,
+    registration.duplicateCharacteristicDistinct ? 1 : 0,
+    registration.characteristicError.c_str());
   Serial.printf("DUPLICATE_DESCRIPTOR_REJECTED %u error=%s detail=%s\n",
     registration.duplicateDescriptorRejected ? 1 : 0,
     registration.descriptorError.c_str(),

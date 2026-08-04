@@ -67,7 +67,7 @@ gattServer.onRead([](const EspBleGattReadRequest &request) {
 ## 注意
 
 - **コールバックは全Characteristic共通です。** 複数登録している場合は `write.characteristic == myHandle` で対象を判定してください。イベントにはUUID文字列も入っていますが、同じUUIDが複数あると区別できないため、ハンドルで比べるのが確実です。
-- **同じService内で同じUUIDのCharacteristicを2つ置くことはできません。** 2つ目の`addCharacteristic()`が`InvalidArgument`で失敗します。仕様上は重複が許され（HIDのReportがその典型）ますが、Arduino-ESP32のBluedroid wrapperはService内のCharacteristicをUUIDで引くため、重複したものを確実に名指しできません。UUIDを別にするか、Serviceを分けてください。
+- **同じService内に同じUUIDのCharacteristicを2つ置けます。** 仕様上も許され（HIDのReportがその典型）、`addCharacteristic()`は呼び出しごとに専用のhandleを返し、以降の操作はそのhandleで指定するため曖昧になりません。実際に両方が公開されていることは`tests/peer/duplicate_uuid_server`がpeerから読み出して確認しています。**ただし1つのCharacteristicに同じUUIDのDescriptorを2つは置けません**。Descriptorは所属Characteristic内でUUIDで引くため、2つ目に到達できず`addDescriptor()`が`InvalidArgument`で失敗します。
 - **イベントごとのコールバックは1つで、リストではありません。** `onWritten()`、`onRead()`、`onSubscriptionChanged()`、`onSent()`はそれぞれ1つのコールバックを保持し、再度呼ぶと差し替わります。複数箇所へ配りたい場合は自分のコールバックの中で分配してください。
 - **1回のATT応答に収まらない値は、複数回の応答で読まれます。** Clientが続きを要求し、このライブラリのGATT Clientも全体を取得します（[Gatt/Basics/Client](../Client/)）。続きを要求しない相手には先頭の`mtu - 1` byteだけが見えますが、それはClient側の判断でServer側の制限ではありません。
 - 登録はすべて `begin()` より前に行う必要があります。`begin()` 後の `addService()` は `InvalidState` で失敗します。

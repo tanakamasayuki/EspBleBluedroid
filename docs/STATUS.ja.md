@@ -138,9 +138,13 @@ CCCD購読、notificationまで確認している。
 - GATT ServerはService 8、Characteristic 32、Descriptor 16までを`begin()`前に登録する。
   登録時のUUID文字列は解析して検証し、不正なら`InvalidArgument`で拒否する
   （検証しないとArduino wrapperが`begin()`中にnull nativeへ触ってcrashする）。
-  現在の公開APIがUUIDで属性を指すため、同じService内で同一UUIDのCharacteristicは登録時に
-  拒否する（別Serviceなら可）。Bluedroid自体の制約ではなく、HID over GATT実装時に解除する
-  前提の制限で、契約は`tests/peer/duplicate_uuid`で固定している。
+  同じService内に同一UUIDのCharacteristicを複数置ける（仕様どおり。HIDのReportがその典型）。
+  `addCharacteristic()`は呼び出しごとに専用handleを返し、以降の操作はそのhandleで指定する。
+  登録が受理されるだけでなく、公開されたdatabaseに実体が2つあること（値・Descriptor・Write
+  帰属・CCCD・Notificationの送信元handle）を`tests/peer/duplicate_uuid_server`が
+  raw peerから確認している。一方、1つのCharacteristicに同一UUIDのDescriptorは置けない
+  （所属Characteristic内でUUIDで引くため2つ目に到達できない）。契約は
+  `tests/peer/duplicate_uuid`で固定している。
   Generic Attribute 0x1801とService Changed 0x2a05はstackが公開・送信する
   （`CONFIG_BT_GATTS_SEND_SERVICE_CHANGE_AUTO=y`）ため、applicationは登録しない
   （`tests/peer/service_changed`）。

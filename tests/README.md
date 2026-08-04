@@ -150,12 +150,19 @@ through `connection()`. The peer is a raw Arduino-ESP32 BLE client.
 
 `peer/gatt_server` also verifies a real Indication: the peer rewrites the CCCD
 with 0x0002 and the send result reports success only after the confirmation.
-`peer/duplicate_uuid` verifies that the server rejects a duplicate Characteristic
-UUID inside one Service, a duplicate Descriptor UUID under one Characteristic, and
-a malformed UUID string, each with the exact error and detail, that the same UUID in another Service is
+`peer/duplicate_uuid` verifies that the server accepts a duplicate Characteristic
+UUID inside one Service with a handle of its own, that it still rejects a
+duplicate Descriptor UUID under one Characteristic and a malformed UUID string
+with the exact error and detail, that the same UUID in another Service is
 accepted, and that the client reaches both of a peer's two same-UUID
 characteristics by attribute handle, with notifications routed to the sending
 handle.
+`peer/duplicate_uuid_server` verifies the other side of that: two same-UUID
+characteristics published by this library are two real attributes on the air, read
+back from a raw peer with their own values, their own Report-Reference-style
+descriptors, per-handle write attribution, one CCCD each, and notifications
+arriving on the handle that sent them. Registration alone cannot show this — a
+backend that reused the first entry would pass every local check.
 `peer/gatt_disconnect_purge` verifies that `disconnect()` during an in-flight read
 is accepted, that the read produces exactly one completion with no dropped
 events, and that the next connection discovers and reads normally.

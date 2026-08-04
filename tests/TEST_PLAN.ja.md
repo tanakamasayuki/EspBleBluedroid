@@ -120,6 +120,7 @@ SSSSNNNN-b1dd-4d00-9e5a-627564726f69
 | `0006` | `security_passkey` |
 | `0007` | `peripheral_connection` |
 | `0008` | `multi_listener` |
+| `000b` | `duplicate_uuid_server` |
 | `0009` / `000a` | `midi_device` / `midi_host` — **tagのみでUUIDではない**。BLE MIDIのServiceとCharacteristic UUIDは仕様で固定されているため、このsuiteは未使用UUIDを選べない。代わりにデバイス名で隔離する（`Bluedroid MIDI 0009`、`Bluedroid MIDI Peer 000a`）。両側とも名前とService UUIDの両方が一致することを要求する |
 | `01xx` | interop scenario専用の範囲（`0100` = `interop/gatt_basic`、`0101` = `interop/advertise_scan`、`0102` = `interop/long_value`、`0103` = `interop/duplicate_uuid`、`0104` = `interop/security`、`0105` = `interop/profile_wire`、`0106` = `interop/midi`はtagのみ — BLE MIDIのUUIDは仕様固定なので、このscenarioは役割を含むデバイス名（`EspBle MIDI Device 0106` / `Bluedroid MIDI Device 0106`）で隔離する） |
 
@@ -198,7 +199,7 @@ conftest hookは持たず、port設定と`sketch.yaml`だけで構成する。
 | `interop/advertise_scan` | ✅ EspBleのpayload builderが出したAdvertising / Scan Responseを、Bluedroid Scannerがaddress単位でmergeして同じfieldへ復元すること（およびその逆）。同じadvertiserをpassive scanしたときはAdvertising payloadのfieldだけが見え、Scan Response側は一切見えないこと |
 | `interop/security` | ✅ Just Works、静的passkeyのPasskey Entry、Numeric Comparison（承認と拒否）をcross-stackで検証。encrypted / authenticated / bonded / key sizeを**両側**でassertし、bondも両側で確認し、attribute権限の2段（authenticated CharacteristicがJust Works linkでは拒否され、authenticated linkでは到達できること）も確認する。Numeric Comparisonでは2実装が**同一の6桁**を導出したこと、拒否時はどちらにも暗号化もbondも残らないことをassertする。Bluedroid Peripheral側はconnection snapshot実装で可能になり（`peer/peripheral_connection`がその役割でのpairingを報告する）、追加予定 |
 | `interop/profile_wire` | ✅ 共有header（`EspBleMedicalFloat.h`、`EspBleCgmCrc.h`、`EspBleIBeacon.h`）で組んだ値が相手stackで同じ値としてdecodeできること。wire byteとdecode結果（milli単位の整数）の両方でassertする。FLOAT32をReadとNotificationで、CGMのE2E-CRCを一方が付与し他方が検証、SFLOATを逆方向で、iBeaconはadvertisementだけからdecode。interopで初めて役割を反転させ、被検ライブラリがServer兼beaconになる |
-| `interop/duplicate_uuid` | ✅ 仕様が認める重複UUID（EspBle Peripheralが同一Service内に同一UUID Characteristicを2つ）を、Bluedroid Clientがhandle指定で扱えること。Discoveryで2件を区別、UUID指定は1件目に届く、Read / Write / 購読 / Notificationがすべて両側でhandleに帰属することを確認。Server側の拒否も同じファイルに記録する |
+| `interop/duplicate_uuid` | ✅ 仕様が認める重複UUID（EspBle Peripheralが同一Service内に同一UUID Characteristicを2つ）を、Bluedroid Clientがhandle指定で扱えること。Discoveryで2件を区別、UUID指定は1件目に届く、Read / Write / 購読 / Notificationがすべて両側でhandleに帰属することを確認。本ライブラリ側で同じ形を登録できることも同じファイルに記録する（公開されたdatabaseの読み出しは`peer/duplicate_uuid_server`） |
 | `interop/long_value` | ✅ EspBle Peripheralが公開した合意MTU超の値が、UUID指定・handle指定の両方のReadで全体として返ること。`peer/long_value`は両端がBluedroidなので、clientの性質として言えるのはこちら |
 | `interop/midi` | ✅ BLE MIDIを両方向で検証し、各側が自分のライブラリでencode / decodeする。data byteが2・1・0個のchannel voiceメッセージと、rampを保ったまま再構成される99 byteのSysEx。codec headerはbyte一致、profile helperは型1つだけの差で、どちらも機械チェック済みなので、ここで足すのはtransport側（CCCD write、negotiated MTUに対するNotification、Write Without Response、packetを跨ぐSysEx）である。2つ目のテストでは役割を入れ替える — PeripheralとしてnotifyするのとCentralとしてwriteするのは別経路だからである。BLE MIDIのUUIDは仕様固定なので、隔離はデバイス名で行う |
 | `interop/hid` | HID over GATT実装後。Device / Hostを入れ替えた両方向 |
@@ -234,7 +235,7 @@ cross-stack試験を指す。
 | MTU超の値のRead（全体が返ること） | | ✅ | ✅ `long_value` | ✅ `long_value` |
 | GATT Server Read / Write / Descriptor / CCCD / Notify | | ✅ | ✅ `gatt_server` | ✅ `gatt_basic` |
 | GATT Server **Indicate**（実発行と確認応答） | | ✅ | ✅ `gatt_server` / `service_changed` | ✅ `gatt_basic` |
-| GATT Server 重複UUID拒否の明示エラー | | ✅ | ✅ `duplicate_uuid` | |
+| GATT Server 重複UUIDの公開とhandle指定 | | ✅ | ✅ `duplicate_uuid` ＋ `duplicate_uuid_server` | |
 | Service Changed（0x2A05、stackが所有） | | ✅ | ✅ `service_changed` | |
 | 実行中GATT操作の切断時の扱い | | ✅ | ✅ `gatt_disconnect_purge` | |
 | Pairing / Bonding（Central） | | ✅ | ✅ `security_bond` | ✅ `security` |
@@ -362,9 +363,12 @@ cross-stack試験を指す。
 27. ✅ `long_value`: MTUを超える値のRead。UUID指定・handle指定の両方で全体（300 byte）が返り、
     既知のrampと1 byteずつ一致すること。BluedroidにRead Blobの公開APIがないため切り詰めを
     想定していたが、実機で内部継続が確認されたため契約として固定した。
-28. ✅ `duplicate_uuid`: Server側は同一Service内の重複Characteristic UUIDと同一Characteristic
-    下の重複Descriptor UUIDを拒否し（error名とdetail文字列まで固定）、別Serviceの同一UUIDは
-    受理する。Client側はpeerの同一UUID Characteristic 2件を別handleとしてsnapshotへ保持し、
+28. ✅ `duplicate_uuid` / `duplicate_uuid_server`: Server側は同一Service内の重複Characteristic
+    UUIDを専用handleつきで受理し（同一Characteristic下の重複Descriptor UUIDと不正UUIDは
+    従来どおりerror名・detail文字列まで固定して拒否）、別Serviceの同一UUIDも受理する。
+    公開されたdatabaseに実体が2つあることは`duplicate_uuid_server`がraw peerから読み出して
+    確認する（登録の受理だけでは、先頭entryを再利用するbackendでも通ってしまう）。
+    Client側はpeerの同一UUID Characteristic 2件を別handleとしてsnapshotへ保持し、
     handle指定で個別Read・購読し、Notificationが送信元handleへ対応することを確認する。
 29. ✅ `service_changed`: Generic Attribute 0x1801とService Changed 0x2a05はstackが公開する。
     applicationが登録しなくてもpeerからindicatableな0x2a05が見えることを確認し、
@@ -384,7 +388,8 @@ cross-stack試験を指す。
 - ✅ `unit/api_parity` と `docs/API_PARITY.tsv`（EspBleとの差分を機械チェックへ変換した）
 - ✅ `unit/report_map` / `unit/keymap` / `unit/midi`（EspBleからheaderごと移植。HID / MIDIの土台）
 - ✅ `gatt_server`への**Indicate実発行**追加
-- ✅ `duplicate_uuid`（現行の拒否契約とエラー文字列の回帰。制限解除時はこのテストを反転させる）
+- ✅ `duplicate_uuid`（登録契約とエラー文字列の回帰。HID前提で重複Characteristic UUIDの
+  制限を解除したため、Server側のassertionは反転済み。公開の実体確認は`duplicate_uuid_server`）
 - ✅ `service_changed`（stackが所有することの固定）
 - ✅ `long_value`（MTU超Readで全体が返ることの固定。当初の「切り詰め」想定は実機で否定された）
 - ✅ `gatt_disconnect_purge`（実行中GATT操作中の`disconnect()`が受理され、完了が1件だけ届き、
@@ -415,7 +420,9 @@ cross-stack試験を指す。
   [examples/Midi](../examples/Midi/)）。helperはEspBleのファイルのライブラリ参照の型だけを
   差し替えたもの。peer test側はBLE MIDIのヘッダを自前の演算でデコードするため、同じcodecを
   2回突き合わせるのではなく仕様と突き合わせている
-- BLE HID Device（重複Characteristic UUID制限の解除が前提）→ HID Host
+- BLE HID Device。前提だった重複Characteristic UUIDの制限は解除済み
+  （`duplicate_uuid_server`が公開された2件をpeerから読み出して確認）。残りはprofile本体
+  → HID Host
 
 **interop**: 各層でAPIとwire動作が固まった順に`interop/`へ写す。`gatt_basic`、
 `advertise_scan`、`long_value`、`duplicate_uuid`、`security`、`profile_wire`は実装済み。
