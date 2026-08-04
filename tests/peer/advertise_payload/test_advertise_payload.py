@@ -28,7 +28,7 @@ def test_legacy_payload_boundaries_and_timed_stop(dut, peers):
 
     # CSS Part A 1.1: both 16-bit UUIDs belong in one Complete List AD type.
     device.write("a")
-    device.expect_exact("DEVICE_MULTI_UUID success=1 error=None", timeout=10)
+    device.expect_exact("DEVICE_MULTI_UUID success=1 error=NONE", timeout=10)
     dut.write("s")
     dut.expect_exact("SCANNER_STARTED success=1", timeout=10)
     match = dut.expect(PAYLOAD_PATTERN, timeout=30)
@@ -45,16 +45,16 @@ def test_legacy_payload_boundaries_and_timed_stop(dut, peers):
     assert len(types) == len(set(types)), f"duplicate AD types: {types}"
 
     device.write("q")
-    device.expect_exact("DEVICE_STOPPED success=1 error=None", timeout=10)
+    device.expect_exact("DEVICE_STOPPED success=1 error=NONE", timeout=10)
     device.write("b")
-    device.expect_exact("DEVICE_BOUNDARY success=1 error=None", timeout=10)
+    device.expect_exact("DEVICE_BOUNDARY success=1 error=NONE", timeout=10)
     device.write("x")
     device.expect_exact(
-        "DEVICE_OVERFLOW success=0 error=InvalidArgument", timeout=10
+        "DEVICE_OVERFLOW success=0 error=INVALID_ARGUMENT", timeout=10
     )
 
     device.write("t")
-    device.expect_exact("DEVICE_TIMED success=1 error=None", timeout=10)
+    device.expect_exact("DEVICE_TIMED success=1 error=NONE", timeout=10)
     device.write("?")
     device.expect_exact("DEVICE_ADVERTISING 1", timeout=10)
     # The device calls update() continuously; a one-second duration must expire.

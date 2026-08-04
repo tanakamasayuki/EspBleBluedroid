@@ -1,0 +1,15 @@
+# Enum-to-string maps of EspBle's public *Name() functions, used by
+# tests/unit/api_parity. Two libraries can agree on every signature and
+# still return different strings, which no header shows.
+# Regenerate with tools/gen_api_parity.py; never edit by hand.
+# espble_version	1.1.0
+# espble_source	EspBle.cpp
+# sha256	7e22c27e7037b04821a7211fba09edf77dc748530ef4d8fe36a7a542886e6c7c
+lastErrorName	<default>	UNKNOWN
+lastErrorName	EspBleError::BackendFailure	BACKEND_FAILURE
+lastErrorName	EspBleError::InvalidArgument	INVALID_ARGUMENT
+lastErrorName	EspBleError::InvalidState	INVALID_STATE
+lastErrorName	EspBleError::None	NONE
+lastErrorName	EspBleError::NotFound	NOT_FOUND
+lastErrorName	EspBleError::ResourceExhausted	RESOURCE_EXHAUSTED
+lastErrorName	EspBleError::Timeout	TIMEOUT

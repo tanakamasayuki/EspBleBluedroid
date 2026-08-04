@@ -58,7 +58,7 @@ def test_in_flight_read_completes_once_when_the_link_is_torn_down(dut, peers):
     )
     read = next(match for match in results if match.re.pattern.startswith(b"READ_RESULT"))
     if read.group(1) == b"0":
-        assert read.group(2) == b"InvalidState", (
+        assert read.group(2) == b"INVALID_STATE", (
             "a completion that failed because the link went away has to say so"
         )
         assert read.group(3).strip() == (
@@ -93,7 +93,7 @@ def test_in_flight_read_completes_once_when_the_link_is_torn_down(dut, peers):
     dut.expect_exact("READ_REQUESTED generation=2 1", timeout=10)
     second = dut.expect(
         re.compile(
-            rb"READ_RESULT generation=2 count=2 success=1 error=None "
+            rb"READ_RESULT generation=2 count=2 success=1 error=NONE "
             rb"length=(\d+) detail=none context=loop"
         ),
         timeout=20,

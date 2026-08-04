@@ -31,6 +31,6 @@ Starts connectable legacy advertising carrying a device name and a 16-bit servic
 Silent on success. On failure:
 
 ```
-BLE init failed: InvalidState (...)
-Advertising failed: InvalidArgument (...)
+BLE init failed: INVALID_STATE (...)
+Advertising failed: INVALID_ARGUMENT (...)
 ```

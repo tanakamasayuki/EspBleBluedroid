@@ -4,8 +4,8 @@ import re
 def test_connection_parameters(dut, peers):
     device = peers["device"]
 
-    dut.expect_exact("BAD_RANGE_REJECTED 1 error=InvalidArgument", timeout=20)
-    dut.expect_exact("UNKNOWN_ID_REJECTED 1 error=InvalidArgument", timeout=20)
+    dut.expect_exact("BAD_RANGE_REJECTED 1 error=INVALID_ARGUMENT", timeout=20)
+    dut.expect_exact("UNKNOWN_ID_REJECTED 1 error=INVALID_ARGUMENT", timeout=20)
     dut.expect_exact("CENTRAL_READY", timeout=20)
     device.expect_exact("PEER_READY", timeout=20)
 

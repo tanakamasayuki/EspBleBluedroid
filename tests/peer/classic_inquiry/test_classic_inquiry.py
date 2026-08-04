@@ -10,7 +10,7 @@ def test_classic_capabilities_and_inquiry(dut, peers):
         timeout=20,
     )
     dut.expect_exact(
-        "CLASSIC_PREBEGIN_REJECTED 1 error=InvalidState", timeout=20
+        "CLASSIC_PREBEGIN_REJECTED 1 error=INVALID_STATE", timeout=20
     )
     dut.expect_exact("CLASSIC_CENTRAL_READY", timeout=20)
     dut.write("s")

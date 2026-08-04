@@ -71,7 +71,7 @@ peer output does.
 
 "Match EspBle except where the backend forces a difference"
 ([docs/API_DESIGN_POLICY.ja.md](../docs/API_DESIGN_POLICY.ja.md)) decays if it
-lives only in prose. Three tests hold it in place.
+lives only in prose. Four tests hold it in place.
 
 1. **Names and shapes (unit).** `api_parity` diffs the public symbols of
    `EspBle.h` and `EspBleBluedroid.h` — classes, methods, struct fields, enum
@@ -91,15 +91,16 @@ lives only in prose. Three tests hold it in place.
    (duplicate characteristic UUID, legacy payload overflow, a second concurrent
    GATT operation, …).
 
-**Known gap: agreement covers names and shapes, not returned values.** The parity
-check compares symbols, so two libraries can agree on every signature and still
-disagree on what a function returns. One case is open: `lastErrorName()` returns
-`NONE` / `INVALID_ARGUMENT` in EspBle and `None` / `InvalidArgument` here, so code
-that logs or compares the string does not port between the two. Nothing in the
-backend forces the difference. It needs a decision — adopt EspBle's spelling
-(and update the peer assertions that pin the current strings) or record it as an
-intentional difference — and, either way, a value-level check so the next one is
-caught by a test rather than by a scenario that happened to print both.
+4. **Returned values, not only names and shapes (unit).** Agreement on every
+   signature still leaves what a function *returns*, which no header shows.
+   `api_parity` therefore also compares the enum-to-string maps of the `*Name()`
+   functions against the `espble.values` snapshot, listing each difference in the
+   same table. This was found the hard way: `lastErrorName()` returned
+   `INVALID_ARGUMENT` in EspBle and `InvalidArgument` here, so a sketch that
+   logged or compared the string did not port. This library now uses EspBle's
+   spelling, and the only remaining entry is `UNSUPPORTED`, whose enum constant
+   exists only here. The functions are found by shape, so a second name map added
+   later is compared without touching the test.
 
 The Classic extensions are held to the same standard. `classic().spp()`,
 `classic().a2dpSink()`, and the other session APIs are verified with the same

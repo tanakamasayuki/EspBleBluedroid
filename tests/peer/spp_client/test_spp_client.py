@@ -12,7 +12,7 @@ def test_public_spp_client_uses_shared_session_api(dut, peers):
 
     dut.write("i")
     dut.expect_exact(
-        "SPP_CLIENT_PREBEGIN_REJECTED 1 error=InvalidState", timeout=30
+        "SPP_CLIENT_PREBEGIN_REJECTED 1 error=INVALID_STATE", timeout=30
     )
     dut.expect_exact("SPP_PUBLIC_CLIENT_READY", timeout=30)
 

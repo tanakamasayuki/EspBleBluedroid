@@ -33,13 +33,13 @@ def test_duplicate_uuids_are_rejected_locally_and_handled_remotely(dut, peers):
     dut.write("r")
     dut.expect_exact("LOCAL_BASE_ACCEPTED 1", timeout=20)
     dut.expect_exact(
-        "DUPLICATE_CHARACTERISTIC_REJECTED 1 error=InvalidArgument "
+        "DUPLICATE_CHARACTERISTIC_REJECTED 1 error=INVALID_ARGUMENT "
         "detail=this library cannot address duplicate Characteristic UUIDs in "
         "one Service",
         timeout=10,
     )
     dut.expect_exact(
-        "DUPLICATE_DESCRIPTOR_REJECTED 1 error=InvalidArgument "
+        "DUPLICATE_DESCRIPTOR_REJECTED 1 error=INVALID_ARGUMENT "
         "detail=duplicate Descriptor UUID in one Characteristic",
         timeout=10,
     )
@@ -49,7 +49,7 @@ def test_duplicate_uuids_are_rejected_locally_and_handled_remotely(dut, peers):
     # loop with a backtrace nowhere near the offending addService().
     dut.expect_exact(
         "MALFORMED_UUID_REJECTED service=1 characteristic=1 "
-        "error=InvalidArgument detail=invalid GATT Service UUID",
+        "error=INVALID_ARGUMENT detail=invalid GATT Service UUID",
         timeout=10,
     )
 

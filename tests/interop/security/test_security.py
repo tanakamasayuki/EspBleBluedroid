@@ -14,14 +14,15 @@ def start(espble, bluedroid, mode):
     bluedroid.write("?")
     bluedroid.expect(re.compile(rb"READY_STATE started=\d"), timeout=40)
 
-    # `error=` is not asserted here: the two libraries spell EspBleError names
-    # differently (`NONE` / `INVALID_ARGUMENT` against `None` / `InvalidArgument`),
-    # which is tracked as an API-agreement gap rather than pinned by this
-    # scenario. `ok=1` is the assertion.
+    # Both libraries spell the EspBleError names the same way, so the same string
+    # is asserted on both boards. That agreement is machine-checked by
+    # `unit/api_parity`; here it simply reads naturally.
     espble.write(mode)
-    espble.expect_exact("ESPBLE_MODE_STARTED mode=%s ok=1" % mode, timeout=30)
+    espble.expect_exact("ESPBLE_MODE_STARTED mode=%s ok=1 error=NONE" % mode,
+                        timeout=30)
     bluedroid.write(mode)
-    bluedroid.expect_exact("MODE_STARTED mode=%s ok=1" % mode, timeout=30)
+    bluedroid.expect_exact("MODE_STARTED mode=%s ok=1 error=NONE" % mode,
+                           timeout=30)
 
     espble.write("x")
     espble.expect_exact("ESPBLE_BONDS_CLEARED success=1 count=0", timeout=20)
@@ -32,11 +33,11 @@ def start(espble, bluedroid, mode):
 def connect(espble, bluedroid):
     bluedroid.write("c")
     bluedroid.expect_exact("SCAN_STARTED 1", timeout=10)
+    # The peer is selected by its 128-bit service UUID in firmware; the name is
+    # captured only as information, because it travels in the scan response and a
+    # missing scan response is not what this scenario is about.
     bluedroid.expect(
-        re.compile(
-            rb"TARGET_FOUND address=([0-9a-f:]+) name=EspBle Security Peer"
-        ),
-        timeout=40,
+        re.compile(rb"TARGET_FOUND address=([0-9a-f:]+) name=(.*)"), timeout=40
     )
     bluedroid.expect_exact("CONNECT_REQUESTED 1", timeout=10)
     bluedroid.expect(
@@ -96,12 +97,12 @@ def test_just_works_bonding_across_stacks(dut, peers):
     bluedroid.write("e")
     bluedroid.expect_exact("ENCRYPTED_READ_REQUESTED 1", timeout=10)
     bluedroid.expect_exact(
-        "READ success=1 error=None value=encrypted-ready context=loop",
+        "READ success=1 error=NONE value=encrypted-ready context=loop",
         timeout=25,
     )
     bluedroid.write("E")
     bluedroid.expect_exact("ENCRYPTED_WRITE_REQUESTED 1", timeout=10)
-    bluedroid.expect_exact("WRITE success=1 error=None context=loop", timeout=25)
+    bluedroid.expect_exact("WRITE success=1 error=NONE context=loop", timeout=25)
     espble.expect_exact(
         "ESPBLE_WRITE tier=encrypted value=central-encrypted-write", timeout=20
     )
@@ -170,18 +171,18 @@ def test_static_passkey_authenticates_across_stacks(dut, peers):
     bluedroid.write("e")
     bluedroid.expect_exact("ENCRYPTED_READ_REQUESTED 1", timeout=10)
     bluedroid.expect_exact(
-        "READ success=1 error=None value=encrypted-ready context=loop",
+        "READ success=1 error=NONE value=encrypted-ready context=loop",
         timeout=25,
     )
     bluedroid.write("a")
     bluedroid.expect_exact("AUTHENTICATED_READ_REQUESTED 1", timeout=10)
     bluedroid.expect_exact(
-        "READ success=1 error=None value=authenticated-ready context=loop",
+        "READ success=1 error=NONE value=authenticated-ready context=loop",
         timeout=25,
     )
     bluedroid.write("A")
     bluedroid.expect_exact("AUTHENTICATED_WRITE_REQUESTED 1", timeout=10)
-    bluedroid.expect_exact("WRITE success=1 error=None context=loop", timeout=25)
+    bluedroid.expect_exact("WRITE success=1 error=NONE context=loop", timeout=25)
     espble.expect_exact(
         "ESPBLE_WRITE tier=authenticated value=central-authenticated-write",
         timeout=20,

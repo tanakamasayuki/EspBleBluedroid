@@ -52,7 +52,7 @@ def test_random_static_identity_and_tx_power(dut, peers):
     assert high_power == "9"
 
     peripheral.write("r")
-    peripheral.expect_exact("RPA_READY 1 error=None", timeout=20)
+    peripheral.expect_exact("RPA_READY 1 error=NONE", timeout=20)
     peripheral.write("a")
     local = peripheral.expect(LOCAL, timeout=10)
     rpa_local_address = local.group(1).decode().lower()

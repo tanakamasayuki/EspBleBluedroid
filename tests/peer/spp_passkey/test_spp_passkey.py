@@ -8,7 +8,7 @@ def test_classic_display_and_keyboard_passkey_pairing(dut, peers):
 
     dut.write("i")
     dut.expect_exact(
-        "SPP_PASSKEY_INVALID_REJECTED 1 error=InvalidArgument",
+        "SPP_PASSKEY_INVALID_REJECTED 1 error=INVALID_ARGUMENT",
         timeout=30,
     )
     ready = dut.expect(
@@ -82,7 +82,7 @@ def test_classic_display_and_keyboard_passkey_pairing(dut, peers):
     dut.write(f"k{passkey}\n")
     dut.expect_exact(
         f"SPP_PASSKEY_PROVIDED accepted=0 passkey={passkey} "
-        "error=NotFound",
+        "error=NOT_FOUND",
         timeout=30,
     )
 
@@ -101,7 +101,7 @@ def test_classic_display_and_keyboard_passkey_pairing(dut, peers):
     passkey = displayed.group(1).decode()
     dut.write(f"k{passkey}\n")
     dut.expect_exact(
-        f"SPP_PASSKEY_PROVIDED accepted=1 passkey={passkey} error=None",
+        f"SPP_PASSKEY_PROVIDED accepted=1 passkey={passkey} error=NONE",
         timeout=30,
     )
     dut.expect(

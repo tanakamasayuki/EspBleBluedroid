@@ -27,7 +27,7 @@ const char *contextName()
 
 const char *errorName(EspBleError error)
 {
-  return error == EspBleError::NotFound ? "NotFound" : "Other";
+  return error == EspBleError::NotFound ? "NOT_FOUND" : "OTHER";
 }
 
 void setup()

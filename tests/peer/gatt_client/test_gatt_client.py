@@ -1,13 +1,13 @@
 def test_characteristic_read_write_is_binary_safe_and_deferred(dut, peers):
     peripheral = peers["device"]
-    dut.expect_exact("INVALID_READ_REJECTED 1 error=InvalidArgument", timeout=20)
-    dut.expect_exact("INVALID_WRITE_REJECTED 1 error=InvalidArgument", timeout=20)
+    dut.expect_exact("INVALID_READ_REJECTED 1 error=INVALID_ARGUMENT", timeout=20)
+    dut.expect_exact("INVALID_WRITE_REJECTED 1 error=INVALID_ARGUMENT", timeout=20)
     dut.expect_exact(
-        "INVALID_DESCRIPTOR_READ_REJECTED 1 error=InvalidArgument", timeout=20
+        "INVALID_DESCRIPTOR_READ_REJECTED 1 error=INVALID_ARGUMENT", timeout=20
     )
-    dut.expect_exact("ZERO_HANDLE_REJECTED 1 error=InvalidArgument", timeout=20)
+    dut.expect_exact("ZERO_HANDLE_REJECTED 1 error=INVALID_ARGUMENT", timeout=20)
     dut.expect_exact(
-        "ZERO_DESCRIPTOR_HANDLE_REJECTED 1 error=InvalidArgument", timeout=20
+        "ZERO_DESCRIPTOR_HANDLE_REJECTED 1 error=INVALID_ARGUMENT", timeout=20
     )
     dut.expect_exact("GATT_CENTRAL_READY", timeout=20)
     peripheral.expect_exact("GATT_PEER_READY", timeout=20)
@@ -17,7 +17,7 @@ def test_characteristic_read_write_is_binary_safe_and_deferred(dut, peers):
     dut.expect_exact("CONNECT_REQUESTED 1", timeout=30)
     peripheral.expect_exact("GATT_PEER_CONNECTED", timeout=20)
     dut.expect_exact("DISCOVERY_REQUESTED 1", timeout=20)
-    dut.expect_exact("CONCURRENT_GATT_REJECTED 1 error=InvalidState", timeout=20)
+    dut.expect_exact("CONCURRENT_GATT_REJECTED 1 error=INVALID_STATE", timeout=20)
     dut.expect_exact("GATT_UPDATE_PAUSED", timeout=20)
 
     dut.write("u")
@@ -34,7 +34,7 @@ def test_characteristic_read_write_is_binary_safe_and_deferred(dut, peers):
     )
     dut.expect_exact("MISSING_HANDLE_READ_REQUESTED 1", timeout=20)
     dut.expect_exact(
-        "MISSING_HANDLE_READ_RESULT success=0 error=NotFound handle=65534 context=loop",
+        "MISSING_HANDLE_READ_RESULT success=0 error=NOT_FOUND handle=65534 context=loop",
         timeout=20,
     )
     dut.expect_exact("DESCRIPTOR_READ_REQUESTED 1", timeout=20)

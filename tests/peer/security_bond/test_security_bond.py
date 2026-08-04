@@ -27,10 +27,10 @@ def expect_secure_connection(dut, peripheral, connection_id, initial_value):
 def test_just_works_bond_and_reconnect(dut, peers):
     peripheral = peers["device"]
     dut.expect_exact(
-        "DISABLED_SECURITY_OPTIONS_REJECTED 1 error=InvalidArgument", timeout=20
+        "DISABLED_SECURITY_OPTIONS_REJECTED 1 error=INVALID_ARGUMENT", timeout=20
     )
     dut.expect_exact(
-        "INVALID_PASSKEY_REJECTED 1 error=InvalidArgument", timeout=20
+        "INVALID_PASSKEY_REJECTED 1 error=INVALID_ARGUMENT", timeout=20
     )
     dut.expect_exact("SECURITY_CENTRAL_READY", timeout=20)
     peripheral.expect_exact("SECURITY_PERIPHERAL_READY", timeout=20)

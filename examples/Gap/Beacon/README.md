@@ -34,6 +34,6 @@ Broadcasts a non-connectable, non-scannable beacon carrying manufacturer data. U
 Silent on success. On failure:
 
 ```
-BLE init failed: InvalidState (...)
-Advertising failed: InvalidArgument (...)
+BLE init failed: INVALID_STATE (...)
+Advertising failed: INVALID_ARGUMENT (...)
 ```

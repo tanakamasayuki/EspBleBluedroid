@@ -69,7 +69,7 @@ def test_a_value_above_the_mtu_arrives_whole_from_a_nimble_peripheral(dut, peers
     bluedroid.expect_exact("UUID_READ_REQUESTED 1", timeout=10)
     uuid_read = bluedroid.expect(
         re.compile(
-            rb"READ success=1 error=None length=(\d+) mtu=(\d+) ramp=1 "
+            rb"READ success=1 error=NONE length=(\d+) mtu=(\d+) ramp=1 "
             rb"context=loop"
         ),
         timeout=25,
@@ -84,7 +84,7 @@ def test_a_value_above_the_mtu_arrives_whole_from_a_nimble_peripheral(dut, peers
     bluedroid.expect_exact("HANDLE_READ_REQUESTED 1", timeout=10)
     handle_read = bluedroid.expect(
         re.compile(
-            rb"READ success=1 error=None length=(\d+) mtu=(\d+) ramp=1 "
+            rb"READ success=1 error=NONE length=(\d+) mtu=(\d+) ramp=1 "
             rb"context=loop"
         ),
         timeout=25,

@@ -11,7 +11,7 @@ def test_accept_list_blocks_and_admits_connections(dut, peers):
         "ENTRY valid=1 address=02:00:00:00:00:01 type=0", timeout=20
     )
     peripheral.expect_exact(
-        "MUTATION removed=1 missing=1 error=NotFound "
+        "MUTATION removed=1 missing=1 error=NOT_FOUND "
         "restored=1 cleared=0 readded=1",
         timeout=20,
     )

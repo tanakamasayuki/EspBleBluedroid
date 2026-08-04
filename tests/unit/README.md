@@ -48,8 +48,13 @@ fails the test.
   System Real-Time interleaving, System Exclusive within one packet and across
   two, malformed packets, the packet builder, and the multi-packet SysEx encoder.
 - `api_parity`: compares the public API surface of `src/EspBleBluedroid.h`
-  against the pinned EspBle snapshot in `docs/API_PARITY.tsv` and fails on any
-  difference that is not classified there with a reason. See
+  against the pinned EspBle snapshot (`espble.symbols`) and fails on any
+  difference that `docs/API_PARITY.tsv` does not classify with a reason. It also
+  compares what the `*Name()` functions *return* — the enum-to-string maps in
+  `src/EspBleBluedroid.cpp` against `espble.values` — because two libraries can
+  agree on every signature and still hand the application different strings, which
+  no header shows. This suite reads the two committed snapshots, so it needs no
+  EspBle checkout. See
   [../TEST_PLAN.md](../TEST_PLAN.md#pinning-espble-api-agreement-with-tests).
 
 `keymap`, `report_map`, and `midi` cover headers that are verbatim copies of

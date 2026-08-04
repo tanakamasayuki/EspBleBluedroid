@@ -6,6 +6,8 @@
 #
 # side	symbol	reason	note
 # side   espble_only    | bluedroid_only
+# side   espble_value_only | bluedroid_value_only | value_mismatch
+#        (a *Name() mapping, as function/EnumConstant)
 # reason backend (a Bluedroid or radio constraint)
 #        classic (a Bluetooth Classic extension EspBle does not have)
 #        planned (not implemented yet; the note says where it is tracked)
@@ -749,3 +751,4 @@ bluedroid_only	EspBluedroidSppWriteResult::error	classic	Bluetooth Classic exten
 bluedroid_only	EspBluedroidSppWriteResult::length	classic	Bluetooth Classic extension; EspBle is BLE only
 bluedroid_only	EspBluedroidSppWriteResult::sessionId	classic	Bluetooth Classic extension; EspBle is BLE only
 bluedroid_only	EspBluedroidSppWriteResult::success	classic	Bluetooth Classic extension; EspBle is BLE only
+bluedroid_value_only	lastErrorName/EspBleError::Unsupported	classic	error code for a Classic profile the build cannot provide (src/EspBleBluedroidA2dp.cpp, ...Hfp.cpp, ...Avrcp.cpp); EspBle is BLE only and has no such state

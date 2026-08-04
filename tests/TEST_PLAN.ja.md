@@ -61,7 +61,7 @@ Peer側の出力を主にassertする。
 
 「backend制約以外はEspBleに合わせる」という設計方針
 （[docs/API_DESIGN_POLICY.ja.md](../docs/API_DESIGN_POLICY.ja.md)）は、文書だけでは
-劣化する。次の3つをテストで固定する。
+劣化する。次の4つをテストで固定する。
 
 1. **名前と形の整合（unit）**: `api_parity`は`EspBle.h`と`EspBleBluedroid.h`の公開シンボル
    （class、method、struct field、enum定数）を突き合わせ、差分を`docs/API_PARITY.tsv`の
@@ -76,13 +76,13 @@ Peer側の出力を主にassertする。
    無反応になったりせず`lastError()`と理由文字列を返す。テストはその文字列を固定する
    （例: 重複Characteristic UUID、legacy payload超過、実行中GATT操作の二重発行）。
 
-**既知の穴: 整合の対象は名前と形であって戻り値ではない。** parityチェックはシンボルを
-比較するため、全signatureが一致していても戻り値が食い違う余地が残る。未決の実例が1件ある。
-`lastErrorName()`はEspBleが`NONE` / `INVALID_ARGUMENT`、こちらが`None` / `InvalidArgument`
-を返すため、この文字列をログや比較に使うコードは移植できない。backend制約による差ではない。
-方針決定が必要（EspBleの綴りへ寄せる——現在の文字列を固定しているpeer assertionも更新する
-——か、意図的な差として記録するか）。いずれの場合も、次の同種の差がscenarioの偶然ではなく
-テストで捕まるよう、値レベルのチェックを追加する。
+4. **名前と形だけでなく戻り値も固定する（unit）**: signatureが全一致していても、関数が
+   **何を返すか**はheaderに現れない。そこで`api_parity`は`*Name()`関数のenum→文字列対応も
+   `espble.values` snapshotと比較し、差分は同じ表に載せる。これは実害から入った検証で、
+   `lastErrorName()`がEspBleでは`INVALID_ARGUMENT`、こちらでは`InvalidArgument`を返して
+   いたため、この文字列をログや比較に使うsketchは移植できなかった。現在はEspBleの綴りに
+   合わせており、残る差分はこちらにしか存在するenum定数の`UNSUPPORTED`だけである。対象関数は
+   形で発見するので、後から追加された対応表もテストを触らずに比較される。
 
 Classic拡張APIも同じ扱いにする。`classic().spp()`、`classic().a2dpSink()`などのsession API
 は、EspBleのconnection APIと同じ語彙（非同期要求 → `update()`からの完了event、runtime ID、

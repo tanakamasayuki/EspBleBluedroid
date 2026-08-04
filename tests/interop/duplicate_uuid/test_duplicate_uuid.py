@@ -34,7 +34,7 @@ def test_duplicate_uuids_published_by_a_nimble_peripheral(dut, peers):
     bluedroid.write("r")
     bluedroid.expect_exact("LOCAL_BASE_ACCEPTED 1", timeout=20)
     bluedroid.expect_exact(
-        "LOCAL_DUPLICATE_REJECTED 1 error=InvalidArgument "
+        "LOCAL_DUPLICATE_REJECTED 1 error=INVALID_ARGUMENT "
         "detail=this library cannot address duplicate Characteristic UUIDs in "
         "one Service",
         timeout=20,
@@ -74,7 +74,7 @@ def test_duplicate_uuids_published_by_a_nimble_peripheral(dut, peers):
     bluedroid.write("u")
     bluedroid.expect_exact("UUID_READ_REQUESTED 1", timeout=10)
     bluedroid.expect_exact(
-        "READ success=1 error=None handle=%d which=1 hex=4100f1 context=loop"
+        "READ success=1 error=NONE handle=%d which=1 hex=4100f1 context=loop"
         % first_handle,
         timeout=25,
     )
@@ -84,14 +84,14 @@ def test_duplicate_uuids_published_by_a_nimble_peripheral(dut, peers):
     bluedroid.write("1")
     bluedroid.expect_exact("FIRST_READ_REQUESTED 1", timeout=10)
     bluedroid.expect_exact(
-        "READ success=1 error=None handle=%d which=1 hex=4100f1 context=loop"
+        "READ success=1 error=NONE handle=%d which=1 hex=4100f1 context=loop"
         % first_handle,
         timeout=25,
     )
     bluedroid.write("2")
     bluedroid.expect_exact("SECOND_READ_REQUESTED 1", timeout=10)
     bluedroid.expect_exact(
-        "READ success=1 error=None handle=%d which=2 hex=4200f2 context=loop"
+        "READ success=1 error=NONE handle=%d which=2 hex=4200f2 context=loop"
         % second_handle,
         timeout=25,
     )
@@ -101,7 +101,7 @@ def test_duplicate_uuids_published_by_a_nimble_peripheral(dut, peers):
     bluedroid.write("w")
     bluedroid.expect_exact("SECOND_WRITE_REQUESTED 1", timeout=10)
     bluedroid.expect_exact(
-        "WRITE success=1 error=None handle=%d which=2 context=loop"
+        "WRITE success=1 error=NONE handle=%d which=2 context=loop"
         % second_handle,
         timeout=25,
     )

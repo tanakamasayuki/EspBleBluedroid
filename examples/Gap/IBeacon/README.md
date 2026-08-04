@@ -33,6 +33,6 @@ Broadcasts an Apple iBeacon: a non-connectable, non-scannable advertisement whos
 Silent on success. On failure:
 
 ```
-BLE init failed: InvalidState (...)
-Advertising failed: InvalidArgument (...)
+BLE init failed: INVALID_STATE (...)
+Advertising failed: INVALID_ARGUMENT (...)
 ```

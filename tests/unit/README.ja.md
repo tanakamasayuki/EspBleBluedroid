@@ -40,8 +40,12 @@ uv run --env-file .env pytest unit/
   lowバイトのデコード、running status（timestampバイト有無の両方）、
   System Real-Time割り込み、単一/2パケットのSystem Exclusive、異常系パケット、
   packet builder、複数パケットSysEx encoderを扱う。
-- `api_parity`: `src/EspBleBluedroid.h`の公開API面を`docs/API_PARITY.tsv`に固定した
-  EspBleのsnapshotと突き合わせ、理由付きで分類されていない差分があれば失敗する。
+- `api_parity`: `src/EspBleBluedroid.h`の公開API面をEspBleのsnapshot
+  （`espble.symbols`）と突き合わせ、`docs/API_PARITY.tsv`に理由付きで分類されていない
+  差分があれば失敗する。さらに`*Name()`関数の**戻り値**——`src/EspBleBluedroid.cpp`の
+  enum→文字列対応を`espble.values`と比較——も検証する。signatureが完全に一致していても
+  利用側へ渡す文字列が食い違う余地があり、それはheaderには現れないため。committed snapshot
+  2つを読むだけなので、EspBleのcheckoutは不要。
   詳細は[../TEST_PLAN.ja.md](../TEST_PLAN.ja.md#espbleとのapi整合をテストで固定する)。
 
 `keymap`、`report_map`、`midi`が対象とするheaderはEspBleからのverbatim copyであるため、

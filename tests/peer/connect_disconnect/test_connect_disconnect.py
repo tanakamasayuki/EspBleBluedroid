@@ -4,14 +4,14 @@ import re
 def test_connection_id_disconnect_and_deferred_callbacks(dut, peers):
     peripheral = peers["device"]
     dut.expect_exact("DEFAULT_MTU 247", timeout=20)
-    dut.expect_exact("INVALID_ADDRESS_REJECTED 1 error=InvalidArgument", timeout=20)
+    dut.expect_exact("INVALID_ADDRESS_REJECTED 1 error=INVALID_ARGUMENT", timeout=20)
     dut.expect_exact("CENTRAL_READY", timeout=20)
     peripheral.expect_exact("PEER_READY", timeout=20)
 
     dut.write("s")
     dut.expect_exact("SCAN_STARTED 1", timeout=20)
     dut.expect_exact("CONNECT_ACCEPTED 1", timeout=30)
-    dut.expect_exact("CONCURRENT_REJECTED 1 error=InvalidState", timeout=20)
+    dut.expect_exact("CONCURRENT_REJECTED 1 error=INVALID_STATE", timeout=20)
     dut.expect_exact("UPDATE_PAUSED", timeout=20)
     peripheral.expect_exact("PEER_CONNECTED", timeout=20)
 
@@ -48,7 +48,7 @@ def test_connection_id_disconnect_and_deferred_callbacks(dut, peers):
     dut.write("r")
     dut.expect_exact("RECONNECT_SCAN_STARTED 1", timeout=20)
     dut.expect_exact("CONNECT_ACCEPTED 1", timeout=30)
-    dut.expect_exact("CONCURRENT_REJECTED 1 error=InvalidState", timeout=20)
+    dut.expect_exact("CONCURRENT_REJECTED 1 error=INVALID_STATE", timeout=20)
     dut.expect_exact("UPDATE_PAUSED", timeout=20)
     peripheral.expect_exact("PEER_CONNECTED", timeout=20)
     dut.write("u")
@@ -111,7 +111,7 @@ def test_end_established_connection_and_reinitialize(dut, peers):
     dut.write("z")
     dut.expect_exact("END_ESTABLISHED_SCAN_STARTED 1", timeout=20)
     dut.expect_exact("CONNECT_ACCEPTED 1", timeout=30)
-    dut.expect_exact("CONCURRENT_REJECTED 1 error=InvalidState", timeout=20)
+    dut.expect_exact("CONCURRENT_REJECTED 1 error=INVALID_STATE", timeout=20)
     dut.expect_exact("UPDATE_PAUSED", timeout=20)
     peripheral.expect_exact("PEER_CONNECTED", timeout=20)
     dut.write("u")

@@ -12,7 +12,7 @@ def test_public_a2dp_source_supplies_pcm_and_queues_control_events(dut, peers):
 
     dut.write("i")
     dut.expect_exact(
-        "A2DP_SOURCE_PREBEGIN_REJECTED 1 error=InvalidState", timeout=30
+        "A2DP_SOURCE_PREBEGIN_REJECTED 1 error=INVALID_STATE", timeout=30
     )
     dut.expect_exact("AVRCP_TG_START_ACCEPTED 1", timeout=30)
     dut.expect_exact("A2DP_SOURCE_START_ACCEPTED 1", timeout=30)

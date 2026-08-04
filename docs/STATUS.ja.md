@@ -9,7 +9,7 @@
 | 領域 | 公開面 | 確認内容 |
 |---|---|---|
 | Lifecycle | `begin()` / `end()` / `update()` / `initialized()` | 初期化前操作拒否、同一設定の再実行、接続試行・active linkの終了 |
-| Error | `lastError()` / `lastErrorName()` / `lastErrorDetail()` | state・argument・backend・resource・unsupportedの分類 |
+| Error | `lastError()` / `lastErrorName()` / `lastErrorDetail()` | state・argument・backend・resource・unsupportedの分類。`lastErrorName()`の文字列はEspBleと同一（`NONE`・`INVALID_ARGUMENT`など。`tests/unit/api_parity`が固定） |
 | Advertising | `data()` / `scanResponse()`、name、service UUID/data、manufacturer data、appearance、Tx Power、connectable、interval、開始・停止 | 2面の独立構成、raw PDU、複数UUIDの集約、31 byte境界、時間停止を実機確認 |
 | iBeacon | `EspBleIBeacon.h` encode / decode | EspBle共通codecのunit testとnon-connectable broadcast/scanを実機確認 |
 | UUID codec | `EspBleUuid.h` parse / format / compare | EspBle共通codecで16/32/128-bit、短縮形とBluetooth Base UUIDの等価性をunit test |

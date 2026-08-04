@@ -33,6 +33,6 @@ Apple iBeaconをbroadcastします。non-connectable・non-scannableなadvertise
 成功時は何も表示しません。失敗時:
 
 ```
-BLE init failed: InvalidState (...)
-Advertising failed: InvalidArgument (...)
+BLE init failed: INVALID_STATE (...)
+Advertising failed: INVALID_ARGUMENT (...)
 ```

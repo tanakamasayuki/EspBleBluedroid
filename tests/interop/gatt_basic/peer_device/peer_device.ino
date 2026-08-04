@@ -45,13 +45,13 @@ const char *errorName(EspBleError error)
 {
   switch (error)
   {
-    case EspBleError::None: return "None";
-    case EspBleError::InvalidState: return "InvalidState";
-    case EspBleError::InvalidArgument: return "InvalidArgument";
-    case EspBleError::BackendFailure: return "BackendFailure";
-    case EspBleError::NotFound: return "NotFound";
-    case EspBleError::Timeout: return "Timeout";
-    default: return "Other";
+    case EspBleError::None: return "NONE";
+    case EspBleError::InvalidState: return "INVALID_STATE";
+    case EspBleError::InvalidArgument: return "INVALID_ARGUMENT";
+    case EspBleError::BackendFailure: return "BACKEND_FAILURE";
+    case EspBleError::NotFound: return "NOT_FOUND";
+    case EspBleError::Timeout: return "TIMEOUT";
+    default: return "OTHER";
   }
 }
 

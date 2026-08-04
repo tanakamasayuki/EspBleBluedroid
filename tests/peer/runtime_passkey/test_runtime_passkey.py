@@ -4,7 +4,7 @@ import re
 def test_runtime_passkey_entry(dut, peers):
     peripheral = peers["device"]
     dut.expect_exact(
-        "RUNTIME_PASSKEY_INVALID_REJECTED 1 error=InvalidArgument", timeout=20
+        "RUNTIME_PASSKEY_INVALID_REJECTED 1 error=INVALID_ARGUMENT", timeout=20
     )
     dut.expect_exact("RUNTIME_PASSKEY_CENTRAL_READY", timeout=20)
     peripheral.expect_exact("RUNTIME_PASSKEY_PEER_READY", timeout=20)

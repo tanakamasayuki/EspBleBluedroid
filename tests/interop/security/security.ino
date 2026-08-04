@@ -77,7 +77,9 @@ bool startWithMode(char mode)
   // previous test wrote would otherwise be what the next one reads.
   ble.gattServer().setValue(encrypted, String("encrypted-ready"));
   ble.gattServer().setValue(authenticated, String("authenticated-ready"));
-  ble.advertising().setName(config.deviceName);
+  // The name is left to the automatic scan-response placement: the 128-bit
+  // service UUID plus flags already take 21 of the 31 advertising bytes, and this
+  // name would not fit beside them.
   ble.advertising().addServiceUuid(SERVICE_UUID);
   return ble.advertising().start();
 }

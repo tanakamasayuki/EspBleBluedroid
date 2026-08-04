@@ -8,7 +8,7 @@ def test_public_spp_server_bidirectional_data_and_disconnect(dut, peers):
 
     dut.write("i")
     dut.expect_exact("SPP_CAPABILITIES classic=1 spp=1", timeout=30)
-    dut.expect_exact("SPP_PREBEGIN_REJECTED 1 error=InvalidState", timeout=30)
+    dut.expect_exact("SPP_PREBEGIN_REJECTED 1 error=INVALID_STATE", timeout=30)
     dut.expect_exact("SPP_SERVER_START_ACCEPTED 1", timeout=30)
     started = dut.expect(
         re.compile(

@@ -26,7 +26,7 @@ def test_high_duty_directed_advertising_connects_only_target(dut, peers):
     peripheral.write(f"h{central_address}\n")
     peripheral.expect_exact(
         f"DIRECTED_STARTED success=1 mode=high target={central_address} "
-        "advertising=1 error=None",
+        "advertising=1 error=NONE",
         timeout=10,
     )
     dut.expect(
@@ -47,7 +47,7 @@ def test_high_duty_directed_advertising_connects_only_target(dut, peers):
     peripheral.write(f"h{central_address}\n")
     peripheral.expect_exact(
         f"DIRECTED_STARTED success=1 mode=high target={central_address} "
-        "advertising=1 error=None",
+        "advertising=1 error=NONE",
         timeout=10,
     )
     time.sleep(1.5)
@@ -57,7 +57,7 @@ def test_high_duty_directed_advertising_connects_only_target(dut, peers):
     peripheral.write(f"l{central_address}\n")
     peripheral.expect_exact(
         f"DIRECTED_STARTED success=1 mode=low target={central_address} "
-        "advertising=1 error=None",
+        "advertising=1 error=NONE",
         timeout=10,
     )
     time.sleep(1.5)

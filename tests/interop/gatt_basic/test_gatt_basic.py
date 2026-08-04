@@ -66,7 +66,7 @@ def test_bluedroid_central_against_an_espble_peripheral(dut, peers):
     bluedroid.write("r")
     bluedroid.expect_exact("READ_REQUESTED 1", timeout=10)
     bluedroid.expect_exact(
-        "READ success=1 error=None length=4 hex=1a00fe2b context=loop", timeout=25
+        "READ success=1 error=NONE length=4 hex=1a00fe2b context=loop", timeout=25
     )
 
     # Write with a response, then without: the peer must see the same bytes both
@@ -74,14 +74,14 @@ def test_bluedroid_central_against_an_espble_peripheral(dut, peers):
     bluedroid.write("w")
     bluedroid.expect_exact("WRITE_REQUESTED 1", timeout=10)
     bluedroid.expect_exact(
-        "WRITE success=1 error=None response=1 context=loop", timeout=25
+        "WRITE success=1 error=NONE response=1 context=loop", timeout=25
     )
     espble.expect_exact("ESPBLE_WRITE length=4 hex=2a00fa5e context=loop", timeout=20)
 
     bluedroid.write("W")
     bluedroid.expect_exact("WRITE_NO_RESPONSE_REQUESTED 1", timeout=10)
     bluedroid.expect_exact(
-        "WRITE success=1 error=None response=0 context=loop", timeout=25
+        "WRITE success=1 error=NONE response=0 context=loop", timeout=25
     )
     espble.expect_exact("ESPBLE_WRITE length=4 hex=2a00fa5e context=loop", timeout=20)
 
@@ -89,13 +89,13 @@ def test_bluedroid_central_against_an_espble_peripheral(dut, peers):
     bluedroid.write("e")
     bluedroid.expect_exact("DESCRIPTOR_READ_REQUESTED 1", timeout=10)
     bluedroid.expect_exact(
-        "DESCRIPTOR_READ success=1 error=None length=3 hex=1d00fd context=loop",
+        "DESCRIPTOR_READ success=1 error=NONE length=3 hex=1d00fd context=loop",
         timeout=25,
     )
     bluedroid.write("f")
     bluedroid.expect_exact("DESCRIPTOR_WRITE_REQUESTED 1", timeout=10)
     bluedroid.expect_exact(
-        "DESCRIPTOR_WRITE success=1 error=None context=loop", timeout=25
+        "DESCRIPTOR_WRITE success=1 error=NONE context=loop", timeout=25
     )
 
     # Notification: CCCD 0x0001 written by one stack, delivered by the other.

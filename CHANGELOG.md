@@ -69,6 +69,30 @@
   確認。encryptedとauthenticatedの権限2段をCharacteristicで表現し、Just Works linkでは
   authenticated側が拒否され、Passkey Entry linkではRead/Writeできることを観測する。
   NVSのbondは事前に消す（残っていると pairingせずに通ってしまう）。実機で確認済み。
+- (EN) `lastErrorName()` now returns EspBle's spelling: `NONE`,
+  `INVALID_ARGUMENT`, `INVALID_STATE`, … instead of `None`, `InvalidArgument`,
+  `InvalidState`. **Behaviour change** for code that logs or compares the string —
+  the `EspBleError` enum constants themselves are unchanged. The two libraries had
+  the same signature and different strings, so a sketch moved between them printed
+  something different; nothing in the backend forced that. `UNSUPPORTED` has no
+  EspBle counterpart because the enum constant exists only here (Classic profiles).
+- (JA) `lastErrorName()`の戻り値をEspBleの綴りに統一。`None`・`InvalidArgument`・
+  `InvalidState`などを`NONE`・`INVALID_ARGUMENT`・`INVALID_STATE`へ変更した。この文字列を
+  ログや比較に使っているコードには**挙動変更**（`EspBleError`のenum定数自体は変更なし）。
+  signatureは同じで文字列だけが違ったため、sketchを移すと表示が変わっていた。backend制約に
+  よる差ではない。`UNSUPPORTED`はこちらにしか存在しないenum定数（Classic profile用）のため
+  EspBleに対応がない。
+- (EN) `tests/unit/api_parity` now also compares what the `*Name()` functions
+  return, not only that they exist: the enum-to-string maps in
+  `src/EspBleBluedroid.cpp` against the new `espble.values` snapshot, with every
+  difference classified in `docs/API_PARITY.tsv` like a missing symbol. The target
+  functions are found by shape, so a name map added later is covered without
+  editing the test. `tools/gen_api_parity.py` gained `--espble-source`.
+- (JA) `tests/unit/api_parity`が`*Name()`関数の**戻り値**も比較するようになった。
+  `src/EspBleBluedroid.cpp`のenum→文字列対応を新しい`espble.values` snapshotと突き合わせ、
+  差分はシンボル差と同じく`docs/API_PARITY.tsv`で分類する。対象関数は形で発見するため、
+  後から追加された対応表もテスト改修なしで比較対象になる。`tools/gen_api_parity.py`に
+  `--espble-source`を追加。
 - (EN) CI: the unit-test step of `compile-examples.yml` now runs `pytest unit/`
   instead of repeating the g++ command lines, which had gone stale after the unit
   suites moved into per-suite directories (it still referenced

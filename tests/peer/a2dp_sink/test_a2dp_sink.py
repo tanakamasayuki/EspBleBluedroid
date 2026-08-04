@@ -11,7 +11,7 @@ def test_public_a2dp_sink_receives_pcm_and_queues_control_events(dut, peers):
 
     dut.write("i")
     dut.expect_exact(
-        "A2DP_SINK_PREBEGIN_REJECTED 1 error=InvalidState", timeout=30
+        "A2DP_SINK_PREBEGIN_REJECTED 1 error=INVALID_STATE", timeout=30
     )
     dut.expect_exact("AVRCP_CT_START_ACCEPTED 1", timeout=30)
     dut.expect_exact("A2DP_SINK_START_ACCEPTED 1", timeout=30)

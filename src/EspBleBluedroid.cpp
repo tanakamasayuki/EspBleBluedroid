@@ -7625,16 +7625,21 @@ const char *EspBleBluedroid::lastErrorName() const
 {
   switch (lastError_)
   {
-  case EspBleError::None: return "None";
-  case EspBleError::InvalidState: return "InvalidState";
-  case EspBleError::InvalidArgument: return "InvalidArgument";
-  case EspBleError::BackendFailure: return "BackendFailure";
-  case EspBleError::ResourceExhausted: return "ResourceExhausted";
-  case EspBleError::NotFound: return "NotFound";
-  case EspBleError::Timeout: return "Timeout";
-  case EspBleError::Unsupported: return "Unsupported";
+  // SCREAMING_SNAKE_CASE, matching EspBle::lastErrorName() exactly. The spelling
+  // is part of the API: application code logs and compares these strings, so a
+  // sketch has to read the same either way round. `UNSUPPORTED` has no EspBle
+  // counterpart because the enum constant does not exist there (see
+  // docs/API_PARITY.tsv).
+  case EspBleError::None: return "NONE";
+  case EspBleError::InvalidState: return "INVALID_STATE";
+  case EspBleError::InvalidArgument: return "INVALID_ARGUMENT";
+  case EspBleError::BackendFailure: return "BACKEND_FAILURE";
+  case EspBleError::ResourceExhausted: return "RESOURCE_EXHAUSTED";
+  case EspBleError::NotFound: return "NOT_FOUND";
+  case EspBleError::Timeout: return "TIMEOUT";
+  case EspBleError::Unsupported: return "UNSUPPORTED";
   }
-  return "Unknown";
+  return "UNKNOWN";
 }
 
 const String &EspBleBluedroid::lastErrorDetail() const

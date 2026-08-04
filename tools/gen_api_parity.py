@@ -8,7 +8,13 @@ This tool produces that snapshot from an EspBle header and refreshes
 exists.
 
     python3 tools/gen_api_parity.py --espble-header ../EspBle/src/EspBle.h \
+                                    --espble-source ../EspBle/src/EspBle.cpp \
                                     --espble-version 1.1.0
+
+The snapshot has two parts: `espble.symbols` (names and shapes, from the header)
+and `espble.values` (the enum-to-string maps of the `*Name()` functions, from the
+implementation). The second exists because two libraries can agree on every
+signature and still return different strings — see tests/unit/api_parity/values.py.
 
 Rows the tool cannot classify are written with reason `TODO`, which makes the
 test fail until a human decides whether the difference is a backend constraint, a
@@ -26,10 +32,13 @@ PARITY_DIR = REPOSITORY / "tests" / "unit" / "api_parity"
 sys.path.insert(0, str(PARITY_DIR))
 
 import symbols as symbol_extractor  # noqa: E402
+import values as value_extractor  # noqa: E402
 
 TABLE = REPOSITORY / "docs" / "API_PARITY.tsv"
 SNAPSHOT = PARITY_DIR / "espble.symbols"
+VALUE_SNAPSHOT = PARITY_DIR / "espble.values"
 HEADER = REPOSITORY / "src" / "EspBleBluedroid.h"
+SOURCE = REPOSITORY / "src" / "EspBleBluedroid.cpp"
 
 AUTO_RULES = (
     (
@@ -71,6 +80,14 @@ AUTO_RULES = (
         "classic",
         "Bluetooth Classic extension; EspBle is BLE only",
     ),
+    (
+        "bluedroid_value_only",
+        re.compile(r"^lastErrorName/EspBleError::Unsupported$"),
+        "classic",
+        "error code for a Classic profile the build cannot provide "
+        "(src/EspBleBluedroidA2dp.cpp, ...Hfp.cpp, ...Avrcp.cpp); EspBle is BLE "
+        "only and has no such state",
+    ),
 )
 
 
@@ -99,6 +116,7 @@ def read_table():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--espble-header", required=True)
+    parser.add_argument("--espble-source", required=True)
     parser.add_argument("--espble-version", required=True)
     arguments = parser.parse_args()
 
@@ -118,9 +136,41 @@ def main():
     snapshot_lines.extend(sorted(espble))
     SNAPSHOT.write_text("\n".join(snapshot_lines) + "\n")
 
+    espble_source = pathlib.Path(arguments.espble_source)
+    espble_source_text = espble_source.read_text()
+    espble_values = value_extractor.flatten(
+        value_extractor.extract(espble_source_text))
+    our_values = value_extractor.flatten(
+        value_extractor.extract(SOURCE.read_text()))
+    value_digest = hashlib.sha256(espble_source_text.encode()).hexdigest()
+    value_lines = [
+        "# Enum-to-string maps of EspBle's public *Name() functions, used by",
+        "# tests/unit/api_parity. Two libraries can agree on every signature and",
+        "# still return different strings, which no header shows.",
+        "# Regenerate with tools/gen_api_parity.py; never edit by hand.",
+        "# espble_version\t%s" % arguments.espble_version,
+        "# espble_source\t%s" % espble_source.name,
+        "# sha256\t%s" % value_digest,
+    ]
+    value_lines.extend(
+        "%s\t%s\t%s" % (function, key, value)
+        for (function, key), value in sorted(espble_values.items())
+    )
+    VALUE_SNAPSHOT.write_text("\n".join(value_lines) + "\n")
+
     existing = read_table()
     differences = [("espble_only", symbol) for symbol in sorted(espble - ours)]
     differences += [("bluedroid_only", symbol) for symbol in sorted(ours - espble)]
+    # Value differences use the same table, so one place accounts for every
+    # divergence from EspBle whatever its kind.
+    for key in sorted(set(espble_values) | set(our_values)):
+        symbol = "%s/%s" % key
+        if key not in our_values:
+            differences.append(("espble_value_only", symbol))
+        elif key not in espble_values:
+            differences.append(("bluedroid_value_only", symbol))
+        elif espble_values[key] != our_values[key]:
+            differences.append(("value_mismatch", symbol))
 
     lines = [
         "# Classified differences between EspBle's public API and this library's.",
@@ -131,6 +181,8 @@ def main():
         "#",
         "# side\tsymbol\treason\tnote",
         "# side   espble_only    | bluedroid_only",
+        "# side   espble_value_only | bluedroid_value_only | value_mismatch",
+        "#        (a *Name() mapping, as function/EnumConstant)",
         "# reason backend (a Bluedroid or radio constraint)",
         "#        classic (a Bluetooth Classic extension EspBle does not have)",
         "#        planned (not implemented yet; the note says where it is tracked)",
@@ -145,8 +197,11 @@ def main():
         lines.append("\t".join((side, symbol, reason, note)))
     TABLE.write_text("\n".join(lines) + "\n")
 
-    print("EspBle %s (%s)" % (arguments.espble_version, digest[:12]))
+    print("EspBle %s (header %s, source %s)"
+          % (arguments.espble_version, digest[:12], value_digest[:12]))
     print("espble symbols: %d, ours: %d" % (len(espble), len(ours)))
+    print("espble name-map entries: %d, ours: %d"
+          % (len(espble_values), len(our_values)))
     print("differences: %d (%d need classification)" % (len(differences), todo))
     stale = [key for key in existing if key not in set(differences)]
     for side, symbol in sorted(stale):
