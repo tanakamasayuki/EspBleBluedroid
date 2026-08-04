@@ -3,7 +3,7 @@
 > 日本語版: [README.ja.md](README.ja.md)
 > Differences from EspBle: [DIFFERENCES_FROM_ESPBLE.md](DIFFERENCES_FROM_ESPBLE.md)
 
-93 examples for the **original ESP32** — the ESP32 SoC with Bluetooth Classic —
+94 examples for the **original ESP32** — the ESP32 SoC with Bluetooth Classic —
 built on the Bluedroid backend bundled with Arduino-ESP32.
 
 The BLE examples are ported from the sibling library
@@ -163,6 +163,12 @@ exclusively — it is the only ESP32 family member with Bluetooth Classic.
 | [Security/RuntimePasskeyClient](Security/RuntimePasskeyClient/) | Central | Supply a per-pairing passkey at run time with `providePasskey()` |
 | [Security/NumericComparisonClient](Security/NumericComparisonClient/) | Central | Confirm the six digits shown on both sides |
 
+### HID over GATT
+
+| Example | Role | Description |
+|---|---|---|
+| [Hid/KeyboardDevice](Hid/KeyboardDevice/) | Peripheral | BLE HID keyboard: reports, the host's LED output report, Protocol Mode, battery |
+
 ### BLE MIDI
 
 | Example | Role | Description |
@@ -211,6 +217,7 @@ exclusively — it is the only ESP32 family member with Bluetooth Classic.
 - Security/JustWorksServer ↔ Security/JustWorksClient
 - Security/StaticPasskeyServer ↔ Security/StaticPasskeyClient
 - Security/RuntimePasskeyClient and NumericComparisonClient ↔ a phone, an EspBle board, or a raw ESP-IDF peer ([Security/README.md](Security/README.md))
+- Hid/KeyboardDevice ↔ a PC, phone or tablet (pair from the OS Bluetooth settings)
 - Midi/MidiDevice ↔ Midi/MidiHost (or a phone/tablet DAW, or a commercial BLE MIDI instrument)
 - Classic/SppServer ↔ Classic/SppClient, Classic/SppSerialServer ↔ Classic/SppSerialClient
 - Classic/A2dpSource ↔ Classic/A2dpSink, Classic/HfpAudioGateway ↔ Classic/HfpHandsFree

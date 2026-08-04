@@ -56,3 +56,11 @@ Centralがhandle keyのmapを辿り（wrapperのUUID key mapは重複の一方�
 2つの値、2つのReport Reference相当のDescriptor、2つのCCCDを読み出します。2件目のhandleへの
 Writeは2件目のCharacteristicへ帰属し、Notificationは送信元handleへ届きます。これはHID over
 GATTの前提です（キーボードのReport Characteristicはすべて0x2a4dを持つため）。
+`hid_keyboard_device`は、HID over GATTのkeyboardをhost OS役のraw Arduino-ESP32
+Central相手に検証します。Report Mapのlong read（既定MTU）が`tests/unit/hid_report_maps`で
+固定したdescriptorと完全一致すること、2件の0x2A4D Report CharacteristicがReport Reference
+descriptorで区別できること、Input Report Notificationが8 byteのkeyboard layoutを運ぶこと、
+HostのLED writeが`onOutputReport()`と`ledState()`に返ること、Protocol Mode writeが
+報告されること、Device InformationとBatteryが`configure()`に渡した値であることを確認します。
+呼び出し側が区別する必要のある2つの拒否理由（`no connected HID Host`と
+`no subscribed HID Host`）、および切断後に`ready()`もLED状態も残らないことも固定します。

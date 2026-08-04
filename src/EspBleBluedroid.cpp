@@ -5834,7 +5834,9 @@ void EspBluedroidClassic::update()
 }
 
 EspBleBluedroid::EspBleBluedroid()
-    : advertising_(this), scanner_(this), gattServer_(this), classic_(this)
+    : advertising_(this), scanner_(this), gattServer_(this),
+    hidKeyboard_(this), hidMouse_(this), hidConsumerControl_(this),
+    hidSystemControl_(this), hidGamepad_(this), classic_(this)
 {
 }
 
@@ -6085,6 +6087,19 @@ bool EspBleBluedroid::begin(const EspBleConfig &config)
     BLEDevice::setSecurityCallbacks(nullptr);
   }
 
+  // Before the attribute table is built: the HID profiles raise their permission
+  // tiers now that whether security is enabled is known.
+  if (!hidKeyboard_.applySecurity(config.security.enabled))
+  {
+    classic_.end();
+    BLEDevice::setSecurityCallbacks(nullptr);
+    BLEDevice::deinit(false);
+    gattServer_.resetBackend();
+    delete connectionImpl_;
+    connectionImpl_ = nullptr;
+    return false;
+  }
+
   if (!gattServer_.realize())
   {
     classic_.end();
@@ -6169,6 +6184,9 @@ void EspBleBluedroid::end()
   BLESecurity::setForceAuthentication(false);
   BLEDevice::deinit(false);
   gattServer_.resetBackend();
+  // A previous host's subscription, LED state and protocol mode must not survive
+  // into the next begin().
+  hidKeyboard_.resetBackend();
   BLEDevice::setCustomGattcHandler(nullptr);
   BLEDevice::setCustomGapHandler(nullptr);
   EspBleConnectionImpl::customGattcOwner = nullptr;
@@ -6292,6 +6310,35 @@ EspBleScanner &EspBleBluedroid::scanner()
 EspBleGattServer &EspBleBluedroid::gattServer()
 {
   return gattServer_;
+}
+
+EspBleHidKeyboard &EspBleBluedroid::hidKeyboard()
+{
+  return hidKeyboard_;
+}
+
+EspBleHidMouse &EspBleBluedroid::hidMouse() { return hidMouse_; }
+
+EspBleHidConsumerControl &EspBleBluedroid::hidConsumerControl()
+{
+  return hidConsumerControl_;
+}
+
+EspBleHidSystemControl &EspBleBluedroid::hidSystemControl()
+{
+  return hidSystemControl_;
+}
+
+EspBleHidGamepad &EspBleBluedroid::hidGamepad() { return hidGamepad_; }
+
+namespace
+{
+// Keeps the accessor definitions above from being mistaken for the keyboard's.
+}
+
+EspBleHidKeyboard &espBleBluedroidUnusedKeyboardAccessor(EspBleBluedroid &owner)
+{
+  return owner.hidKeyboard();
 }
 
 EspBluedroidClassic &EspBleBluedroid::classic()

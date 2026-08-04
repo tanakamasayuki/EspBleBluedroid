@@ -144,6 +144,7 @@ Add a row here before using a new tag.
 | `0007` | `peripheral_connection` |
 | `0008` | `multi_listener` |
 | `000b` | `duplicate_uuid_server` |
+| `000c` | `hid_keyboard_device` — a tag only: the HID over GATT UUIDs are fixed by the specification, so this suite is isolated by device name (`Bluedroid HID 000c`) |
 | `0009` / `000a` | `midi_device` / `midi_host` — **tags only, not UUIDs**: the BLE MIDI service and characteristic UUIDs are fixed by the specification, so these suites cannot pick unused ones. Isolation is by device name instead (`Bluedroid MIDI 0009`, `Bluedroid MIDI Peer 000a`), and each side requires both the name and the service UUID to match |
 | `01xx` | reserved for interop scenarios (`0100` = `interop/gatt_basic`, `0101` = `interop/advertise_scan`, `0102` = `interop/long_value`, `0103` = `interop/duplicate_uuid`, `0104` = `interop/security`, `0105` = `interop/profile_wire`; `0106` = `interop/midi`, a tag only — the BLE MIDI UUIDs are fixed by the specification, so that scenario is isolated by device name (`EspBle MIDI Device 0106` / `Bluedroid MIDI Device 0106`) with the role in the name) |
 
@@ -329,7 +330,8 @@ once its prerequisites are met.
 | BLE MIDI packet codec | ✅ `unit/midi` | — | — | |
 | Multi-observer dispatch (`add*Listener()`) | | ✅ | ✅ `multi_listener` | |
 | BLE MIDI device / host | ✅ codec above | ✅ | ✅ `midi_device` / `midi_host` | ✅ `interop/midi` (both directions) |
-| HID device (keyboard / mouse / consumer / system / gamepad / vendor) | parser above | planned | planned `hid_keyboard_device`, `hid_robustness`, `hid_security`, `hid_boot_protocol`, `hid_custom`, `hid_convenience` | planned `interop/hid` |
+| HID device — keyboard | ✅ descriptors above | ✅ | ✅ `hid_keyboard_device` | planned `interop/hid` |
+| HID device — mouse / consumer / system / gamepad / vendor / custom | parser above | planned | planned `hid_robustness`, `hid_security`, `hid_boot_protocol`, `hid_custom`, `hid_convenience` | planned `interop/hid` |
 | HID host | parser above | planned | planned `hid_keyboard_host`, `hid_boot_keyboard`, `hid_keyboard_nkro` | planned `interop/hid` |
 
 ### Bluetooth Classic / dual mode (specific to this library)
@@ -472,9 +474,11 @@ Start with the gaps that need no implementation work.
   with the library reference retyped; both peer tests decode the BLE MIDI header
   with their own arithmetic, so the wire format is checked against the
   specification rather than against the same codec twice
-- BLE HID device. The duplicate-characteristic-UUID restriction it needed is
-  lifted (`duplicate_uuid_server` reads the published pair back from a peer), so
-  what remains is the profile itself → HID host
+- BLE HID device: ✅ keyboard (`src/EspBleBluedroidHid.cpp`, `hid_keyboard_device`,
+  [examples/Hid/KeyboardDevice](../examples/Hid/KeyboardDevice/)) — 81 rows left
+  `docs/API_PARITY.tsv`. The remaining profiles (mouse, consumer control, system
+  control, gamepad, vendor, `hidCustom()`) join the same HID service through the
+  shared manager, then the boot-protocol and security scenarios → HID host
 
 **interop**: each layer moves into `interop/` once its API and wire behaviour
 settle. `gatt_basic`, `advertise_scan`, `long_value`, `duplicate_uuid`,

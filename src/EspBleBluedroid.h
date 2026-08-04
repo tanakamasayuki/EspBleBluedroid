@@ -11,6 +11,7 @@
 #error "EspBleBluedroid requires the Bluedroid backend bundled with Arduino-ESP32"
 #endif
 
+#include "EspBleKeymap.h"
 #include "espblebluedroid_version.h"
 
 enum class EspBleError : uint8_t
@@ -486,6 +487,194 @@ struct EspBleGattSendResult
   String detail;
 };
 
+// ---------------------------------------------------------------------------
+// HID over GATT (HOGP) device profiles.
+//
+// The report IDs, the report structures and the class API are EspBle's, so a HID
+// sketch ports across with a rename. The descriptors published for each profile
+// are byte-identical too (src/internal/EspBleBluedroidHidReportMaps.h, pinned by
+// tests/unit/hid_report_maps) — a host OS parses them to decide what the device
+// is, so they are a wire format rather than an implementation choice.
+// ---------------------------------------------------------------------------
+
+static constexpr uint8_t ESP_BLE_HID_REPORT_ID_KEYBOARD = 0x01;
+static constexpr uint8_t ESP_BLE_HID_REPORT_ID_MOUSE = 0x02;
+static constexpr uint8_t ESP_BLE_HID_REPORT_ID_GAMEPAD = 0x03;
+static constexpr uint8_t ESP_BLE_HID_REPORT_ID_CONSUMER_CONTROL = 0x04;
+static constexpr uint8_t ESP_BLE_HID_REPORT_ID_SYSTEM_CONTROL = 0x05;
+static constexpr uint8_t ESP_BLE_HID_REPORT_ID_VENDOR = 0x06;
+
+enum EspBleHidReportType : uint8_t
+{
+  ESP_BLE_HID_REPORT_TYPE_INPUT = 0x01,
+  ESP_BLE_HID_REPORT_TYPE_OUTPUT = 0x02,
+  ESP_BLE_HID_REPORT_TYPE_FEATURE = 0x03,
+};
+
+static constexpr uint8_t ESP_BLE_HID_MOUSE_LEFT = 0x01;
+static constexpr uint8_t ESP_BLE_HID_MOUSE_RIGHT = 0x02;
+static constexpr uint8_t ESP_BLE_HID_MOUSE_MIDDLE = 0x04;
+static constexpr uint8_t ESP_BLE_HID_MOUSE_BACK = 0x08;
+static constexpr uint8_t ESP_BLE_HID_MOUSE_FORWARD = 0x10;
+
+// Hat switch positions, in the order the gamepad descriptor declares them.
+static constexpr uint8_t ESP_BLE_HID_GAMEPAD_HAT_CENTER = 0x00;
+static constexpr uint8_t ESP_BLE_HID_GAMEPAD_HAT_UP = 0x01;
+static constexpr uint8_t ESP_BLE_HID_GAMEPAD_HAT_UP_RIGHT = 0x02;
+static constexpr uint8_t ESP_BLE_HID_GAMEPAD_HAT_RIGHT = 0x03;
+static constexpr uint8_t ESP_BLE_HID_GAMEPAD_HAT_DOWN_RIGHT = 0x04;
+static constexpr uint8_t ESP_BLE_HID_GAMEPAD_HAT_DOWN = 0x05;
+static constexpr uint8_t ESP_BLE_HID_GAMEPAD_HAT_DOWN_LEFT = 0x06;
+static constexpr uint8_t ESP_BLE_HID_GAMEPAD_HAT_LEFT = 0x07;
+static constexpr uint8_t ESP_BLE_HID_GAMEPAD_HAT_UP_LEFT = 0x08;
+
+struct EspBleHidDeviceConfig
+{
+  const char *manufacturer = "EspBle";
+  uint16_t vendorId = 0xffff;
+  uint16_t productId = 0x0001;
+  uint16_t productVersion = 0x0001;
+  uint8_t countryCode = 0;
+  uint8_t initialBatteryLevel = 100;
+};
+
+struct EspBleHidKeyboardConfig : EspBleHidDeviceConfig
+{
+  EspBleKeyboardLayout layout = EspBleKeyboardLayout::EnUs;
+  // Expose HID over GATT Boot Protocol (Protocol Mode 0x2A4E + Boot Keyboard
+  // Input/Output Reports 0x2A22/0x2A32). Off by default: most HOGP hosts use
+  // Report Protocol Mode, and the extra characteristics enlarge every host's
+  // discovery. Enable only for hosts that need Boot Protocol (e.g. a BIOS).
+  bool bootProtocol = false;
+};
+
+struct EspBleHidMouseConfig : EspBleHidDeviceConfig
+{
+  uint8_t buttons = 5;
+};
+
+struct EspBleHidConsumerControlConfig : EspBleHidDeviceConfig {};
+struct EspBleHidSystemControlConfig : EspBleHidDeviceConfig {};
+struct EspBleHidGamepadConfig : EspBleHidDeviceConfig {};
+
+struct EspBleHidKeyboardInputReport
+{
+  static constexpr uint8_t LeftControl = 0x01;
+  static constexpr uint8_t LeftShift = 0x02;
+  static constexpr uint8_t LeftAlt = 0x04;
+  static constexpr uint8_t LeftGui = 0x08;
+  static constexpr uint8_t RightControl = 0x10;
+  static constexpr uint8_t RightShift = 0x20;
+  static constexpr uint8_t RightAlt = 0x40;
+  static constexpr uint8_t RightGui = 0x80;
+
+  uint8_t modifiers = 0;
+  uint8_t keys[6] = {};
+};
+
+struct EspBleHidMouseReport
+{
+  uint8_t buttons = 0;
+  int8_t x = 0;
+  int8_t y = 0;
+  int8_t wheel = 0;
+};
+
+struct EspBleHidGamepadReport
+{
+  int8_t x = 0;
+  int8_t y = 0;
+  int8_t z = 0;
+  int8_t rz = 0;
+  int8_t rx = 0;
+  int8_t ry = 0;
+  uint8_t hat = ESP_BLE_HID_GAMEPAD_HAT_CENTER;
+  uint32_t buttons = 0;
+};
+
+using EspBleHidKeyboardReport = EspBleHidKeyboardInputReport;
+
+// Full NKRO keyboard state in one report: modifier byte + a bitmap of usages
+// 0x00-0xDF (the EspUsbDevice-compatible 29-byte layout). Modifier usages
+// 0xE0-0xE7 live in `modifiers`, not the bitmap, and press() / release() route
+// them there automatically.
+struct EspBleHidKeyboardNkroReport
+{
+  static constexpr size_t BitmapSize = 28;
+  static constexpr uint8_t MaxBitmapUsage = 0xdf;
+
+  uint8_t modifiers = 0;
+  // A bitmap, not a usage array.
+  uint8_t bitmap[BitmapSize] = {};
+
+  void clear()
+  {
+    modifiers = 0;
+    for (size_t index = 0; index < BitmapSize; ++index) bitmap[index] = 0;
+  }
+
+  // Returns false when the usage is above MaxBitmapUsage and is not a modifier
+  // (0xE0-0xE7), i.e. this report cannot represent it.
+  bool press(uint8_t usage)
+  {
+    if (usage >= 0xe0 && usage <= 0xe7)
+    {
+      modifiers |= static_cast<uint8_t>(1u << (usage - 0xe0));
+      return true;
+    }
+    if (usage > MaxBitmapUsage) return false;
+    bitmap[usage >> 3] |= static_cast<uint8_t>(1u << (usage & 7));
+    return true;
+  }
+
+  bool release(uint8_t usage)
+  {
+    if (usage >= 0xe0 && usage <= 0xe7)
+    {
+      modifiers &= static_cast<uint8_t>(~(1u << (usage - 0xe0)));
+      return true;
+    }
+    if (usage > MaxBitmapUsage) return false;
+    bitmap[usage >> 3] &= static_cast<uint8_t>(~(1u << (usage & 7)));
+    return true;
+  }
+
+  bool isDown(uint8_t usage) const
+  {
+    if (usage >= 0xe0 && usage <= 0xe7)
+    {
+      return (modifiers & static_cast<uint8_t>(1u << (usage - 0xe0))) != 0;
+    }
+    if (usage > MaxBitmapUsage) return false;
+    return (bitmap[usage >> 3] & static_cast<uint8_t>(1u << (usage & 7))) != 0;
+  }
+};
+
+// The LED state a host wrote. The library fills the flags from `leds`, so the
+// two never disagree.
+struct EspBleHidKeyboardOutputReport
+{
+  EspBleConnectionId connectionId = 0;
+  uint8_t leds = 0;
+  bool numLock = false;
+  bool capsLock = false;
+  bool scrollLock = false;
+  bool compose = false;
+  bool kana = false;
+
+  // Set `leds` and derive the flags from it. The single place that decides what
+  // each bit means, so no caller has to keep the two in step by hand.
+  void setLeds(uint8_t value)
+  {
+    leds = value;
+    numLock = (value & 0x01) != 0;
+    capsLock = (value & 0x02) != 0;
+    scrollLock = (value & 0x04) != 0;
+    compose = (value & 0x08) != 0;
+    kana = (value & 0x10) != 0;
+  }
+};
+
 struct EspBluedroidCapabilities
 {
   bool ble = true;
@@ -840,6 +1029,8 @@ struct EspBluedroidSppConnectionFailure
 };
 
 class EspBleBluedroid;
+class EspBleHidKeyboard;
+struct EspBleHidDeviceManagerImpl;
 struct EspBleScannerImpl;
 struct EspBleConnectionImpl;
 struct EspBleGattServerImpl;
@@ -1052,7 +1243,22 @@ public:
 private:
   friend class EspBleBluedroid;
   friend struct EspBleGattServerImpl;
+  friend class EspBleHidKeyboard;
+  friend class EspBleHidMouse;
+  friend class EspBleHidConsumerControl;
+  friend class EspBleHidSystemControl;
+  friend class EspBleHidGamepad;
+  friend struct EspBleHidDeviceManagerImpl;
   explicit EspBleGattServer(EspBleBluedroid *owner);
+  // Raise an already-registered Characteristic's read/write permission tiers.
+  // HOGP requires encryption on the HID attributes, and that is only known at
+  // begin() — after the attributes were registered. Deliberately not public: a
+  // sketch declares the tiers in the config it passes to addCharacteristic().
+  bool setEncryptionRequirement(
+    EspBleGattCharacteristic characteristic, bool encryptedRead,
+    bool encryptedWrite);
+  bool setDescriptorEncryptionRequirement(
+    EspBleGattDescriptor descriptor, bool encryptedRead);
   ~EspBleGattServer();
   bool realize();
   void resetBackend();
@@ -1552,6 +1758,201 @@ private:
   EspBluedroidClassicImpl *impl_ = nullptr;
 };
 
+// HID over GATT keyboard device. `configure()` registers the HID service and its
+// attributes, so it must be called before `begin()`, and reports go out to a host
+// that has connected, paired (when security is enabled) and subscribed — which is
+// what `ready()` reports.
+class EspBleHidKeyboard
+{
+public:
+  using OutputReportCallback =
+    std::function<void(const EspBleHidKeyboardOutputReport &report)>;
+  using ProtocolModeCallback =
+    std::function<void(uint8_t mode, EspBleConnectionId connectionId)>;
+
+  // HID over GATT Protocol Mode values (Protocol Mode characteristic 0x2A4E).
+  static constexpr uint8_t BootProtocolMode = 0;
+  static constexpr uint8_t ReportProtocolMode = 1;
+
+  bool configure(
+    const EspBleHidKeyboardConfig &config = EspBleHidKeyboardConfig());
+  void enableNkro(bool enable = true);
+  bool nkroEnabled() const;
+  bool sendReport(const EspBleHidKeyboardReport &report);
+  // Send the whole NKRO state as one notification, which the 6-key overload
+  // cannot do: it carries keys[6] and is expanded into the bitmap, so only six
+  // usages fit per report even with NKRO enabled. Requires enableNkro() before
+  // configure(); fails with InvalidState otherwise.
+  bool sendReport(const EspBleHidKeyboardNkroReport &report);
+  // The NKRO state the host was last told about, for callers that build the whole
+  // state each cycle. NKRO only: with NKRO disabled this stays cleared, because a
+  // 6KRO report is held as the 8-byte wire value instead.
+  const EspBleHidKeyboardNkroReport &heldState() const;
+  // A subscribed HID Host is present and reports can go out right now: a
+  // Peripheral connection that is encrypted (when security is enabled) and has
+  // subscribed to this profile's Input Report CCCD (the Boot Keyboard Input CCCD
+  // while the Host selected Boot Protocol Mode). sendReport() on a false ready()
+  // fails with InvalidState, so poll this instead of inferring connectivity from
+  // the send result.
+  bool ready() const;
+  bool pressUsage(uint8_t usage, uint8_t modifiers = 0, uint32_t holdMs = 10);
+  bool releaseUsage(uint8_t usage);
+  bool tapUsage(uint8_t usage, uint8_t modifiers = 0, uint32_t holdMs = 10);
+  bool pressKey(char key, uint32_t holdMs = 10);
+  bool tapKey(char key, uint32_t holdMs = 10);
+  bool write(const char *text, uint32_t interKeyDelayMs = 5);
+  bool releaseAll();
+  void setLayout(EspBleKeyboardLayout layout);
+  EspBleKeyboardLayout layout() const;
+  bool setBatteryLevel(uint8_t level);
+  void onOutputReport(OutputReportCallback callback);
+  // The LED state (Caps Lock and friends) a host last wrote, for callers that
+  // need to answer "what is it now?" rather than react to onOutputReport().
+  // Both protocol modes are covered. Cleared before any host has written, when
+  // the last host disconnects, and on re-initialisation, so a previous host's
+  // LEDs are never reported as the current one's.
+  EspBleHidKeyboardOutputReport ledState() const;
+  // Current HID Protocol Mode (BootProtocolMode / ReportProtocolMode). The Host
+  // selects it by writing the Protocol Mode characteristic; the default after a
+  // connection is ReportProtocolMode.
+  uint8_t protocolMode() const;
+  void onProtocolMode(ProtocolModeCallback callback);
+  bool configured() const;
+
+private:
+  friend class EspBleBluedroid;
+  friend class EspBleHidMouse;
+  friend class EspBleHidConsumerControl;
+  friend class EspBleHidSystemControl;
+  friend class EspBleHidGamepad;
+  friend struct EspBleHidDeviceManagerImpl;
+
+  explicit EspBleHidKeyboard(EspBleBluedroid *owner);
+  // Register one more profile's Input Report in the shared HID service. The
+  // keyboard owns the manager because it is the profile that carries the output
+  // report and the protocol mode, so every other profile configures through here.
+  bool configureProfile(uint8_t reportId, const EspBleHidDeviceConfig &config);
+  ~EspBleHidKeyboard();
+  // Called from begin(), when whether security is enabled is finally known: HOGP
+  // requires encryption on the HID attributes, and the insufficient-encryption
+  // error is what makes a host OS start pairing.
+  bool applySecurity(bool securityEnabled);
+  void resetBackend();
+  bool sendRawReport(uint8_t reportId, const uint8_t *data, size_t length);
+  // Put the held NKRO state on the wire as the 29-byte NKRO Input Report. Every
+  // NKRO send path funnels through here so the layout is written down once.
+  bool sendHeldNkroState();
+  // The Host selected Boot Protocol Mode, so this report travels over the
+  // dedicated Boot Keyboard Input Report instead of the Report-protocol one.
+  bool useBootKeyboard(uint8_t reportId) const;
+  bool readyFor(uint8_t reportId) const;
+
+  EspBleBluedroid *owner_;
+  EspBleHidDeviceManagerImpl *impl_ = nullptr;
+  OutputReportCallback outputReportCallback_;
+  ProtocolModeCallback protocolModeCallback_;
+  EspBleKeyboardLayout layout_ = EspBleKeyboardLayout::EnUs;
+  bool nkroEnabled_ = false;
+  // The NKRO state the host was last told about. Holding it as the report type
+  // itself keeps one definition of the modifier routing (0xE0-0xE7) and of the
+  // bitmap layout, instead of repeating the bit math in every send path.
+  EspBleHidKeyboardNkroReport nkroState_;
+};
+
+
+// The other HID device profiles. Each one joins the same HID service through the
+// shared manager: one Report Map holds every profile's descriptor and the Report
+// ID tells the reports apart, which is why `configure()` on any of them has to
+// happen before `begin()`.
+class EspBleHidMouse
+{
+public:
+  bool configure(const EspBleHidMouseConfig &config = EspBleHidMouseConfig());
+  bool configured() const;
+  bool sendReport(const EspBleHidMouseReport &report);
+  // See EspBleHidKeyboard::ready(): a subscribed HID Host can receive this
+  // profile's reports right now.
+  bool ready() const;
+  bool move(int8_t x, int8_t y, int8_t wheel = 0, uint8_t buttons = 0);
+  bool wheel(int8_t amount);
+  bool press(uint8_t buttons);
+  bool release(uint8_t buttons);
+  bool click(uint8_t button, uint32_t holdMs = 10);
+  bool releaseAll();
+  uint8_t buttons() const;
+
+private:
+  friend class EspBleBluedroid;
+  explicit EspBleHidMouse(EspBleBluedroid *owner) : owner_(owner) {}
+  EspBleBluedroid *owner_;
+  bool configured_ = false;
+  uint8_t buttons_ = 0;
+};
+
+class EspBleHidConsumerControl
+{
+public:
+  bool configure(
+    const EspBleHidConsumerControlConfig &config = EspBleHidConsumerControlConfig());
+  bool configured() const;
+  bool sendReport(uint16_t usage);
+  bool ready() const;
+  bool sendUsage(uint16_t usage);
+  bool press(uint16_t usage);
+  bool release();
+  bool click(uint16_t usage, uint32_t holdMs = 10);
+  bool releaseAll();
+  uint16_t usage() const;
+
+private:
+  friend class EspBleBluedroid;
+  explicit EspBleHidConsumerControl(EspBleBluedroid *owner) : owner_(owner) {}
+  EspBleBluedroid *owner_;
+  bool configured_ = false;
+  uint16_t usage_ = 0;
+};
+
+class EspBleHidSystemControl
+{
+public:
+  bool configure(
+    const EspBleHidSystemControlConfig &config = EspBleHidSystemControlConfig());
+  bool configured() const;
+  bool sendReport(uint8_t usage);
+  bool ready() const;
+  bool sendUsage(uint8_t usage);
+  bool press(uint8_t usage);
+  bool release();
+  bool click(uint8_t usage, uint32_t holdMs = 10);
+  bool releaseAll();
+  uint8_t usage() const;
+
+private:
+  friend class EspBleBluedroid;
+  explicit EspBleHidSystemControl(EspBleBluedroid *owner) : owner_(owner) {}
+  EspBleBluedroid *owner_;
+  bool configured_ = false;
+  uint8_t usage_ = 0;
+};
+
+class EspBleHidGamepad
+{
+public:
+  bool configure(const EspBleHidGamepadConfig &config = EspBleHidGamepadConfig());
+  bool configured() const;
+  bool sendReport(const EspBleHidGamepadReport &report);
+  bool ready() const;
+  bool send(int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry,
+            uint8_t hat, uint32_t buttons);
+  bool releaseAll();
+
+private:
+  friend class EspBleBluedroid;
+  explicit EspBleHidGamepad(EspBleBluedroid *owner) : owner_(owner) {}
+  EspBleBluedroid *owner_;
+  bool configured_ = false;
+};
+
 class EspBleBluedroid
 {
 public:
@@ -1607,6 +2008,11 @@ public:
   EspBleAdvertising &advertising();
   EspBleScanner &scanner();
   EspBleGattServer &gattServer();
+  EspBleHidKeyboard &hidKeyboard();
+  EspBleHidMouse &hidMouse();
+  EspBleHidConsumerControl &hidConsumerControl();
+  EspBleHidSystemControl &hidSystemControl();
+  EspBleHidGamepad &hidGamepad();
   EspBluedroidClassic &classic();
 #ifdef ESP_BLE_BLUEDROID_TESTING
   bool setSecurityResponseTimeoutForTest(uint32_t timeoutMilliseconds);
@@ -1846,6 +2252,8 @@ private:
   friend class EspBleAdvertising;
   friend class EspBleScanner;
   friend class EspBleGattServer;
+  friend class EspBleHidKeyboard;
+  friend struct EspBleHidDeviceManagerImpl;
   friend class EspBluedroidClassic;
   friend class EspBluedroidClassicInquiry;
   friend class EspBluedroidSpp;
@@ -1921,6 +2329,11 @@ private:
   EspBleAdvertising advertising_;
   EspBleScanner scanner_;
   EspBleGattServer gattServer_;
+  EspBleHidKeyboard hidKeyboard_;
+  EspBleHidMouse hidMouse_;
+  EspBleHidConsumerControl hidConsumerControl_;
+  EspBleHidSystemControl hidSystemControl_;
+  EspBleHidGamepad hidGamepad_;
   EspBluedroidClassic classic_;
   EspBleConnectionImpl *connectionImpl_ = nullptr;
   // One list per event: the primary callback set by on*() plus the listeners.

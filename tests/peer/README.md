@@ -51,3 +51,13 @@ Report-Reference-style descriptors, and both CCCDs, while a write aimed at the
 second handle is attributed to the second characteristic and each notification
 arrives on the handle that sent it. This is the prerequisite HID over GATT rests
 on, since a keyboard's Report characteristics all carry UUID 0x2a4d.
+`hid_keyboard_device` verifies the HID over GATT keyboard against a raw
+Arduino-ESP32 central standing in for a host OS: the Report Map read (long, at the
+default MTU) carries exactly the descriptor `tests/unit/hid_report_maps` pins, the
+two 0x2A4D Report characteristics are told apart by their Report Reference
+descriptors, an input report notification carries the 8-byte keyboard layout, a
+host's LED write comes back through `onOutputReport()` and `ledState()`, a
+Protocol Mode write is reported, and the Device Information and Battery values are
+the ones `configure()` was given. It also pins the two refusals a caller has to be
+able to tell apart — `no connected HID Host` and `no subscribed HID Host` — and
+that a disconnected host leaves neither `ready()` nor an LED state behind.

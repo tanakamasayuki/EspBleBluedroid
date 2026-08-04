@@ -157,6 +157,15 @@ CCCD購読、notificationまで確認している。
   `connection()`で引ける（`tests/peer/peripheral_connection`）。
   connection系・GATT Client系・GATT Server系のeventは`add*Listener()`で複数observerを
   登録できる（primary→登録順、1 event 4件まで、`tests/peer/multi_listener`）。
+  HID over GATTのkeyboard profileは`bluetooth.hidKeyboard()`で利用できる
+  （`configure()`はbegin()前。HID 0x1812＋Battery 0x180f＋Device Information 0x180aを
+  自動構成し、HID UUIDとkeyboard appearanceをAdvertisingへ追加する）。Input/Output Report
+  はUUID 0x2a4dを共有しReport Referenceで区別する仕様どおりの形で、6KRO・NKRO・Boot
+  Protocol・Protocol Mode・LED Output Report・batteryに対応する。descriptorのバイト列は
+  EspBleと一致（`tests/unit/hid_report_maps`）、実機での見え方は
+  `tests/peer/hid_keyboard_device`で固定している。`ready()`はHostの購読（securityが有効なら
+  暗号化も）まで真にならず、送信失敗のdetailは「未接続」と「未購読」を区別する。
+  mouse / consumer / system / gamepad / vendor / customとHID Hostは未実装。
   BLE MIDIのprofile helperは`EspBleMidiProfile.h`として利用できる。
   `EspBleMidiDevice` / `EspBleMidiHost`はEspBleのファイルのライブラリ参照の型だけを
   差し替えたもので、必要なeventは`add*Listener()`で購読するためsketch側の`on*()`を

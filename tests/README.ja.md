@@ -67,6 +67,7 @@ uv run --env-file .env pytest
 | `peer/midi_host` | BLE MIDI Host（Central）。Discovery・購読、running status・間に挟まったSystem Real-Time・複数notificationのSysExの解釈、write完了で連鎖する送信 |
 | `peer/gatt_disconnect_purge` | 実行中Read中の`disconnect()`受理、完了が1件だけ届くこと、drop 0、再接続後のDiscovery/Read |
 | `peer/duplicate_uuid` | Server側で同一Service内の重複Characteristic UUIDが専用handleで受理されること、同一Characteristic内の重複Descriptor UUIDと不正UUIDは従来どおり拒否されること（error名・detail文字列）、別Serviceの同一UUID受理、Client側のhandle指定Read・購読とNotificationの経路分離 |
+| `peer/hid_keyboard_device` | HID over GATT keyboardをhost OS役のraw Central相手に検証。電波に乗るdescriptor、Report Referenceで区別される2件の0x2A4D、Input Report Notification、LED Output Write、Protocol Mode Write、Device InformationとBatteryの値 |
 | `peer/duplicate_uuid_server` | 同一UUID Characteristic 2件を本ライブラリが公開したとき、電波上に実体が2つあること。raw peerから別々の値・別々のDescriptor・handle別のWrite帰属・CCCD 2件・送信元handleへ届くNotificationを確認。登録の受理だけでは、先頭を再利用するbackendでも通ってしまうため |
 | `peer/long_value` | MTUを超える値のRead。UUID指定・handle指定の両方で全体が返り、内容がpeerのrampと一致すること |
 | `peer/service_changed` | Generic Attribute 0x1801 / Service Changed 0x2a05をstackが公開すること（applicationは登録しない） |

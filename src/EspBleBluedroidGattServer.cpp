@@ -464,6 +464,43 @@ EspBleGattDescriptor EspBleGattServer::addDescriptor(
   return result;
 }
 
+bool EspBleGattServer::setEncryptionRequirement(
+  EspBleGattCharacteristic characteristic, bool encryptedRead,
+  bool encryptedWrite)
+{
+  // Only before begin(): the permission is written into the attribute when the
+  // table is built, so changing it afterwards would claim a protection the
+  // published attribute does not have.
+  if (impl_ == nullptr || owner_->initialized() || !characteristic.valid() ||
+      characteristic.id > impl_->characteristicCount)
+  {
+    owner_->setError(EspBleError::InvalidState,
+      "set attribute encryption requirements before begin()");
+    return false;
+  }
+  auto &config = impl_->characteristics[characteristic.id - 1].config;
+  config.encryptedRead = config.encryptedRead || encryptedRead;
+  config.encryptedWrite = config.encryptedWrite || encryptedWrite;
+  owner_->clearError();
+  return true;
+}
+
+bool EspBleGattServer::setDescriptorEncryptionRequirement(
+  EspBleGattDescriptor descriptor, bool encryptedRead)
+{
+  if (impl_ == nullptr || owner_->initialized() || !descriptor.valid() ||
+      descriptor.id > impl_->descriptorCount)
+  {
+    owner_->setError(EspBleError::InvalidState,
+      "set attribute encryption requirements before begin()");
+    return false;
+  }
+  auto &config = impl_->descriptors[descriptor.id - 1].config;
+  config.encryptedRead = config.encryptedRead || encryptedRead;
+  owner_->clearError();
+  return true;
+}
+
 bool EspBleGattServer::setValue(
   EspBleGattCharacteristic characteristic, const uint8_t *data, size_t length)
 {
@@ -549,8 +586,31 @@ bool EspBleGattServer::realize()
   for (size_t serviceIndex = 0; serviceIndex < impl_->serviceCount; ++serviceIndex)
   {
     auto &service = impl_->services[serviceIndex];
+    // The attribute table is sized up front and the backend silently drops
+    // whatever does not fit, so the budget is counted rather than guessed: the
+    // Service declaration, two handles per Characteristic (declaration and
+    // value), one per Descriptor, and one more for the CCCD a notifiable or
+    // indicatable Characteristic gets. A fixed guess was enough until the HID
+    // Service, whose 6 characteristics and 3 descriptors need 16 — one over the
+    // old constant, which cost the last Report Reference descriptor and made the
+    // second Report characteristic unidentifiable to a host.
+    uint16_t handleBudget = 1;
+    for (size_t index = 0; index < impl_->characteristicCount; ++index)
+    {
+      const auto &candidate = impl_->characteristics[index];
+      if (candidate.serviceId != serviceIndex + 1) continue;
+      handleBudget += 2;
+      if (candidate.config.notifiable || candidate.config.indicatable)
+        ++handleBudget;
+      for (size_t descriptorIndex = 0; descriptorIndex < impl_->descriptorCount;
+           ++descriptorIndex)
+      {
+        if (impl_->descriptors[descriptorIndex].characteristicId == index + 1)
+          ++handleBudget;
+      }
+    }
     service.backend = impl_->server->createService(
-      BLEUUID(service.uuid.c_str()), 15,
+      BLEUUID(service.uuid.c_str()), handleBudget,
       static_cast<uint8_t>(serviceIndex));
     if (service.backend == nullptr) return false;
     for (size_t characteristicIndex = 0;

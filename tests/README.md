@@ -157,6 +157,11 @@ with the exact error and detail, that the same UUID in another Service is
 accepted, and that the client reaches both of a peer's two same-UUID
 characteristics by attribute handle, with notifications routed to the sending
 handle.
+`peer/hid_keyboard_device` verifies the HID over GATT keyboard against a raw
+central standing in for a host OS: the descriptor that reaches the air, the two
+0x2A4D Report characteristics told apart by their Report Reference descriptors, the
+input report notification, the LED output write, the Protocol Mode write, and the
+Device Information and Battery values.
 `peer/duplicate_uuid_server` verifies the other side of that: two same-UUID
 characteristics published by this library are two real attributes on the air, read
 back from a raw peer with their own values, their own Report-Reference-style
