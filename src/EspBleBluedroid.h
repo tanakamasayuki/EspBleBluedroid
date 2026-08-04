@@ -1645,6 +1645,11 @@ public:
     const String &value,
     bool response = true,
     uint32_t timeoutMilliseconds = 10000);
+  // Every live link, whichever role this device holds on it. A GATT Server
+  // connection (localRole Peripheral) is reported here just like a link this
+  // device opened with connect(), so an application that logs or checks the MTU,
+  // the encryption state or the peer address does not need to know which side
+  // started the connection. One link per role is exposed.
   size_t connectionCount() const;
   bool connection(
     EspBleConnectionId connectionId, EspBleConnection &connection) const;
@@ -1702,6 +1707,33 @@ private:
   friend class EspBluedroidHfpHandsFree;
   friend class EspBluedroidHfpAudioGateway;
   friend struct EspBluedroidHfpImpl;
+  friend struct EspBleGattServerImpl;
+
+  // The peripheral half of the connection lifecycle, called from the GATT
+  // Server's backend callbacks. They feed the same event queue and the same
+  // snapshot as the central half, so onConnected() / onMtuChanged() /
+  // onConnectionParametersUpdated() / onDisconnected() and connection() behave
+  // the same in both roles. Defined here rather than in the server because the
+  // connection state, the event queue and the security callbacks all live with
+  // the owner.
+  void peripheralConnected(
+    uint16_t connectionHandle,
+    const uint8_t *address,
+    uint8_t addressType,
+    uint16_t interval,
+    uint16_t latency,
+    uint16_t timeout);
+  void peripheralMtuChanged(uint16_t connectionHandle, uint16_t mtu);
+  void peripheralParametersUpdated(
+    const uint8_t *address,
+    uint16_t interval,
+    uint16_t latency,
+    uint16_t timeout);
+  void peripheralDisconnected(uint16_t connectionHandle, int reason);
+  // The runtime ID of the live peripheral link, or 0. The GATT Server reports it
+  // on every write, read request, subscription and send result, so
+  // connection(id) resolves the link a server event came from.
+  EspBleConnectionId peripheralConnectionId() const;
 
   void setError(EspBleError error, const char *detail = nullptr);
   bool startGattOperation(

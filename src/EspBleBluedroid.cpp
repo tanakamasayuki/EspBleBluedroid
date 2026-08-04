@@ -1536,11 +1536,15 @@ struct EspBleConnectionImpl
     uint32_t responseTimeoutMilliseconds;
     {
       std::lock_guard<std::mutex> lock(mutex);
-      if (ending || !active) return false;
+      if (ending) return false;
+      // Either role may be asked to compare; the link that can be pairing is the
+      // one to report.
+      const EspBleConnection *slot = securitySlotLocked(nullptr);
+      if (slot == nullptr) return false;
       responseTimeoutMilliseconds = securityResponseTimeoutMilliseconds;
       Event event;
       event.type = EventType::NumericComparison;
-      event.passkeyDisplayed.connection = connection;
+      event.passkeyDisplayed.connection = *slot;
       event.passkeyDisplayed.passkey = pin;
       pushEventLocked(event);
     }
@@ -1563,6 +1567,145 @@ struct EspBleConnectionImpl
       vTaskDelay(1);
     }
     return false;
+  }
+
+  // Which link a security event belongs to. Pairing callbacks arrive with a peer
+  // address (or none at all, for the passkey ones), so the address decides when
+  // it is available and the single active link decides otherwise.
+  EspBleConnection *securitySlotLocked(const uint8_t *address)
+  {
+    if (address != nullptr)
+    {
+      if (active && peerBdaPresent &&
+          memcmp(peerBda, address, sizeof(esp_bd_addr_t)) == 0)
+      {
+        return &connection;
+      }
+      if (peripheralActive && peripheralBdaPresent &&
+          memcmp(peripheralBda, address, sizeof(esp_bd_addr_t)) == 0)
+      {
+        return &peripheral;
+      }
+    }
+    // No match: a peer using a Resolvable Private Address can pair under an
+    // address that differs from the one the link was reported with, so fall back
+    // to the only link that can be pairing.
+    if (active && !peripheralActive) return &connection;
+    if (peripheralActive && !active) return &peripheral;
+    if (active) return &connection;
+    return nullptr;
+  }
+
+  void backendPeripheralConnected(
+    uint16_t connectionHandle,
+    const uint8_t *address,
+    uint8_t addressType,
+    uint16_t interval,
+    uint16_t latency,
+    uint16_t timeout)
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (ending || peripheralActive) return;
+    peripheralActive = true;
+    peripheral = EspBleConnection();
+    peripheral.id = nextConnectionId++;
+    if (nextConnectionId == 0) nextConnectionId = 1;
+    peripheral.handle = connectionHandle;
+    peripheral.localRole = EspBleRole::Peripheral;
+    // Every new ATT bearer starts at 23; the negotiated value arrives through
+    // onMtuChanged() on this side as well, because the central drives the
+    // exchange.
+    peripheral.mtu = 23;
+    if (address != nullptr)
+    {
+      memcpy(peripheralBda, address, sizeof(esp_bd_addr_t));
+      peripheralBdaPresent = true;
+      esp_bd_addr_t native;
+      memcpy(native, address, sizeof(native));
+      peripheral.peerAddress = BLEAddress(native).toString();
+      // The connect event reports the address type the peer used, so an
+      // identity address and a random one are distinguishable here as they are
+      // on a link this device opened.
+      switch (addressType)
+      {
+        case BLE_ADDR_TYPE_PUBLIC:
+          peripheral.peerAddressType = EspBleAddressType::Public;
+          break;
+        case BLE_ADDR_TYPE_RPA_PUBLIC:
+          peripheral.peerAddressType = EspBleAddressType::PublicIdentity;
+          break;
+        case BLE_ADDR_TYPE_RPA_RANDOM:
+          peripheral.peerAddressType = EspBleAddressType::RandomIdentity;
+          break;
+        default:
+          peripheral.peerAddressType = EspBleAddressType::Random;
+          break;
+      }
+    }
+    // The connect event carries the parameters the link came up with, so there is
+    // no need to ask the controller for them again.
+    peripheral.connectionInterval = interval;
+    peripheral.peripheralLatency = latency;
+    peripheral.supervisionTimeout = timeout;
+    Event event;
+    event.type = EventType::Connected;
+    event.connection = peripheral;
+    pushEventLocked(event);
+  }
+
+  void backendPeripheralMtuChanged(uint16_t connectionHandle, uint16_t mtu)
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (ending || !peripheralActive ||
+        peripheral.handle != connectionHandle || mtu == peripheral.mtu)
+    {
+      return;
+    }
+    Event event;
+    event.type = EventType::MtuChanged;
+    event.mtuChanged.previousMtu = peripheral.mtu;
+    peripheral.mtu = mtu;
+    event.mtuChanged.connection = peripheral;
+    pushEventLocked(event);
+  }
+
+  void backendPeripheralParametersUpdated(
+    const uint8_t *address,
+    uint16_t interval,
+    uint16_t latency,
+    uint16_t timeout)
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (ending || !peripheralActive) return;
+    if (address != nullptr && peripheralBdaPresent &&
+        memcmp(peripheralBda, address, sizeof(esp_bd_addr_t)) != 0)
+    {
+      return;
+    }
+    peripheral.connectionInterval = interval;
+    peripheral.peripheralLatency = latency;
+    peripheral.supervisionTimeout = timeout;
+    Event event;
+    event.type = EventType::ConnectionParametersUpdated;
+    event.connection = peripheral;
+    pushEventLocked(event);
+  }
+
+  void backendPeripheralDisconnected(uint16_t connectionHandle, int reason)
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (!peripheralActive || peripheral.handle != connectionHandle) return;
+    Event event;
+    event.type = EventType::Disconnected;
+    peripheral.disconnectReason = reason;
+    event.connection = peripheral;
+    peripheralActive = false;
+    peripheralBdaPresent = false;
+    peripheral = EspBleConnection();
+    if (!ending)
+    {
+      pushEventLocked(event);
+    }
   }
 
   void backendConnected(BLEClient *connectedClient)
@@ -2142,7 +2285,13 @@ struct EspBleConnectionImpl
   void backendSecurityChanged(const esp_ble_auth_cmpl_t &result)
   {
     std::lock_guard<std::mutex> lock(mutex);
-    if (ending || !active) return;
+    if (ending) return;
+    // Pairing is reported the same way in either role: the peer that connected
+    // to this device's GATT Server is as much a pairing peer as one this device
+    // connected to.
+    EspBleConnection *slot = securitySlotLocked(result.bd_addr);
+    if (slot == nullptr) return;
+    EspBleConnection &connection = *slot;
     connection.encrypted = result.success;
     connection.authenticated = result.success &&
       (result.auth_mode & ESP_LE_AUTH_REQ_MITM) != 0;
@@ -2193,10 +2342,14 @@ struct EspBleConnectionImpl
   void backendPasskeyDisplayed(uint32_t passkey)
   {
     std::lock_guard<std::mutex> lock(mutex);
-    if (ending || !active) return;
+    if (ending) return;
+    // The backend passkey callback carries no address, so the link that can be
+    // pairing is the one to report — in either role.
+    const EspBleConnection *slot = securitySlotLocked(nullptr);
+    if (slot == nullptr) return;
     Event event;
     event.type = EventType::PasskeyDisplayed;
-    event.passkeyDisplayed.connection = connection;
+    event.passkeyDisplayed.connection = *slot;
     event.passkeyDisplayed.passkey = passkey;
     pushEventLocked(event);
   }
@@ -2643,6 +2796,14 @@ struct EspBleConnectionImpl
   uint16_t pendingMtu = 23;
   bool peerBdaPresent = false;
   esp_bd_addr_t peerBda{};
+  // The peripheral link, i.e. a peer that connected to this device's GATT
+  // Server. Bluedroid can hold several, but one is exposed, matching the single
+  // central link: the snapshot, the event queue and the security callbacks are
+  // shared with the central half so both roles behave the same.
+  bool peripheralActive = false;
+  EspBleConnection peripheral;
+  bool peripheralBdaPresent = false;
+  esp_bd_addr_t peripheralBda{};
   bool pendingConnectionParametersPresent = false;
   esp_bd_addr_t pendingConnectionParametersBda{};
   uint16_t pendingConnectionInterval = 0;
@@ -7010,7 +7171,8 @@ size_t EspBleBluedroid::connectionCount() const
 {
   if (connectionImpl_ == nullptr) return 0;
   std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
-  return connectionImpl_->active ? 1 : 0;
+  return (connectionImpl_->active ? 1u : 0u) +
+    (connectionImpl_->peripheralActive ? 1u : 0u);
 }
 
 bool EspBleBluedroid::connection(
@@ -7018,13 +7180,63 @@ bool EspBleBluedroid::connection(
 {
   if (connectionImpl_ == nullptr) return false;
   std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
-  if (!connectionImpl_->active ||
-      connectionImpl_->connection.id != connectionId)
+  if (connectionImpl_->active &&
+      connectionImpl_->connection.id == connectionId)
   {
-    return false;
+    connection = connectionImpl_->connection;
+    return true;
   }
-  connection = connectionImpl_->connection;
-  return true;
+  // A GATT Server link is looked up the same way, so an application does not
+  // need to know which side opened the connection.
+  if (connectionImpl_->peripheralActive &&
+      connectionImpl_->peripheral.id == connectionId)
+  {
+    connection = connectionImpl_->peripheral;
+    return true;
+  }
+  return false;
+}
+
+void EspBleBluedroid::peripheralConnected(
+  uint16_t connectionHandle,
+  const uint8_t *address,
+  uint8_t addressType,
+  uint16_t interval,
+  uint16_t latency,
+  uint16_t timeout)
+{
+  if (connectionImpl_ == nullptr) return;
+  connectionImpl_->backendPeripheralConnected(
+    connectionHandle, address, addressType, interval, latency, timeout);
+}
+
+void EspBleBluedroid::peripheralMtuChanged(
+  uint16_t connectionHandle, uint16_t mtu)
+{
+  if (connectionImpl_ == nullptr) return;
+  connectionImpl_->backendPeripheralMtuChanged(connectionHandle, mtu);
+}
+
+void EspBleBluedroid::peripheralParametersUpdated(
+  const uint8_t *address, uint16_t interval, uint16_t latency, uint16_t timeout)
+{
+  if (connectionImpl_ == nullptr) return;
+  connectionImpl_->backendPeripheralParametersUpdated(
+    address, interval, latency, timeout);
+}
+
+void EspBleBluedroid::peripheralDisconnected(
+  uint16_t connectionHandle, int reason)
+{
+  if (connectionImpl_ == nullptr) return;
+  connectionImpl_->backendPeripheralDisconnected(connectionHandle, reason);
+}
+
+EspBleConnectionId EspBleBluedroid::peripheralConnectionId() const
+{
+  if (connectionImpl_ == nullptr) return 0;
+  std::lock_guard<std::mutex> lock(connectionImpl_->mutex);
+  return connectionImpl_->peripheralActive ? connectionImpl_->peripheral.id : 0;
 }
 
 bool EspBleBluedroid::requestSecurity(EspBleConnectionId connectionId)

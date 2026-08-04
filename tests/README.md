@@ -128,6 +128,13 @@ callback contexts, disconnection, and shutdown.
 `peer/hfp_backend` verifies public HFP Hands-Free and Audio Gateway roles
 end-to-end, including SLC, SCO, bidirectional mono PCM through the built-in
 CVSD/mSBC codec, and disconnection.
+`peer/peripheral_connection` covers the peripheral half of the connection
+lifecycle: a peer connecting to this device's GATT Server produces the connect
+event, the MTU event, a `connection()` snapshot with the negotiated parameters, a
+pairing event, and the HCI disconnection reason, all with
+`localRole = Peripheral`, and the connection ID a server event carries resolves
+through `connection()`. The peer is a raw Arduino-ESP32 BLE client.
+
 `peer/gatt_server` also verifies a real Indication: the peer rewrites the CCCD
 with 0x0002 and the send result reports success only after the confirmation.
 `peer/duplicate_uuid` verifies that the server rejects a duplicate Characteristic

@@ -52,6 +52,56 @@ uint16_t accessPermissions(
 
 struct EspBleGattServerImpl
 {
+  // The connection lifecycle of a peer that connected to this Server. Bluedroid
+  // reports it here and nowhere else, so without these callbacks a peripheral
+  // link existed on the air but not in the public API: no onConnected(), no MTU
+  // event, no connection() snapshot, and pairing on such a link was dropped.
+  // Everything is forwarded to the owner, which holds the connection state, the
+  // event queue and the security callbacks for both roles.
+  struct ServerCallbacks : BLEServerCallbacks
+  {
+    explicit ServerCallbacks(EspBleGattServerImpl *value) : impl(value) {}
+
+    void onConnect(BLEServer *, esp_ble_gatts_cb_param_t *parameter) override
+    {
+      if (parameter == nullptr) return;
+      // Bluedroid reports every link to the Server, including one this device
+      // opened as a central while a Server happens to be registered. Only the
+      // links where this device is the slave belong to the peripheral role.
+      if (parameter->connect.link_role != 1) return;
+      impl->forwardConnected(parameter->connect.conn_id,
+        parameter->connect.remote_bda,
+        static_cast<uint8_t>(parameter->connect.ble_addr_type),
+        parameter->connect.conn_params.interval,
+        parameter->connect.conn_params.latency,
+        parameter->connect.conn_params.timeout);
+    }
+    void onDisconnect(BLEServer *, esp_ble_gatts_cb_param_t *parameter) override
+    {
+      if (parameter == nullptr) return;
+      impl->forwardDisconnected(parameter->disconnect.conn_id,
+        static_cast<int>(parameter->disconnect.reason));
+    }
+    void onMtuChanged(BLEServer *, esp_ble_gatts_cb_param_t *parameter) override
+    {
+      if (parameter == nullptr) return;
+      impl->forwardMtuChanged(
+        parameter->mtu.conn_id, parameter->mtu.mtu);
+    }
+    void onConnParamsUpdate(
+      esp_bd_addr_t address,
+      uint16_t interval,
+      uint16_t latency,
+      uint16_t timeout,
+      esp_bt_status_t status) override
+    {
+      if (status != ESP_BT_STATUS_SUCCESS) return;
+      impl->forwardParametersUpdated(address, interval, latency, timeout);
+    }
+
+    EspBleGattServerImpl *impl;
+  };
+
   struct ServiceDefinition
   {
     String uuid;
@@ -153,6 +203,7 @@ struct EspBleGattServerImpl
   size_t characteristicCount = 0;
   size_t descriptorCount = 0;
   BLEServer *server = nullptr;
+  ServerCallbacks serverCallbacks{this};
   bool realized = false;
   Event events[EventCapacity];
   size_t eventHead = 0;
@@ -161,10 +212,42 @@ struct EspBleGattServerImpl
 
   explicit EspBleGattServerImpl(EspBleGattServer *value) : api(value) {}
 
+  // The owner's runtime ID for the peripheral link, so a Server event and
+  // connection() name the same connection. The backend handle is only a
+  // fallback for the window before the connect callback has been forwarded.
   EspBleConnectionId connectionId() const
   {
-    return server == nullptr || server->getConnectedCount() == 0
-      ? 0 : static_cast<EspBleConnectionId>(server->getConnId()) + 1;
+    if (server == nullptr || server->getConnectedCount() == 0) return 0;
+    const EspBleConnectionId id = api->owner_->peripheralConnectionId();
+    return id != 0
+      ? id : static_cast<EspBleConnectionId>(server->getConnId()) + 1;
+  }
+
+  void forwardConnected(
+    uint16_t handle,
+    const uint8_t *address,
+    uint8_t addressType,
+    uint16_t interval,
+    uint16_t latency,
+    uint16_t timeout)
+  {
+    api->owner_->peripheralConnected(
+      handle, address, addressType, interval, latency, timeout);
+  }
+  void forwardDisconnected(uint16_t handle, int reason)
+  {
+    api->owner_->peripheralDisconnected(handle, reason);
+  }
+  void forwardMtuChanged(uint16_t handle, uint16_t mtu)
+  {
+    api->owner_->peripheralMtuChanged(handle, mtu);
+  }
+  void forwardParametersUpdated(
+    const uint8_t *address, uint16_t interval, uint16_t latency,
+    uint16_t timeout)
+  {
+    api->owner_->peripheralParametersUpdated(
+      address, interval, latency, timeout);
   }
 
   void push(Event &&event)
@@ -467,6 +550,7 @@ bool EspBleGattServer::realize()
       "failed to create GATT Server");
     return false;
   }
+  impl_->server->setCallbacks(&impl_->serverCallbacks);
   for (size_t serviceIndex = 0; serviceIndex < impl_->serviceCount; ++serviceIndex)
   {
     auto &service = impl_->services[serviceIndex];

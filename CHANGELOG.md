@@ -121,6 +121,25 @@
   各値をwire byteとmilli単位のdecode結果の両方でassertするため、endianness・SFLOATの指数
   nibble・CRC多項式が食い違えば、双方のunit testが通っていてもここで落ちる。interopで初めて
   役割を反転し、本ライブラリがGATT Server兼beaconになる。実機で確認済み。
+- (EN) Report the peripheral half of the connection lifecycle. A peer that
+  connected to this device's GATT Server existed on the air and nowhere in the
+  API: no `onConnected()`, no MTU event, no entry in `connection()` /
+  `connectionCount()`, no connection parameters, no HCI disconnection reason, and
+  its pairing was dropped because the security callback required an active
+  *central* link. All of it is now delivered with `localRole = Peripheral`
+  alongside the central events, and the connection ID a GATT Server event carries
+  is the one `connection()` resolves. Links this device opens as a central are
+  filtered out by the link role, so a sketch that is both client and server sees
+  one connection per link. Covered by `tests/peer/peripheral_connection` against a
+  raw Arduino-ESP32 BLE client.
+- (JA) Peripheral側の接続lifecycleを配送するようにした。GATT Serverへ接続してきた相手は
+  電波の上には存在するのにAPI上に存在せず、`onConnected()`もMTU eventも
+  `connection()`／`connectionCount()`のentryも接続パラメータもHCI切断理由もなく、pairingは
+  security callbackが**Central** linkを要求していたため破棄されていた。現在はすべて
+  `localRole = Peripheral`でCentral側と同じ経路で配送し、GATT Server eventが持つ
+  connection IDは`connection()`で引ける。Centralとして自分から開いたlinkはlink roleで
+  除外するので、ClientとServerを兼ねるsketchでも1 linkにつき1接続しか見えない。
+  raw Arduino-ESP32 BLE client相手の`tests/peer/peripheral_connection`で確認。
 - (EN) CI: the unit-test step of `compile-examples.yml` now runs `pytest unit/`
   instead of repeating the g++ command lines, which had gone stale after the unit
   suites moved into per-suite directories (it still referenced

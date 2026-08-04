@@ -111,7 +111,8 @@ CCCD購読、notificationまで確認している。
 - Arduino-ESP32 BLE wrapperはprocess内のpasskey設定を解除できない。このため、同一bootで
   静的またはDisplayOnlyのpasskey設定を使って`end()`した後、KeyboardOnlyの実行時入力へ
   構成変更する場合は再起動が必要。通常の同一構成での再初期化には影響しない。
-- Central接続は同時1接続。Peripheral connectionの公開snapshotはGATT Server追加時に実装する。
+- Central接続は同時1接続。Peripheral connection（GATT Serverへ接続してきた相手）も1接続を
+  公開し、`connectionCount()`と`connection()`は両方の役割のlinkを返す。
 - Connection IDは1回の`begin()`〜`end()` lifecycle内だけで有効。`end()`はactive linkと
   未配送eventを破棄し、利用者の`onDisconnected()`は配送しない。再初期化後はIDを再利用
   することがある。
@@ -146,8 +147,11 @@ CCCD購読、notificationまで確認している。
   Read callbackだけは応答前に値を決めるためstack task、Write・Descriptor・購読・送信完了は
   `update()`から配送する。実行中のGATT操作中に`disconnect()`しても要求は受理され、その操作へは
   `InvalidState`の失敗完了を1件だけ配送してから`onDisconnected()`を配送する。操作slotは
-  解放され、次の接続のDiscovery / Readへ引き継がない（`tests/peer/gatt_disconnect_purge`）。Peripheral connection snapshot、複数observer、profile helper、
-  自動再接続・再購読は未実装。
+  解放され、次の接続のDiscovery / Readへ引き継がない（`tests/peer/gatt_disconnect_purge`）。
+  GATT Serverへ接続してきた相手も接続event・MTU event・接続パラメータ・pairing event・
+  切断理由を`localRole = Peripheral`で配送し、Server eventのconnection IDは
+  `connection()`で引ける（`tests/peer/peripheral_connection`）。複数observer、
+  profile helper、自動再接続・再購読は未実装。
 - Discovery snapshot上限はService 16、Characteristic 48、Descriptor 48。
   PSRAMは使用せずDiscovery時だけheapへ確保し、切断時に無効化する。
 - GATT timeoutの結果配送には`update()`が必要。timeout後の遅いbackend完了は配送しないが、
