@@ -1,3 +1,12 @@
+// en: SppSecurity - an SPP server that requires SSP authentication and link
+//     encryption. Classic security is configured once on EspBleConfig (how this
+//     device pairs), while the requirement stays explicit on the SPP server
+//     config (what this service demands). With DisplayYesNo on both sides the
+//     method is Numeric Comparison: compare the six digits and answer y or n.
+// ja: SppSecurity - SSP認証とlink暗号化を要求するSPP server。Classic securityは
+//     EspBleConfig で1回設定し（この機器のpairingのしかた）、要求水準はSPP serverの
+//     configに明示したまま残す（このserviceが要求する水準）。両側がDisplayYesNoなら
+//     方式はNumeric Comparisonになり、6桁を比較して y か n で答える。
 #include <EspBleBluedroid.h>
 
 EspBleBluedroid bluetooth;

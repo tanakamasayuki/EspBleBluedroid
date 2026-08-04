@@ -1,48 +1,59 @@
 # DirectedAdvertising
 
 > English: [README.md](README.md)
+> 概念の説明: [BLE通信の入門ガイド](../../../docs/GUIDE_BLE_BASICS.ja.md) 2章「GAP編 — 探してつながる」
+> EspBleとの違い: [DIFFERENCES_FROM_ESPBLE.ja.md](../../DIFFERENCES_FROM_ESPBLE.ja.md)
 
-既知のCentral 1台だけへ接続可能なAdvertisingを送るPeripheral側の例です。
+**相手を1台に限定してadvertiseする**Peripheral側の例です。
 
-通常のAdvertisingが周囲全体へ接続を募集するのに対し、Directed Advertisingは宛先addressをpacketへ入れます。宛先以外のcontrollerはpacketを破棄します。bond済み機器との高速な再接続に向いています。
+通常のadvertisingが「誰でもどうぞ」と放送するのに対し、**Directed Advertising**はPDUに宛先アドレスを載せ、**その相手だけが接続できる**状態を作ります。主な用途はボンディング済みの相手への素早い再接続です。
+
+**payloadを一切載せられない**のがこの方式の最大の特徴です。BLEの仕様上、有向advertisingのPDUは送信元と宛先の2つのアドレスだけを運びます。名前もService UUIDも送られないため、相手は「スキャンして見つけて接続する」のではなく**アドレスを指定して接続する**ことになります。
 
 ## 必要なもの
 
-- このsketchを動かす無印ESP32 × 1
-- 宛先となるCentral
+- このsketchを動かす無印ESP32 × 1（Peripheral）
+- 接続するCentral — [Gap/Connect](../Connect/)を動かす2台目のボード、またはスマホアプリ
 
-`TARGET_CENTRAL`をCentralのidentity addressへ書き換え、address typeも`Public`または`Random`へ合わせます。Central側の無印ESP32では`bluetooth.localAddress()`でpublic addressを確認できます。
+sketch内の `TARGET_CENTRAL` を**advertise先Centralのアドレス**に、`TARGET_TYPE` をそのアドレス種別に書き換えてから使ってください。相手のアドレスは、そのボードで `bluetooth.localAddress()` / `bluetooth.localAddressType()` を表示させれば分かります。
 
-## High DutyとLow Duty
+## 動作
 
-| mode | interval | 継続時間 | 主な用途 |
-|---|---:|---:|---|
-| `highDuty = true` | 3.75 ms固定 | 最大1.28秒 | 切断直後の高速再接続 |
-| `highDuty = false` | `setInterval()`の値。未指定時1.28秒 | `stop()`または接続まで | 消費電力を抑えた待機 |
-
-High Dutyはtargetが接続しなくてもcontrollerが自動停止します。`bluetooth.update()`を継続して呼ぶと`isAdvertising()`も停止状態へ更新されます。
-
-## 重要な制約
-
-Directed Advertisingは仕様上、Local Name、Service UUID、Manufacturer DataなどのAD dataとScan Responseを一切送れません。`setDirectedTarget()`で宛先を設定している間は、通常Advertising用に構成したpayloadは送信されません。`clearDirectedTarget()`を呼ぶと同じAdvertising objectを通常送信へ戻せます。
-
-`start()`は動作中のAdvertisingを停止して、新しい設定で開始します。
-
-RPAを使うbond済みpeerを指定する場合は、一時的に観測したRPAではなくidentity addressと正しいidentity address typeを指定します。
-
-Directed Advertisingは接続先を限定しますが、接続後の暗号化や認証を保証しません。値を守る場合はBLE Securityも使用してください。
-
-## 操作
-
-- `h` — High Dutyで再開
-- `l` — Low Dutyで再開
-- `x` — 停止
+- まず**無向**でadvertiseします。Centralに一度見つけてもらい、アドレスを学習させるためです
+- `d` を送ると `TARGET_CENTRAL` 宛の**有向**advertisingへ切り替わります。payloadは送られません
+- Central側は、スキャン結果ではなく**アドレス指定**（`bluetooth.connect(address, addressType)`）で接続します
+- `u` を送ると無向advertisingへ戻ります。payloadは有向中も保持されており、送信されていなかっただけです
 
 ## 主なAPI
 
-```cpp
-auto &advertising = bluetooth.advertising();
-advertising.setDirectedTarget(
-  targetAddress, EspBleAddressType::Public, true);
-advertising.start();
+- `bluetooth.advertising().setDirectedTarget(address, addressType, highDuty)` — 宛先を指定する
+- `bluetooth.advertising().clearDirectedTarget()` — 通常のadvertisingへ戻す
+- `bluetooth.localAddress()` / `bluetooth.localAddressType()` — 自分のアドレスを相手へ伝えるために使う
+
+## 注意
+
+- **payloadは送信されません。** 名前・Service UUID・Manufacturer Dataのいずれも載りません。BLEの仕様であり、ライブラリの制限ではありません。
+- **相手がRPA（Resolvable Private Address）を使う場合は、識別用アドレスを指定します。** 解決はボンド情報を使って行われるため、**先にbondingが必要**です（[Gap/PrivateAddress](../PrivateAddress/)、[Security/JustWorksServer](../../Security/JustWorksServer/)参照）。
+- **High Duty Cycle（第3引数 `true`）は1.28秒で自動的に止まります。** 3.75ミリ秒間隔で送出するため、既知の相手へ最速で再接続できる代わりに、長く出し続けることはできません。既定の `false` なら `setInterval()` の設定に従い、`stop()` するまで続きます。
+- **接続が成立するとadvertisingは止まります。** 明示的に再開してください。このsketchではPeripheral側の`onDisconnected()`が無いため、`h`／`l`コマンドから再開します。
+- 「特定の相手だけを接続させる」だけが目的で、再接続の速さが不要なら、通常のadvertisingに[Gap/AcceptList](../AcceptList/)を組み合わせる方が扱いやすくなります。相手はスキャンでこのデバイスを見つけられます。
+
+## EspBleとの違い
+
+| | EspBle | EspBleBluedroid |
+|---|---|---|
+| exampleのディレクトリ名 | `Gap/DirectedAdvertise` | `Gap/DirectedAdvertising` |
+| Peripheral側の接続／切断callback | 配送されるので`onDisconnected()`でadvertisingを再開できる | **配送されない** — コマンドやタイマから再開する |
+| High / Low Duty Cycle | 対応 | 対応 |
+
+**なぜ違うのか:** ディレクトリ名は、この挙動を実機で固定しているpeer test（`tests/peer/directed_advertising`）に合わせています。callbackの違いは[Gap/AcceptList](../AcceptList/)と同じ理由です。`onConnected()`／`onDisconnected()`はこの機器が`connect()`で開いたlinkを表し、着信するPeripheral linkはまだconnection snapshotとして公開していません（[docs/STATUS.ja.md](../../../docs/STATUS.ja.md)参照）。
+
+**移植のしかた:** `advertising().start()`の呼び出しを`onDisconnected()`の外へ移します。空payload、宛先のaddress type、High Dutyが1.28秒で止まることなど、Directed PDU自体の挙動はEspBleと同じです。
+
+## 期待されるSerial出力
+
+```
+Advertising as d0:cf:13:58:fd:94. Send 'd' to direct it at aa:bb:cc:dd:ee:ff.
+Directed at aa:bb:cc:dd:ee:ff. No payload is sent.
+Undirected: anyone may connect.
 ```

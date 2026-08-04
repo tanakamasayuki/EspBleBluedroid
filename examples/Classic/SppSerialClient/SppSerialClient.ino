@@ -1,3 +1,10 @@
+// en: SppSerialClient - the outgoing half of the Stream bridge. While disconnected
+//     a typed line is a Classic address to connect to; once connected the same
+//     input is payload. connected() is what separates the two, otherwise the
+//     address would be transmitted as data.
+// ja: SppSerialClient - Streamブリッジの発信側。切断中に入力された行は接続先のClassic
+//     addressで、接続後の同じ入力は送信データになる。この2つを分けているのが
+//     connected() で、これがないとaddressがそのままデータとして送られてしまう。
 #include <EspBleBluedroid.h>
 
 EspBleBluedroid bluetooth;

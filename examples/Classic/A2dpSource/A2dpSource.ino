@@ -1,3 +1,11 @@
+// en: A2dpSource - send audio to a Bluetooth speaker or headset. Type the sink's
+//     Classic address, then PCM is pulled from onPcmRequested() after
+//     startStream(). An AVRCP Target receives the speaker's transport and volume
+//     commands. This example supplies silence; drop in a real source.
+// ja: A2dpSource - Bluetoothスピーカーやヘッドセットへ音声を送る。Sinkの
+//     Classic addressを入力すると、startStream() 後に onPcmRequested() からPCMが
+//     引かれる。AVRCP Targetがスピーカー側の再生・音量操作を受け取る。この例は無音を
+//     供給するので、実際の音源はここへ差し込む。
 #include <EspBleBluedroid.h>
 
 EspBleBluedroid bluetooth;
@@ -26,8 +34,15 @@ void setup()
   if (!target.start())
     Serial.printf("AVRCP error: %s\n", bluetooth.lastErrorDetail().c_str());
   source.onPcmRequested([](EspBluedroidA2dpPcmRequest &request) {
+    // en: flush means discard buffered audio (after a seek, for example):
+    //     clear the queue and resampler state and return without writing.
+    // ja: flushはバッファ済み音声の破棄（シーク後など）。queueとリサンプラの状態を
+    //     クリアし、書き込まずに戻る。
     if (request.flush) return;
-    // Replace this silence with PCM read from a bounded audio queue.
+    // en: Replace this silence with PCM read from a bounded audio queue, and
+    //     always set request.written - leaving it 0 sends nothing.
+    // ja: この無音を bounded audio queue から読んだPCMへ置き換える。
+    //     request.written は必ず設定する。0のままでは何も送られない。
     memset(request.data, 0, request.capacity);
     request.written = request.capacity;
   });

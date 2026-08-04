@@ -1,0 +1,31 @@
+# FitnessMachineServer
+
+> English: [README.md](README.md)
+> 概念の説明: [BLE通信の入門ガイド](../../../../docs/GUIDE_BLE_BASICS.ja.md) 4章「GATT編 — データをやり取りする」
+> EspBleとの違い: [DIFFERENCES_FROM_ESPBLE.ja.md](../../../DIFFERENCES_FROM_ESPBLE.ja.md)
+
+スマートトレーナーや屋内バイクで使われる標準Fitness Machine Service（0x1826）のPeripheralです。Indoor Bike Data（0x2AD2）を16bit flags＋instantaneous speed（0.01 km/h）・cadence（0.5/min）・符号付きpower（W）で**Notify**し、Fitness Machine Feature（0x2ACC）は8byteのfeature bitmap対をReadできます。
+
+## 必要なもの
+
+- このsketchを動かす無印ESP32 × 1（Peripheral）
+- Central × 1: [FitnessMachineClient](../FitnessMachineClient/) example、または任意のFitness Machine collector（Zwift等）
+
+## 動作
+
+- `begin()`前にFitness Machine serviceを登録し、0x1826をadvertise
+- 1秒ごとに、speed 30〜40 km/h（上下）・cadence 90 rpm・power 250 W をIndoor Bike Data（flags 0x0044）としてNotify
+
+## 主なAPI
+
+- `bluetooth.gattServer().addCharacteristic(..., { .notifiable = true })` — Indoor Bike Data
+- `bluetooth.gattServer().notify(...)` — 購読者へのNotification
+
+## メモ
+
+- Indoor Bike Dataのbit 0は*More Data*で、instantaneous speedはbit0が**0**のとき存在します。optionalフィールドはflag順（average speed、cadence、distance、resistance、power…）に並びます。
+- 本exampleはデータ配信パスを示すものです。Fitness Machine Control Point（対話的なtarget/resistance制御）は未実装です。
+
+## 期待されるSerial出力
+
+Serverは何も出力しません。decode結果はClient側で確認します。

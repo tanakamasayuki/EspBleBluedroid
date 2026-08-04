@@ -1,0 +1,33 @@
+# BatteryServer
+
+> English: [README.md](README.md)
+> 概念の説明: [BLE通信の入門ガイド](../../../../docs/GUIDE_BLE_BASICS.ja.md) 4章「GATT編 — データをやり取りする」
+> EspBleとの違い: [DIFFERENCES_FROM_ESPBLE.ja.md](../../../DIFFERENCES_FROM_ESPBLE.ja.md)
+
+標準Battery Service（`0x180F`）と、Read・Notify可能なBattery Level Characteristic（`0x2A19`）を公開するPeripheralです。
+
+## 必要なもの
+
+- 1 × 無印ESP32（このスケッチ。Peripheral）
+- 1 × Central: [BatteryClient](../BatteryClient/) example、または任意のBLE Central/スマートフォン
+
+## 動作
+
+- `begin()`の前にBattery Level Characteristic（Read + Notify）を登録し、`0x180F`をAdvertise
+- 初期値は75%で、Clientが通知をON/OFFするとログを出力
+- Serialから`+` / `-`を送るとレベルを変更（0〜100にクランプ）。変更のたびに値を更新し購読者へNotify
+
+## 主なAPI
+
+- `bluetooth.gattServer().addCharacteristic(..., { .readable = true, .notifiable = true })` — Battery Level Characteristicを宣言
+- `bluetooth.gattServer().setValue(...)` — 現在のレベルを保存
+- `bluetooth.gattServer().notify(...)` — 購読者へレベルを送信（受理されたか返す）
+- `bluetooth.gattServer().onSubscriptionChanged(...)` — 通知の有効/無効を検知
+
+## 期待されるSerial出力
+
+```
+Send '+' or '-' to change the Battery Level.
+Battery notifications: 1
+Battery: 76% (notification accepted: 1)
+```

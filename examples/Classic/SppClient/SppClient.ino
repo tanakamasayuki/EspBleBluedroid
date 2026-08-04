@@ -1,3 +1,11 @@
+// en: SppClient - the connecting side of SPP. Classic connects by address, not by
+//     a scan result, so type a canonical address in the Serial Monitor. connect()
+//     only accepts the request; SDP discovery and the RFCOMM connection finish
+//     later through onConnected() or onConnectionFailed().
+// ja: SppClient - SPPの接続する側。Classicはscan resultではなくaddressで接続するため、
+//     Serial Monitorへcanonical addressを入力する。connect() は要求を受理するだけで、
+//     SDP discoveryとRFCOMM接続の完了は onConnected() または onConnectionFailed() から
+//     後で届く。
 #include <EspBleBluedroid.h>
 
 EspBleBluedroid bluetooth;

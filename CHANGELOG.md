@@ -1,6 +1,16 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Port the EspBle example set: 91 examples with bilingual READMEs, a shared
+  `examples/DIFFERENCES_FROM_ESPBLE.md` list, and per-example "Differences from
+  EspBle" sections where usage actually differs.
+- (JA) EspBleのexample群を移植。91例をbilingual READMEで整備し、共通の
+  `examples/DIFFERENCES_FROM_ESPBLE.ja.md`と、使い方が実際に異なるexampleごとの
+  「EspBleとの違い」節を追加。
+- (EN) Add the shared `EspBleMedicalFloat.h` and `EspBleCgmCrc.h` codecs with host
+  unit tests, so standard Health and CGM examples encode the same wire bytes as EspBle.
+- (JA) 共通codec `EspBleMedicalFloat.h`・`EspBleCgmCrc.h`をhost unit test付きで追加。
+  標準HealthとCGMのexampleがEspBleと同じwire byteを生成する。
 - (EN) Initial release
 - (JA) 初期リリース
 - (EN) Add runtime BLE passkey entry with two-board peer coverage.

@@ -1,32 +1,36 @@
 # Advertise
 
 > 日本語版: [README.ja.md](README.ja.md)
+> Concepts: [BLE communication beginner guide (Japanese)](../../../docs/GUIDE_BLE_BASICS.ja.md) — chapter 2, "GAP"
+> EspBle differences: [DIFFERENCES_FROM_ESPBLE.md](../../DIFFERENCES_FROM_ESPBLE.md)
 
-Broadcasts a Local Name, Service UUID, and Manufacturer Data in connectable
-legacy advertising.
+Starts connectable legacy advertising carrying a device name and a 16-bit service UUID (HID, `1812`). A minimal peripheral example; observe it with a generic BLE scanner app or with the paired [Scan](../Scan/) example on a second board.
 
-## Requirements
+## Hardware
 
-- One original ESP32
-- [Gap/Scan](../Scan/) or a generic BLE scanner
+- 1 × original ESP32 running this sketch (peripheral)
+- A BLE scanner — the [Scan](../Scan/) example on a second board, or a scanner app such as nRF Connect
 
-## Behavior
+## What it does
 
-- Configures the GAP device name before `begin()`
-- Adds a Local Name, Battery Service UUID, and binary Manufacturer Data
-- Starts advertising and calls `update()` continuously
+- Initializes the stack with the device name `EspBleBluedroid Advertiser`
+- Advertises the local name and the HID service UUID `1812`, merged into a single Complete List AD structure per UUID size (CSS Part A 1.1)
+- Keeps advertising until reset; a central's connection attempt is accepted by the stack
 
-## Main APIs
+## Key APIs
 
-- `EspBleConfig::deviceName`
-- `advertising().setName()` / `addServiceUuid()` / `setManufacturerData()`
-- `setChannelMap()` — channels 37/38/39; zero or `EspBleAdvertisingChannelAll` selects all
-- `advertising().start()`
-
-`start()` rejects either legacy payload if it exceeds 31 bytes.
+- `bluetooth.begin(config)` — initialize the stack; `config.deviceName` sets the GAP device name
+- `bluetooth.advertising().setName(name)` — put the local name into the advertising payload
+- `bluetooth.advertising().addServiceUuid(uuid)` — advertise a service UUID (grouped by size into a single Complete List)
+- `bluetooth.advertising().setChannelMap(mask)` — restrict which advertising channels are used (a bit mask of `EspBleAdvertisingChannel37/38/39`; 0 means all three). Avoiding a channel that overlaps a busy Wi-Fi band costs longer discovery times
+- `bluetooth.advertising().start()` — start connectable legacy advertising; fails with `InvalidArgument` if the payload would exceed 31 bytes
+- `bluetooth.lastErrorName()` / `bluetooth.lastErrorDetail()` — reason for a rejected request
 
 ## Expected Serial output
 
-```text
-advertising
+Silent on success. On failure:
+
+```
+BLE init failed: InvalidState (...)
+Advertising failed: InvalidArgument (...)
 ```

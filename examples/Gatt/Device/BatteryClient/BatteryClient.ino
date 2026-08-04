@@ -9,16 +9,15 @@ bool connectionRequested = false;
 void setup()
 {
   Serial.begin(115200);
+
   if (!bluetooth.begin())
   {
-    Serial.printf("BLE initialization failed: %s\n",
-      bluetooth.lastErrorDetail().c_str());
+    Serial.printf("BLE initialization failed: %s\n", bluetooth.lastErrorDetail().c_str());
     return;
   }
 
   bluetooth.onConnected([](const EspBleConnection &connection) {
-    bluetooth.readCharacteristic(
-      connection.id, BATTERY_SERVICE_UUID, BATTERY_LEVEL_UUID);
+    bluetooth.readCharacteristic(connection.id, BATTERY_SERVICE_UUID, BATTERY_LEVEL_UUID);
   });
   bluetooth.onCharacteristicRead([](const EspBleGattResult &result) {
     if (!result.success || result.value.length() != 1)
@@ -27,12 +26,10 @@ void setup()
       return;
     }
     Serial.printf("Battery: %u%%\n", static_cast<uint8_t>(result.value[0]));
-    bluetooth.subscribe(
-      result.connectionId, BATTERY_SERVICE_UUID, BATTERY_LEVEL_UUID);
+    bluetooth.subscribe(result.connectionId, BATTERY_SERVICE_UUID, BATTERY_LEVEL_UUID);
   });
   bluetooth.onSubscribed([](const EspBleGattResult &result) {
-    Serial.printf("Battery subscription: %s\n",
-      result.success ? "ready" : "failed");
+    Serial.printf("Battery subscription: %s\n", result.success ? "ready" : "failed");
   });
   bluetooth.onNotification([](const EspBleGattNotification &notification) {
     if (notification.serviceUuid.equalsIgnoreCase(BATTERY_SERVICE_UUID) &&
@@ -44,8 +41,7 @@ void setup()
     }
   });
   bluetooth.scanner().onResult([](const EspBleScanResult &result) {
-    if (connectionRequested ||
-        !result.advertisesService(BATTERY_SERVICE_UUID)) return;
+    if (connectionRequested || !result.advertisesService(BATTERY_SERVICE_UUID)) return;
     bluetooth.scanner().stop();
     connectionRequested = bluetooth.connect(result);
   });

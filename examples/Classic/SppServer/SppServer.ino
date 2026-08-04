@@ -1,3 +1,11 @@
+// en: SppServer - start an unauthenticated Serial Port Profile server and echo
+//     every received packet. SPP is the Classic byte-stream profile: RFCOMM in,
+//     RFCOMM out, no GATT database. Callbacks are delivered from update(), so
+//     echoing from inside onData() only queues the write.
+// ja: SppServer - 認証なしのSerial Port Profile serverを開始し、受信packetをすべて
+//     echoする。SPPはClassicのbyte stream profileで、RFCOMMの入出力だけを扱い、GATT
+//     databaseはない。callbackは update() から配送されるため、onData() の中のechoは
+//     writeをqueueへ入れるだけになる。
 #include <EspBleBluedroid.h>
 
 EspBleBluedroid bluetooth;

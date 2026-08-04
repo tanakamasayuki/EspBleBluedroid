@@ -1,0 +1,38 @@
+# NusServer
+
+> English: [README.md](README.md)
+> 概念の説明: [BLE通信の入門ガイド](../../../../docs/GUIDE_BLE_BASICS.ja.md) 4章「GATT編 — データをやり取りする」
+> EspBleとの違い: [DIFFERENCES_FROM_ESPBLE.ja.md](../../../DIFFERENCES_FROM_ESPBLE.ja.md)
+
+Nordic UART Service（NUS）のUUID構成を汎用GATT Server APIで実装します（Peripheral）。Service `6e400001-…` のもとで、RX（`6e400002-…`）はWriteを受け取り、TX（`6e400003-…`）はNotificationを送ります。受信したRXデータは購読中のTX Clientへechoします。
+
+## 必要なもの
+
+- このsketchを動かす無印ESP32 × 1（Peripheral / GATT Server）
+- [NusClient](../NusClient/) exampleを動かす無印ESP32 × 1（またはNUS互換のCentral）
+
+## 動作
+
+- `begin()`前にNUS Serviceを登録し、RX Characteristicを応答あり/なしWrite可、TX CharacteristicをNotify可として構成します
+- RX Writeを表示し、同じバイト列をTX Notificationとしてecho、echoが受理されたかを表示します
+- TXの購読状態変化を`onSubscriptionChanged()`で報告します
+- `EspBleBluedroid NUS`の名前でNUS Service UUIDをadvertiseします
+
+## 主なAPI
+
+- `gattServer.addCharacteristic(service, uuid, config)` — RXは`writable` + `writableWithoutResponse`、TXは`notifiable`。返るハンドルで以降を操作します
+- `gattServer.onWritten(callback)` — `characteristicUuid.equalsIgnoreCase(...)`でRX UUIDに絞り込む`EspBleGattWrite`
+- `gattServer.notify(characteristic, value)` — 受信バイトをTXでechoし、受理されたかを返します
+- `gattServer.onSubscriptionChanged(callback)` — TX Characteristicの`subscription.notifications`
+
+## メモ
+
+- NUSはpacket指向のGATT慣例であり、Bluetooth Classic SPPではありません。payloadは接続のATT/MTU上限内に収め、複数packetへ分割する場合はapplication側でframingします。
+
+## 期待されるSerial出力
+
+```
+TX notifications: 1
+RX: hello
+Echo accepted: 1
+```

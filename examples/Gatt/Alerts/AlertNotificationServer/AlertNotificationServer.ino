@@ -1,0 +1,72 @@
+// en: AlertNotificationServer - standard Alert Notification Service (0x1811).
+//     Supported New Alert Category (0x2A47) is a readable uint16 bitmask; New
+//     Alert (0x2A46) is notified with Category ID + count + text; the Alert
+//     Notification Control Point (0x2A44) is writable. "Notify New Alert
+//     Immediately" (command 2) triggers a New Alert notification.
+// ja: AlertNotificationServer - 標準Alert Notification Service（0x1811）。
+//     Supported New Alert Category（0x2A47）はreadableなuint16 bitmask、New Alert
+//     （0x2A46）はCategory ID＋count＋text付きでNotify、Alert Notification Control
+//     Point（0x2A44）はwritable。「Notify New Alert Immediately」（command 2）で
+//     New AlertのNotificationを発火する。
+#include <EspBleBluedroid.h>
+
+static constexpr const char *ANS_SERVICE_UUID = "1811";
+static constexpr const char *SUPPORTED_NEW_ALERT_CATEGORY_UUID = "2a47";
+static constexpr const char *NEW_ALERT_UUID = "2a46";
+static constexpr const char *ALERT_CONTROL_POINT_UUID = "2a44";
+
+EspBleBluedroid bluetooth;
+EspBleGattService ansServiceService;
+EspBleGattCharacteristic supportedNewAlertCategoryCharacteristic;
+EspBleGattCharacteristic newAlertCharacteristic;
+EspBleGattCharacteristic alertControlPointCharacteristic;
+// en: bit 1 = Email, bit 5 = SMS/MMS / ja: bit 1 = Email、bit 5 = SMS/MMS
+const uint8_t supportedCategories[2] = {0x22, 0x00};
+
+void setup()
+{
+  Serial.begin(115200);
+
+  EspBleGattCharacteristicConfig categoryConfig;
+  categoryConfig.readable = true;
+  EspBleGattCharacteristicConfig alertConfig;
+  alertConfig.notifiable = true;
+  EspBleGattCharacteristicConfig controlConfig;
+  controlConfig.writable = true;
+  auto &server = bluetooth.gattServer();
+  ansServiceService = server.addService(ANS_SERVICE_UUID);
+  supportedNewAlertCategoryCharacteristic = server.addCharacteristic(ansServiceService, SUPPORTED_NEW_ALERT_CATEGORY_UUID, categoryConfig);
+  newAlertCharacteristic = server.addCharacteristic(ansServiceService, NEW_ALERT_UUID, alertConfig);
+  alertControlPointCharacteristic = server.addCharacteristic(ansServiceService, ALERT_CONTROL_POINT_UUID, controlConfig);
+  server.setValue(supportedNewAlertCategoryCharacteristic, supportedCategories, sizeof(supportedCategories));
+
+  server.onWritten([](const EspBleGattWrite &write) {
+    if (!write.characteristicUuid.equalsIgnoreCase(ALERT_CONTROL_POINT_UUID) || write.value.length() < 2)
+      return;
+    const uint8_t command = static_cast<uint8_t>(write.value[0]);
+    const uint8_t category = static_cast<uint8_t>(write.value[1]);
+    // en: Command 2 = Notify New Alert Immediately / ja: command 2 = Notify New Alert Immediately
+    if (command == 0x02)
+    {
+      Serial.printf("Notify New Alert for category %u\n", category);
+      const uint8_t alert[5] = {category, 3, 'B', 'o', 'b'};
+      bluetooth.gattServer().notify(newAlertCharacteristic, alert, sizeof(alert));
+    }
+  });
+
+  EspBleConfig config;
+  config.deviceName = "Bluedroid Alert Notification";
+  if (!bluetooth.begin(config))
+  {
+    Serial.printf("BLE initialization failed: %s\n", bluetooth.lastErrorDetail().c_str());
+    return;
+  }
+  bluetooth.advertising().addServiceUuid(ANS_SERVICE_UUID);
+  bluetooth.advertising().start();
+}
+
+void loop()
+{
+  bluetooth.update();
+  delay(1);
+}

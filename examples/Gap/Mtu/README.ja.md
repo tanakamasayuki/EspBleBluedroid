@@ -1,36 +1,51 @@
 # Mtu
 
 > English: [README.md](README.md)
+> 概念の説明: [BLE通信の入門ガイド](../../../docs/GUIDE_BLE_BASICS.ja.md) 2章「GAP編 — 探してつながる」
+> EspBleとの違い: [DIFFERENCES_FROM_ESPBLE.ja.md](../../DIFFERENCES_FROM_ESPBLE.ja.md)
 
-希望ATT MTUを設定し、新しいlinkの初期値から合意値への変更を観察します。
+接続前に大きめのATT MTUを希望値として設定し、交換結果を観察します。希望MTUは`begin()`へ渡すconfigで指定し、linkが確立した直後にライブラリが交換します。
 
 ## 必要なもの
 
-- 無印ESP32 × 1（このsketch。Central）
-- Battery ServiceをAdvertisingし、MTU 185以上を受理するPeripheral
+- このsketchを動かす無印ESP32 × 1（Central）
+- BLE Peripheral × 1 — このsketchは[Gatt/Basics/NotifyServer](../../Gatt/Basics/NotifyServer/) exampleのService UUIDをscanするので、2台目のボードでNotifyServerを動かしてください
 
 ## 動作
 
-- `config.preferredMtu = 185`を指定します
-- `onConnected()`で新しいATT linkの初期MTU 23を表示します
-- `onMtuChanged()`で合意MTUとNotification payload上限を表示します
-- 切断時はHCI切断理由を表示します
+- `begin()`前に`config.preferredMtu = 185`を設定します
+- NotifyServerのService UUIDをadvertiseする最初の相手へ接続します
+- 交換されたMTUと、そこから決まるNotification payload上限（`mtu - 3`）を表示します
+- MTU変更イベントを変更前後の値と一緒に表示します
 
 ## 主なAPI
 
-- `EspBleConfig::preferredMtu` — 希望値（23〜517、既定247）
-- `EspBleMtuChanged::previousMtu` / `connection.mtu`
-- `EspBleConnection::maximumNotificationPayload()` — `mtu - 3`
-- `onMtuChanged()` — `update()`から届く交換完了callback
+- `EspBleConfig::preferredMtu` — 希望ATT MTU（23〜517）。範囲外は`begin()`が`InvalidArgument`で拒否します
+- `connection.mtu` — そのイベント時点のMTU。**接続直後は23**です。MTUの交換は接続が成立した直後に行われるので、`onConnected`の時点ではまだ既定値で、交換結果は`onMtuChanged`で届きます（CentralとPeripheralのどちらも同じ順序です）
+- `connection.maximumNotificationPayload()` — `mtu - 3`（ATT notification header分を除いた値）
+- `bluetooth.onMtuChanged(callback)` — `event.previousMtu`と`event.connection.mtu`
 
 ## メモ
 
-希望値と相手側上限の小さい方が採用されます。交換開始とbackend eventの処理は
-EspBleBluedroidが行うため、applicationは希望値と完了callbackだけを扱います。
+- **交換はstack callbackの中ではなく`update()`から開始します。** Bluedroidは自身の接続callbackの中からのMTU要求を受け付けないため、ライブラリは接続workerの完了後、次の`update()`で1回だけ要求します。接続後に`update()`を呼ばなくなったsketchはMTU 23のままになります。
+- 合意値は`onMtuChanged()`の配送と同時にconnection snapshotへ書き込まれるので、以降の`bluetooth.connection(id, out)`は交換後のMTUを返します。
+- 交換中の`disconnect()`は受理され、交換の完了まで内部で遅延します。
+
+## EspBleとの違い
+
+| | EspBle | EspBleBluedroid |
+|---|---|---|
+| `EspBleConfig::preferredMtu`の既定 | 247 | 247 |
+| 交換を開始する時点 | 接続確立処理の中（backend内部） | 接続worker完了後の最初の`update()` |
+| `onConnected()`時点のMTU | 23（既定） | 23（既定） |
+
+**なぜ違うのか:** Bluedroidは自身のGATTC callback contextから`esp_ble_gattc_send_mtu_req()`を呼ぶと失敗するため、linkが成立したその瞬間に要求を出せません。EspBleBluedroidはlinkごとにちょうど1件の要求をqueueし、`update()`から発行します。
+
+**移植のしかた:** コード変更は不要です。sketchはEspBle版と同じで、`onMtuChanged()`の到達が`update()` 1周期分だけ後ろにずれるだけです。
 
 ## 期待されるSerial出力
 
-```text
-Connected with initial MTU 23
-MTU changed from 23 to 185 (notification payload up to 182 bytes)
+```
+Connected with MTU 23 (notification payload up to 20 bytes)
+MTU changed from 23 to 185
 ```

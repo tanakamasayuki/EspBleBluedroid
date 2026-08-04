@@ -1,3 +1,11 @@
+// en: SppPasskey - an authenticated, encrypted SPP server using SSP Passkey Entry.
+//     KeyboardOnly means the peer displays six digits and this side enters them
+//     with providePasskey(). onPasskeyDisplayed() is implemented too, so the same
+//     sketch works when the I/O capability is changed to DisplayOnly.
+// ja: SppPasskey - SSPのPasskey Entryを使う、認証・暗号化ありのSPP server。
+//     KeyboardOnlyでは相手が6桁を表示し、こちらが providePasskey() で入力する。
+//     onPasskeyDisplayed() も実装しているので、I/O capabilityをDisplayOnlyへ変えても
+//     同じsketchで動く。
 #include <EspBleBluedroid.h>
 
 EspBleBluedroid bluetooth;

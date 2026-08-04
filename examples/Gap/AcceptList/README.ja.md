@@ -1,60 +1,73 @@
 # AcceptList
 
 > English: [README.md](README.md)
+> 概念の説明: [BLE通信の入門ガイド](../../../docs/GUIDE_BLE_BASICS.ja.md) 2章「GAP編 — 探してつながる」
+> EspBleとの違い: [DIFFERENCES_FROM_ESPBLE.ja.md](../../DIFFERENCES_FROM_ESPBLE.ja.md)
 
-接続してくる相手を制限するPeripheral側の例です。
+1つの **Filter Accept List**（旧称 white list）を**2通りに使う**例です。**接続してくる相手を制限する**（advertising側）のと、**スキャンで報告される相手を絞り込む**（scan側）の両方を、同じリストで行います。
 
-BLEには、接続要求をapplicationが見てから承認・拒否するcallbackはありません。Filter Accept List（旧称white list）を使うと、controllerが接続要求をアドレスと照合し、登録されていない相手をapplicationへ届く前に破棄します。
+BLEには「接続要求が来たので相手を見て承認/拒否する」というcallbackは**存在しません**。接続の可否はコントローラが **Filter Accept List**（旧称 white list）と照合して決め、拒否された相手のことはアプリケーションに一切届きません。したがって選択肢は次の3つになります。
 
-同じlistはCentral側のScanにも使われ、`EspBleScanConfig::acceptListOnly = true`で
-一覧外のAdvertisingをcontrollerが破棄します。
+| 手段 | 説明 |
+|---|---|
+| **Filter Accept List** | このexample。コントローラが弾くので最も確実で、アプリに負荷もかからない |
+| 接続後に切断する | `onConnected` で相手を見て `disconnect()` する。一度は接続が成立してしまう |
+| 属性側で守る | Characteristicに暗号化/認証を要求する（[Security/*](../../Security/)）。接続は許すが値は守る |
+
+用途に応じて組み合わせます。「そもそも繋がせたくない」ならFilter Accept List、「繋がせるが値は守りたい」なら暗号化です。
+
+accept listはコントローラが持つ1本のリストで、**advertisingとscanで共通**です。scan側では `EspBleScanConfig::acceptListOnly` を立てると、リストに載っていない相手のadvertisementはコントローラが捨て、`onResult` まで届きません。「この機器とだけやり取りする」構成では、同じリストが両方向に効きます。
 
 ## 必要なもの
 
-- このsketchを動かす無印ESP32 × 1
-- 接続を試みるCentral（2台目のESP32、またはスマートフォン）
+- このsketchを動かす無印ESP32 × 1（Peripheral）
+- 相手のボード × 1 — 接続を試みるCentral（[Gap/Connect](../Connect/)）、またはadvertiseするPeripheral（[Gap/Advertise](../Advertise/)）。スマホアプリでも可
 
-`ALLOWED_CENTRAL`を、接続を許可するCentralのidentity addressへ書き換えてください。アドレス種別も`Public`または`Random`へ合わせます。初期値のままなら通常は誰も接続できません。
+sketch内の `ALLOWED_PEER` を、**許可したい相手のアドレス**に書き換えてから使ってください。相手のアドレスは、そのボードで `bluetooth.localAddress()` を表示させれば分かります。書き換えないままだと誰も接続できず、絞り込みscanには何も出ません（それ自体、フィルタが効いていることの確認にはなります）。
 
 ## 動作
 
-- 許可アドレスをaccept listへ追加します
-- `ConnectionFromAcceptList`でadvertisingし、一覧外からの接続要求をcontrollerで破棄します
-- Serialへ`o`を送ると`Any`へ切り替わり、誰でも接続できます
-- `r`を送ると再びaccept listによる制限へ戻ります
-
-現在の公開APIはPeripheral側のGATT Serverと接続callbackをまだ扱わないため、このexampleではCentral側の接続成否で動作を確認します。
+- 許可アドレスをaccept listへ登録し、`ConnectionFromAcceptList` policyでadvertiseします
+- accept listにいない相手からの接続要求はコントローラが黙って捨てます。相手側は接続がタイムアウトします
+- `o` を送るとpolicyを`Any`に戻して誰でも接続可能になり、`r` で再び制限します
+- `f` は `acceptListOnly` を立てた5秒間のscanを開始し、許可アドレスのadvertisementだけを表示します
+- `a` は同じscanをフィルタなしで行います。周囲のすべてのadvertiserが並ぶので、`f` との差がそのまま絞り込みの効果です
 
 ## 主なAPI
 
-- `bluetooth.addToAcceptList(address, addressType)` — 最大8件。重複追加は成功し、件数は増えません
-- `bluetooth.removeFromAcceptList(address, addressType)`
-- `bluetooth.clearAcceptList()`
+- `bluetooth.addToAcceptList(address, addressType)` — accept listへ追加する（最大8件）
+- `bluetooth.removeFromAcceptList(address, addressType)` / `bluetooth.clearAcceptList()`
 - `bluetooth.acceptListCount()` / `bluetooth.acceptListEntry(index, entry)`
-- `bluetooth.advertising().setFilterPolicy(policy)`
-- `EspBleScanConfig::acceptListOnly` — 同じlistをScan側へ適用
-
-policyは次の4種類です。
-
-| policy | Scan Request | 接続要求 |
-|---|---|---|
-| `Any` | 全員を許可 | 全員を許可 |
-| `ScanRequestFromAcceptList` | 一覧内だけ許可 | 全員を許可 |
-| `ConnectionFromAcceptList` | 全員を許可 | 一覧内だけ許可 |
-| `Both` | 一覧内だけ許可 | 一覧内だけ許可 |
+- `bluetooth.advertising().setFilterPolicy(policy)` — `Any` / `ScanRequestFromAcceptList` / `ConnectionFromAcceptList` / `Both`（advertising側）
+- `EspBleScanConfig::acceptListOnly` — 同じリストをscan側に適用する
 
 ## 注意
 
-- policyとaccept listは次に`advertising.start()`した時点でcontrollerへ反映されます。動作中に変える場合は`stop()`、変更、`start()`の順にします。
-- 制限policyで一覧が空なら、該当する要求はすべて破棄されます。
-- 拒否されたCentralには拒否通知が返らず、接続失敗またはtimeoutに見えます。
-- RPAを使うpeerは、bonding後のidentity addressと正しいaddress typeを登録します。観測した一時的なRPAを固定登録してはいけません。
-- 接続制限は属性値の暗号化を代替しません。値を守る場合はBLE Securityも設定します。
+- **リストはadvertisingとscanで共通です。** 片方のためにaddしたエントリは、もう片方にも効きます。別々のリストは持てません（コントローラに1本しかないためです）。
+- **policyの変更はadvertisingの開始時に反映されます。** 動作中に変える場合はこのexampleのように `stop()` → `setFilterPolicy()` → `start()` としてください。
+- **照合はアドレス単位です。** RPAを回転させる相手は、bondingしてidentity addressが使えるようになるまで意味のある登録ができません（[Gap/PrivateAddress](../PrivateAddress/)参照）。
+- **accept listが空の状態で制限policyにすると、誰も接続できません。** 意図的にロックする用途にも使えますが、事故には注意してください。
+- 拒否された相手には「拒否された」と伝わりません。Link Layerに拒否を返すPDUが無く、コントローラは接続要求を黙って捨てるだけだからです。相手側からは応答が来ないまま接続がタイムアウトしたように見えます。
+
+## EspBleとの違い
+
+| | EspBle | EspBleBluedroid |
+|---|---|---|
+| accept listの上限 | 8件 | 8件 |
+| Peripheral側の接続／切断callback | 配送されるので、許可された接続をこのボードで確認できる | **配送されない** — 結果はCentral側で確認する |
+| `EspBleScanConfig::acceptListOnly` | 対応 | 対応 |
+
+**なぜ違うのか:** EspBleBluedroidの`onConnected()`／`onDisconnected()`は、この機器が`connect()`で開いたlinkを報告するものです。着信するPeripheral linkはまだconnection snapshotとして公開していません（[docs/STATUS.ja.md](../../../docs/STATUS.ja.md)参照）。そのためフィルタで弾かれた接続要求はローカルにeventを残しません。これはBLE自体の性質でもあります。拒否されたCentralには拒否パケットが届かず、失敗またはtimeoutとしてしか見えません。
+
+**移植のしかた:** Peripheral側の`onConnected()`／`onDisconnected()`ハンドラを外し、結果はCentral側で読みます。[Gap/Connect](../Connect/)は、accept listに拒否されたときtimeoutとして`onConnectionFailed()`を表示します。リスト、policy、scan側フィルタの使い方はEspBleと同じです。
 
 ## 期待されるSerial出力
 
-```text
-Restricted advertising. Only aa:bb:cc:dd:ee:ff may connect. Send o/r to change policy.
+```
+Advertising. Only aa:bb:cc:dd:ee:ff may connect.
+Commands: 'o' open policy, 'r' restrict, 'f' filtered scan, 'a' scan everyone
+Scanning for 5 s (accept list only)
+Advertiser aa:bb:cc:dd:ee:ff rssi=-41 (filtered scan)
 Policy: open (accept list has 1 entries)
 Policy: restricted (accept list has 1 entries)
 ```

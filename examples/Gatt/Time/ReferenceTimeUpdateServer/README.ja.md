@@ -1,0 +1,30 @@
+# ReferenceTimeUpdateServer
+
+> English: [README.md](README.md)
+> 概念の説明: [BLE通信の入門ガイド](../../../../docs/GUIDE_BLE_BASICS.ja.md) 4章「GATT編 — データをやり取りする」
+> EspBleとの違い: [DIFFERENCES_FROM_ESPBLE.ja.md](../../../DIFFERENCES_FROM_ESPBLE.ja.md)
+
+標準Reference Time Update Service（0x1806）のPeripheral。Time Update Control Point（0x2A16）は**Write Without Response**（1 = Get Reference Update、2 = Cancel Reference Update）、Time Update State（0x2A17）はread可能な2バイト値（Current State＋Result）です。
+
+## 必要なもの
+
+- 1 × 無印ESP32（このスケッチ。Peripheral）
+- 1 × Central: [ReferenceTimeUpdateClient](../ReferenceTimeUpdateClient/) example、または Reference Time Update client
+
+## 動作
+
+- `begin()`の前にControl PointとStateを登録し、0x1806をAdvertise
+- 初期状態はIdle・Successful（0, 0）
+- Control Point書き込みで、Get Reference Update（1）はStateをUpdate Pending（1, 0）へ遷移、Cancel Reference Update（2）はCanceled結果でIdle（0, 1）へ戻す
+
+## 主なAPI
+
+- `bluetooth.gattServer().onWritten(...)` — Control Pointコマンドを受信
+- `bluetooth.gattServer().setValue(...)` — read専用Stateを更新
+
+## 期待されるSerial出力
+
+```
+Get Reference Update
+Cancel Reference Update
+```

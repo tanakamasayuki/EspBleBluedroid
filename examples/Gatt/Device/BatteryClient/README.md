@@ -1,34 +1,33 @@
 # BatteryClient
 
 > 日本語版: [README.ja.md](README.ja.md)
+> Concepts: [BLE communication beginner guide (Japanese)](../../../../docs/GUIDE_BLE_BASICS.ja.md) — chapter 4, "GATT"
+> EspBle differences: [DIFFERENCES_FROM_ESPBLE.md](../../../DIFFERENCES_FROM_ESPBLE.md)
 
-Scans for the standard Battery Service (`0x180F`), reads the one-byte Battery
-Level (`0x2A19`), then subscribes to its notifications. Request APIs report
-acceptance immediately; completion callbacks are delivered later from
-`update()`.
+Central that scans for the standard Battery Service (`0x180F`), reads the Battery Level (`0x2A19`), then subscribes to its notifications.
 
-The peer can be any standard Battery Service peripheral that supports Battery
-Level Read and Notification.
+## Hardware
 
-## Requirements
+- 1 × original ESP32 running this sketch (central)
+- 1 × Battery peripheral: the [BatteryServer](../BatteryServer/) example, or any device exposing the standard Battery Service
 
-- One original ESP32 running this Central sketch
-- A Peripheral advertising Battery Service with readable/notifiable Battery Level
+## What it does
 
-## Behavior
+- Active-scans and connects to the first advertiser offering `0x180F`
+- On connect, reads the one-byte Battery Level and prints it
+- After the read succeeds, subscribes to Battery Level notifications
+- Prints each subsequent level change as a notification arrives
 
-- Reads the one-byte Battery Level after connection
-- Subscribes after the Read succeeds
-- Prints subsequent Notification values
+## Key APIs
 
-## Main APIs
-
-- `readCharacteristic()` / `onCharacteristicRead()`
-- `subscribe()` / `onSubscribed()` / `onNotification()`
+- `bluetooth.scanner().onResult(...)` / `advertisesService(...)` — pick a peer advertising the service
+- `bluetooth.readCharacteristic(...)` + `bluetooth.onCharacteristicRead(...)` — read the current level
+- `bluetooth.subscribe(...)` + `bluetooth.onSubscribed(...)` — enable notifications
+- `bluetooth.onNotification(...)` — receive level changes
 
 ## Expected Serial output
 
-```text
+```
 Battery: 75%
 Battery subscription: ready
 Battery changed: 76%

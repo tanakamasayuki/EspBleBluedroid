@@ -1,56 +1,102 @@
+// en: Server - expose a custom GATT service with one readable/writable characteristic.
+//     All GATT server configuration must happen before begin() (the backend cannot add
+//     services after the server starts). Operate it from Gatt/Basics/Client or a generic GATT app.
+// ja: Server - Read/Write可能なCharacteristicを1つ持つ独自GATT Serviceを公開する。
+//     GATT Server構成はすべて begin() 前に登録する（backendはserver開始後の
+//     Service追加ができないため）。Gatt/Basics/Client example や汎用GATTアプリから操作できる。
 #include <EspBleBluedroid.h>
 
-static constexpr const char *SERVICE_UUID =
-  "10da4dd0-8eaa-4c69-9003-676174747277";
-static constexpr const char *CHARACTERISTIC_UUID =
-  "10da4dd1-8eaa-4c69-9003-676174747277";
-static constexpr const char *DESCRIPTOR_UUID =
-  "10da4dd2-8eaa-4c69-9003-676174747277";
+// en: Custom 128-bit UUIDs (service / characteristic / descriptor).
+// ja: 独自の128-bit UUID（Service / Characteristic / Descriptor）。
+static constexpr const char *SERVICE_UUID = "10da4dd0-8eaa-4c69-9003-676174747277";
+static constexpr const char *CHARACTERISTIC_UUID = "10da4dd1-8eaa-4c69-9003-676174747277";
+static constexpr const char *DESCRIPTOR_UUID = "10da4dd2-8eaa-4c69-9003-676174747277";
+// en: Read on demand: its value is produced when a peer reads it, not stored ahead.
+// ja: 読まれた瞬間に値を作るCharacteristic。あらかじめ保持しない。
+static constexpr const char *LIVE_UUID = "10da4dd3-8eaa-4c69-9003-676174747277";
 
 EspBleBluedroid bluetooth;
-EspBleGattCharacteristic valueCharacteristic;
 
+EspBleGattService service;
+EspBleGattCharacteristic characteristic;
+EspBleGattDescriptor descriptor;
+EspBleGattCharacteristic liveCharacteristic;
 void setup()
 {
   Serial.begin(115200);
-  auto &server = bluetooth.gattServer();
-  EspBleGattCharacteristicConfig characteristicConfig;
-  characteristicConfig.readable = true;
-  characteristicConfig.writable = true;
-  characteristicConfig.writableWithoutResponse = true;
+
+  auto &gattServer = bluetooth.gattServer();
+  EspBleGattCharacteristicConfig valueConfig;
+  valueConfig.readable = true;  // en: allow read / ja: Read許可
+  valueConfig.writable = true;  // en: allow write / ja: Write許可
+  valueConfig.writableWithoutResponse = true;
   EspBleGattDescriptorConfig descriptorConfig;
   descriptorConfig.writable = true;
+  EspBleGattCharacteristicConfig liveConfig;
+  liveConfig.readable = true;
 
-  const EspBleGattService service = server.addService(SERVICE_UUID);
-  valueCharacteristic = server.addCharacteristic(
-    service, CHARACTERISTIC_UUID, characteristicConfig);
-  const EspBleGattDescriptor descriptor = server.addDescriptor(
-    valueCharacteristic, DESCRIPTOR_UUID, descriptorConfig);
-  if (!service || !valueCharacteristic || !descriptor ||
-      !server.setValue(valueCharacteristic, String("ready")) ||
-      !server.setDescriptorValue(descriptor, String("EspBle value")))
+  // en: Register service -> characteristic -> initial value, all before begin().
+  // ja: begin() 前に Service → Characteristic → 初期値 の順で登録する。
+  if (!(service = gattServer.addService(SERVICE_UUID)).valid() ||
+      !(characteristic = gattServer.addCharacteristic(service, CHARACTERISTIC_UUID, valueConfig)).valid() ||
+      !(descriptor = gattServer.addDescriptor(characteristic, DESCRIPTOR_UUID, descriptorConfig)).valid() ||
+      !gattServer.setValue(characteristic, String("ready")) ||
+      !(liveCharacteristic = gattServer.addCharacteristic(service, LIVE_UUID, liveConfig)).valid() ||
+      !gattServer.setDescriptorValue(descriptor, String("Bluedroid value")))
   {
-    Serial.printf("GATT configuration failed: %s\n",
-      bluetooth.lastErrorDetail().c_str());
+    Serial.printf("GATT configuration failed: %s\n", bluetooth.lastErrorDetail().c_str());
     return;
   }
 
-  server.onWritten([](const EspBleGattWrite &write) {
-    Serial.printf("Connection %u wrote %u bytes\n",
+  // en: Write event from a client (a value type with connectionId, UUID, value).
+  // ja: Clientからの書込みイベント（connectionId・UUID・値を持つ値型）。
+  gattServer.onWritten([](const EspBleGattWrite &write) {
+    Serial.printf(
+      "Connection %u wrote: %s\n",
       static_cast<unsigned>(write.connectionId),
-      static_cast<unsigned>(write.value.length()));
+      write.value.c_str());
+  });
+  // en: A peer is reading. Produce the value now with setValue() and that is what
+  //     goes out. This one runs on the BLE stack task, not from update(), because
+  //     the answer has to be ready before the ATT read completes -- so keep it
+  //     short and do not print or block here.
+  // ja: 読み取り要求。ここで setValue() した値がそのまま相手へ返る。この callback だけは
+  //     update() ではなくBLEスタックのタスクで走る（ATTの読み取りが完了する前に
+  //     答えが要るため）。短く保ち、表示やブロックはしない。
+  gattServer.onRead([](const EspBleGattReadRequest &request) {
+    if (request.characteristic != liveCharacteristic) return;
+    bluetooth.gattServer().setValue(liveCharacteristic, String(millis()));
+  });
+  gattServer.onDescriptorWritten([](const EspBleGattDescriptorWrite &write) {
+    Serial.printf(
+      "Descriptor %s wrote: %s\n",
+      write.descriptorUuid.c_str(),
+      write.value.c_str());
   });
 
   EspBleConfig config;
-  config.deviceName = "EspBleBluedroid GATT Server";
-  if (!bluetooth.begin(config)) return;
-  bluetooth.advertising().setName(config.deviceName);
-  bluetooth.advertising().addServiceUuid(SERVICE_UUID);
-  bluetooth.advertising().start();
+  config.deviceName = "Bluedroid GATT Server";
+  if (!bluetooth.begin(config)) // en: GATT database is finalized and started here / ja: ここでGATT databaseが確定・開始する
+  {
+    Serial.printf("BLE initialization failed: %s\n", bluetooth.lastErrorDetail().c_str());
+    return;
+  }
+
+  // en: Advertise the service UUID so clients can find it.
+  // ja: ClientがみつけられるようにService UUIDをadvertiseする。
+  auto &advertising = bluetooth.advertising();
+  advertising.setName("Bluedroid GATT Server");
+  advertising.addServiceUuid(SERVICE_UUID);
+  if (!advertising.start())
+  {
+    Serial.printf("Advertising failed: %s\n", bluetooth.lastErrorDetail().c_str());
+  }
 }
 
 void loop()
 {
+  // en: Write callbacks are delivered from this update().
+  // ja: Writeコールバックはこの update() から配送される。
   bluetooth.update();
   delay(1);
 }

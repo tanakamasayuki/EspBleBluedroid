@@ -1,61 +1,75 @@
+// en: ConnectionInspector - interactive diagnostic tool: lists nearby connectable
+//     devices, connects to the one you pick, and dumps the connection snapshot (MTU,
+//     roles, security state). Also prints the bond store and diagnostic counters.
+//     Security is disabled here, so peripherals that require encryption reject reads but
+//     still accept the connection and show their link info.
+// ja: ConnectionInspector - 対話式の診断ツール。周囲のconnectableな機器を一覧し、選んだ
+//     相手へ接続してConnection snapshot（MTU・role・security状態）をダンプする。Bond store
+//     と診断カウンタも表示する。security無効なので、暗号化必須のPeripheralでも接続自体は成立し
+//     link情報を確認できる（Readは拒否される）。
 #include <EspBleBluedroid.h>
 
 static constexpr size_t MaxFound = 10;
 
 EspBleBluedroid bluetooth;
-EspBleScanResult found[MaxFound];
+EspBleScanResult found[MaxFound]; // en: listed devices / ja: 一覧した機器
 size_t foundCount = 0;
 EspBleConnectionId currentId = 0;
 
-static bool alreadyListed(const EspBleScanResult &result)
+// en: Has this address already been listed?
+// ja: このaddressは既に一覧済みか。
+static bool alreadyListed(const EspBleScanResult &scanResult)
 {
-  for (size_t index = 0; index < foundCount; ++index)
+  for (size_t i = 0; i < foundCount; ++i)
   {
-    if (found[index].address == result.address) return true;
+    if (found[i].address == scanResult.address)
+    {
+      return true;
+    }
   }
   return false;
 }
 
+// en: Dump the full connection snapshot.
+// ja: Connection snapshotをすべてダンプする。
 static void printConnection(const EspBleConnection &connection)
 {
   Serial.printf(
-    "CONNECTION id=%lu handle=%u peer=%s(type=%u) role=%s\n"
+    "CONNECTION id=%u handle=%u peer=%s(type=%u) role=%s\n"
     "  mtu=%u maxNotificationPayload=%u\n"
-    "  interval=%u latency=%u timeout=%u\n"
     "  encrypted=%u authenticated=%u bonded=%u keySize=%u\n",
-    static_cast<unsigned long>(connection.id),
+    static_cast<unsigned>(connection.id),
     connection.handle,
     connection.peerAddress.c_str(),
     static_cast<unsigned>(connection.peerAddressType),
     connection.localRole == EspBleRole::Central ? "Central" : "Peripheral",
     connection.mtu,
     static_cast<unsigned>(connection.maximumNotificationPayload()),
-    connection.connectionInterval,
-    connection.peripheralLatency,
-    connection.supervisionTimeout,
     connection.encrypted ? 1 : 0,
     connection.authenticated ? 1 : 0,
     connection.bonded ? 1 : 0,
     connection.encryptionKeySize);
 }
 
+// en: Dump the bond store (snapshot index access).
+// ja: Bond storeをダンプする（snapshot indexアクセス）。
 static void printBonds()
 {
   const size_t count = bluetooth.bondCount();
   Serial.printf("BONDS count=%u\n", static_cast<unsigned>(count));
-  for (size_t index = 0; index < count; ++index)
+  for (size_t i = 0; i < count; ++i)
   {
     EspBleBond bond;
-    if (bluetooth.bond(index, bond))
+    if (bluetooth.bond(i, bond))
     {
-      Serial.printf("  [%u] %s type=%u\n",
-        static_cast<unsigned>(index),
-        bond.peerAddress.c_str(),
+      Serial.printf("  [%u] %s type=%u\n", static_cast<unsigned>(i), bond.peerAddress.c_str(),
         static_cast<unsigned>(bond.peerAddressType));
     }
   }
 }
 
+// en: Print library diagnostic counters.
+// ja: ライブラリの診断カウンタを表示する。
 static void printCounters()
 {
   Serial.printf(
@@ -65,13 +79,15 @@ static void printCounters()
     static_cast<unsigned>(bluetooth.scanner().droppedResultCount()));
 }
 
+// en: Clear the list and restart scanning.
+// ja: 一覧をクリアして再scanする。
 static void startScan()
 {
   foundCount = 0;
-  EspBleScanConfig config;
-  config.active = true;
-  Serial.printf("SCAN restart success=%u - send a list number to connect\n",
-    bluetooth.scanner().start(config) ? 1 : 0);
+  EspBleScanConfig scanConfig;
+  scanConfig.active = true;
+  Serial.printf("SCAN restart success=%u - send the list number to connect\n",
+    bluetooth.scanner().start(scanConfig) ? 1 : 0);
 }
 
 void setup()
@@ -79,49 +95,45 @@ void setup()
   Serial.begin(115200);
 
   EspBleConfig config;
-  config.deviceName = "EspBleBluedroid Inspector";
+  config.deviceName = "Bluedroid Inspector";
   if (!bluetooth.begin(config))
   {
-    Serial.printf("BLE init failed: %s (%s)\n",
-      bluetooth.lastErrorName(), bluetooth.lastErrorDetail().c_str());
+    Serial.printf("BLE init failed: %s (%s)\n", bluetooth.lastErrorName(), bluetooth.lastErrorDetail().c_str());
     return;
   }
 
+  // en: On connect, remember the id and dump the snapshot.
+  // ja: 接続したらidを覚えてsnapshotをダンプする。
   bluetooth.onConnected([](const EspBleConnection &connection) {
     currentId = connection.id;
     printConnection(connection);
   });
-  bluetooth.onMtuChanged([](const EspBleMtuChanged &event) {
-    printConnection(event.connection);
-  });
   bluetooth.onDisconnected([](const EspBleConnection &connection) {
     currentId = 0;
-    Serial.printf("DISCONNECTED id=%lu reason=%d\n",
-      static_cast<unsigned long>(connection.id),
-      connection.disconnectReason);
+    Serial.printf("DISCONNECTED id=%u\n", static_cast<unsigned>(connection.id));
   });
   bluetooth.onConnectionFailed([](const EspBleConnectionFailure &failure) {
-    Serial.printf("CONNECT_FAILED peer=%s detail=%s\n",
-      failure.peerAddress.c_str(), failure.detail.c_str());
+    Serial.printf("CONNECT_FAILED peer=%s detail=%s\n", failure.peerAddress.c_str(), failure.detail.c_str());
   });
-  bluetooth.scanner().onResult([](const EspBleScanResult &result) {
-    if (!result.connectable || foundCount >= MaxFound ||
-        alreadyListed(result))
+  // en: List up to MaxFound unique connectable devices as [index] address rssi name.
+  // ja: connectableな機器を最大MaxFound件、[index] address rssi name 形式で一覧する。
+  bluetooth.scanner().onResult([](const EspBleScanResult &scanResult) {
+    if (!scanResult.connectable || foundCount >= MaxFound || alreadyListed(scanResult))
     {
       return;
     }
-    found[foundCount] = result;
-    Serial.printf("[%u] %s rssi=%d%s%s\n",
+    found[foundCount] = scanResult;
+    Serial.printf(
+      "[%u] %s rssi=%d%s%s\n",
       static_cast<unsigned>(foundCount),
-      result.address.c_str(),
-      result.rssi,
-      result.hasName() ? " name=" : "",
-      result.hasName() ? result.name.c_str() : "");
+      scanResult.address.c_str(),
+      scanResult.rssi,
+      scanResult.hasName() ? " name=" : "",
+      scanResult.hasName() ? scanResult.name.c_str() : "");
     ++foundCount;
   });
 
-  Serial.println(
-    "Commands: 0-9 connect, s rescan, d disconnect, b bonds, q counters");
+  Serial.println("Commands: 0-9 connect to listed device, s rescan, d disconnect, b bonds, q counters");
   startScan();
 }
 
@@ -132,11 +144,14 @@ void loop()
     const char command = Serial.read();
     if (command >= '0' && command <= '9')
     {
+      // en: connect to the listed device with that index
+      // ja: その番号の一覧機器へ接続する
       const size_t index = static_cast<size_t>(command - '0');
       if (index < foundCount)
       {
         bluetooth.scanner().stop();
-        Serial.printf("CONNECT [%u] %s accepted=%u\n",
+        Serial.printf(
+          "CONNECT [%u] %s accepted=%u\n",
           static_cast<unsigned>(index),
           found[index].address.c_str(),
           bluetooth.connect(found[index]) ? 1 : 0);
@@ -144,12 +159,11 @@ void loop()
     }
     else if (command == 's')
     {
-      startScan();
+      startScan(); // en: rescan / ja: 再scan
     }
     else if (command == 'd')
     {
-      Serial.printf("DISCONNECT accepted=%u\n",
-        bluetooth.disconnect(currentId) ? 1 : 0);
+      Serial.printf("DISCONNECT accepted=%u\n", bluetooth.disconnect(currentId) ? 1 : 0);
     }
     else if (command == 'b')
     {

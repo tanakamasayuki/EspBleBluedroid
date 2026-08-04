@@ -1,3 +1,11 @@
+// en: HfpHandsFree - act as a headset. connect() establishes the SLC (the control
+//     channel), and connectAudio() brings up SCO (the channel that actually
+//     carries voice) - a connected SLC does not mean there is audio. Audio is
+//     mono 16-bit PCM produced by the Core's built-in CVSD/mSBC codec.
+// ja: HfpHandsFree - ヘッドセットとして動作する。connect() はSLC（制御チャネル）を
+//     確立し、connectAudio() がSCO（実際に音声を運ぶチャネル）を確立する。SLCが
+//     繋がっていても音声があるとは限らない。音声はCore内蔵のCVSD/mSBC codecが作る
+//     mono 16-bit PCM。
 #include <EspBleBluedroid.h>
 
 EspBleBluedroid bluetooth;
@@ -21,11 +29,15 @@ void setup()
       static_cast<unsigned>(event.format.sampleRate));
   });
   handsFree.onPcmData([](const EspBluedroidHfpPcmData &pcm) {
-    // Copy pcm.data to a bounded speaker queue before returning.
+    // en: Copy pcm.data to a bounded speaker queue before returning; it runs
+    //     on the HFP stack task and the pointer dies with the callback.
+    // ja: 戻る前に pcm.data をbounded speaker queueへコピーする。HFP stack taskで
+    //     走り、ポインタはcallbackの終了で無効になる。
     (void)pcm;
   });
   handsFree.onPcmRequested([](EspBluedroidHfpPcmRequest &request) {
-    // Replace silence with microphone PCM from a bounded queue.
+    // en: Replace silence with microphone PCM from a bounded queue.
+    // ja: 無音を、bounded queueから読んだマイクのPCMへ置き換える。
     memset(request.data, 0, request.capacity);
     request.written = request.capacity;
   });

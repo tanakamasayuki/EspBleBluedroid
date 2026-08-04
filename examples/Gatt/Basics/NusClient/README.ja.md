@@ -1,0 +1,39 @@
+# NusClient
+
+> English: [README.md](README.md)
+> 概念の説明: [BLE通信の入門ガイド](../../../../docs/GUIDE_BLE_BASICS.ja.md) 4章「GATT編 — データをやり取りする」
+> EspBleとの違い: [DIFFERENCES_FROM_ESPBLE.ja.md](../../../DIFFERENCES_FROM_ESPBLE.ja.md)
+
+汎用GATT Client APIの組合せでNordic UART Service（NUS）Serverと通信するCentralです。Service `6e400001-…` のもとで、TX Notification（`6e400003-…`）を購読し、Serialへ入力された各行をWrite Without ResponseでRX（`6e400002-…`）へ送ります。
+
+## 必要なもの
+
+- このsketchを動かす無印ESP32 × 1（Central / GATT Client）
+- [NusServer](../NusServer/) exampleを動かす無印ESP32 × 1（またはNUS互換のPeripheral）
+
+## 動作
+
+- NUS Service UUIDをscanして接続します
+- 接続後にTX Notificationを購読し、`NUS ready`を表示します
+- Serialから空でない各行を読み取り、RXへWrite Without Responseで送ります
+- Serverから返るTX Notificationを`RX: …`として表示します
+
+## 主なAPI
+
+- `bluetooth.subscribe(connectionId, serviceUuid, characteristicUuid)` — TX Notificationを購読
+- `bluetooth.onSubscribed(callback)` — 購読完了（`result.success`）
+- `bluetooth.writeCharacteristic(connectionId, serviceUuid, characteristicUuid, value, false)` — RXへWrite Without Response
+- `bluetooth.onCharacteristicWritten(callback)` — Write受理の結果
+- `bluetooth.onNotification(callback)` — `characteristicUuid.equalsIgnoreCase(...)`で絞り込むTX payload
+
+## メモ
+
+- NUSが汎用GATT Client APIの組合せで構築できることを示します。stream意味論や自動packet framingは提供しません。Serialモニタに行を入力すると送信されます。
+
+## 期待されるSerial出力
+
+```
+NUS ready: 1
+TX accepted: 1
+RX: hello
+```

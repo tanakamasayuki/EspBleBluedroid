@@ -215,4 +215,13 @@ connectionCount	KEYWORD2
 onResult	KEYWORD2
 start	KEYWORD2
 stop	KEYWORD2
+espBleMedicalFloat32	KEYWORD2
+espBleWriteMedicalFloat32LE	KEYWORD2
+espBleReadMedicalFloat32LE	KEYWORD2
+espBleMedicalSFloat	KEYWORD2
+espBleWriteMedicalSFloatLE	KEYWORD2
+espBleReadMedicalSFloatLE	KEYWORD2
+espBleCgmCrc	KEYWORD2
+espBleCgmAppendCrc	KEYWORD2
+espBleCgmVerifyCrc	KEYWORD2
 ESPBLEBLUEDROID_VERSION_STR	LITERAL1

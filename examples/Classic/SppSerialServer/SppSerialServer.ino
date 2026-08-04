@@ -1,3 +1,11 @@
+// en: SppSerialServer - bridge an incoming SPP session and the board Serial port
+//     with EspBluedroidSppSerial, the Arduino Stream view of SPP. The wrapper
+//     follows the current active session by itself, so no session ID is stored.
+//     It must never outlive the EspBleBluedroid instance it was built from.
+// ja: SppSerialServer - 着信SPP sessionとボードのSerialを、SPPをArduino Streamとして
+//     見せる EspBluedroidSppSerial で橋渡しする。wrapperは現在のactive sessionへ自分で
+//     追従するため、session IDを保持する必要がない。構築元の EspBleBluedroid インスタンス
+//     より長く生存させてはならない。
 #include <EspBleBluedroid.h>
 
 EspBleBluedroid bluetooth;

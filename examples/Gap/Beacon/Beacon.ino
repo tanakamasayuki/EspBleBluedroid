@@ -1,37 +1,42 @@
-// en: Beacon - broadcast non-connectable, non-scannable manufacturer data.
-// ja: Beacon - non-connectable・non-scannableなManufacturer Dataを放送する。
+// en: Beacon - broadcast a non-connectable, non-scannable beacon carrying
+//     manufacturer data. setConnectable(false) makes it a pure broadcaster (no
+//     GATT connection possible); setScanResponseEnabled(false) makes it
+//     non-scannable; setInterval() controls the advertising interval. Observe it
+//     with the Gap/Scan example or any scanner app.
+// ja: Beacon - manufacturer dataを載せたnon-connectable・non-scannableなbeaconを
+//     broadcastする。setConnectable(false) で純粋なbroadcaster（GATT接続不可）に、
+//     setScanResponseEnabled(false) でnon-scannableに、setInterval() で送信間隔を
+//     制御する。Gap/Scan exampleや汎用スキャナアプリで受信できる。
 #include <EspBleBluedroid.h>
 
 EspBleBluedroid bluetooth;
 
-// en: Company ID 0xFFFF is reserved for testing. Replace it in a product.
-// ja: Company ID 0xFFFFはテスト用。製品では割り当て済みIDへ置き換える。
-static const uint8_t manufacturerData[] = {
-  0xff, 0xff, 0x01, 0x02, 0x03, 0x04};
+// en: Company ID 0xFFFF (test/unassigned) followed by a small payload. Replace
+//     with your assigned company ID and an iBeacon/Eddystone layout as needed.
+// ja: Company ID 0xFFFF（テスト用/未割当）＋小さなpayload。必要なら自社の割当
+//     company IDや iBeacon/Eddystone のレイアウトに置き換える。
+static const uint8_t manufacturerData[] = {0xFF, 0xFF, 0x01, 0x02, 0x03, 0x04};
 
 void setup()
 {
   Serial.begin(115200);
 
   EspBleConfig config;
-  config.deviceName = "EspBleBluedroid Beacon";
+  config.deviceName = "Bluedroid Beacon";
   if (!bluetooth.begin(config))
   {
-    Serial.printf("BLE init failed: %s (%s)\n",
-      bluetooth.lastErrorName(), bluetooth.lastErrorDetail().c_str());
+    Serial.printf("BLE init failed: %s (%s)\n", bluetooth.lastErrorName(), bluetooth.lastErrorDetail().c_str());
     return;
   }
 
   auto &advertising = bluetooth.advertising();
-  advertising.setConnectable(false);
-  advertising.setScanResponseEnabled(false);
-  advertising.setManufacturerData(
-    manufacturerData, sizeof(manufacturerData));
-  advertising.setInterval(100, 150);
+  advertising.setConnectable(false);          // en: pure broadcaster / ja: 純粋なbroadcaster
+  advertising.setScanResponseEnabled(false);  // en: non-scannable / ja: non-scannable
+  advertising.setManufacturerData(manufacturerData, sizeof(manufacturerData));
+  advertising.setInterval(100, 150);          // en: 100..150 ms / ja: 100〜150 ms
   if (!advertising.start())
   {
-    Serial.printf("Advertising failed: %s (%s)\n",
-      bluetooth.lastErrorName(), bluetooth.lastErrorDetail().c_str());
+    Serial.printf("Advertising failed: %s (%s)\n", bluetooth.lastErrorName(), bluetooth.lastErrorDetail().c_str());
   }
 }
 

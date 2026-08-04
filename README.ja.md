@@ -50,6 +50,11 @@ EspBle（NimBLE）との現在のBLE API差分は
 利用方法は[BLE通信の入門ガイド](docs/GUIDE_BLE_BASICS.ja.md)と
 [Bluetooth Classic通信の入門ガイド](docs/GUIDE_CLASSIC_BASICS.ja.md)を参照してください。
 実装済み範囲と未対応機能は[docs/STATUS.ja.md](docs/STATUS.ja.md)を参照してください。
+91個のexampleは[examples/README.ja.md](examples/README.ja.md)に一覧があります。BLE側は
+兄弟ライブラリ[EspBle](https://github.com/tanakamasayuki/EspBle)から移植したもので、APIも
+同じです。sketchの書き方に影響する違いは
+[examples/DIFFERENCES_FROM_ESPBLE.ja.md](examples/DIFFERENCES_FROM_ESPBLE.ja.md)に
+まとめ、使い方が異なるexampleでは各READMEにも理由を書いています。
 実装は[開発方針](docs/DEVELOPMENT.ja.md)に従い、公開動作ごとにテストを先に追加します。
 
 最小exampleのbuild:

@@ -1,31 +1,39 @@
 # Beacon
 
 > 日本語版: [README.ja.md](README.ja.md)
+> Concepts: [BLE communication beginner guide (Japanese)](../../../docs/GUIDE_BLE_BASICS.ja.md) — chapter 2, "GAP"
+> EspBle differences: [DIFFERENCES_FROM_ESPBLE.md](../../DIFFERENCES_FROM_ESPBLE.md)
 
-Broadcasts Manufacturer Data in non-connectable, non-scannable legacy
-advertising.
+Broadcasts a non-connectable, non-scannable beacon carrying manufacturer data. Unlike [Advertise](../Advertise/) (a connectable peripheral), this is a pure broadcaster: no central can connect to or scan it, so it only transmits its advertising payload on the configured interval.
 
-## Requirements
+## Hardware
 
-- One original ESP32
-- A scanner displaying Manufacturer Data, or [Gap/Scan](../Scan/)
+- 1 × original ESP32 running this sketch (broadcaster)
+- A BLE scanner — the [Scan](../Scan/) example on a second board, or a scanner app such as nRF Connect
 
-## Behavior
+## What it does
 
-- Disables connections and Scan Responses
-- Broadcasts a Company ID and binary payload every 100–150ms
+- Broadcasts manufacturer data (company ID `0xFFFF` + a small payload here) as a non-connectable, non-scannable advertisement
+- Transmits only, on the configured interval; a scanner sees it with `connectable = false` and `scannable = false`
 
-## Main APIs
+## Key APIs
 
-- `setConnectable(false)` / `setScanResponseEnabled(false)`
-- `setManufacturerData()` / `setInterval()`
+- `bluetooth.advertising().setConnectable(false)` — non-connectable mode (no GATT connection possible)
+- `bluetooth.advertising().setScanResponseEnabled(false)` — non-scannable (pure broadcaster; no scan response)
+- `bluetooth.advertising().setManufacturerData(data, length)` — the broadcast payload
+- `bluetooth.advertising().setInterval(minMs, maxMs)` — advertising interval in ms (20..10240; the spec requires ≥ 100 ms for non-connectable advertising)
+- `bluetooth.advertising().start()` — start broadcasting
 
 ## Notes
 
-The first two bytes are the little-endian Bluetooth SIG Company ID. `0xFFFF`
-is for testing and must be replaced in a product.
+- Replace the manufacturer data with your assigned company ID and an iBeacon layout as needed; the 31-byte legacy advertising budget applies.
+- Leave `setConnectable` at its default (`true`) for a normal connectable peripheral.
 
 ## Expected Serial output
 
-The sketch is silent after successful startup. The scanner should show
-`ffff01020304`.
+Silent on success. On failure:
+
+```
+BLE init failed: InvalidState (...)
+Advertising failed: InvalidArgument (...)
+```

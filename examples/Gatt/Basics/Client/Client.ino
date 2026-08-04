@@ -1,19 +1,26 @@
-// en: Client - connect to a compatible custom GATT Server and run the central
-//     flow: database discovery -> read -> writes -> descriptor access.
-// ja: Client - 対応する独自GATT Serverへ接続し、CentralのGATT Clientフロー
-//     （Database Discovery → Read → Write → Descriptor操作）を実行する。
+// en: Client - connect to the Gatt/Basics/Server example and run the central GATT client flow:
+//     database discovery -> known-UUID discovery -> read -> write -> descriptor access.
+//     Each step is a request API;
+//     completion arrives as an event from update(). The next operation is chained from
+//     the previous one's completion callback (central GATT operations are one-at-a-time).
+// ja: Client - Gatt/Basics/Server example へ接続し、CentralのGATT Clientフローを一通り実行する:
+//     Database一覧Discovery → 既知UUIDのDiscovery → Read → Write → Descriptor操作。
+//     各ステップは要求APIで受理され、
+//     完了は update() 経由のイベントとして届く。次の操作は前の操作の完了callbackから連鎖する
+//     （Central GATT操作は同時1件のため）。
 #include <EspBleBluedroid.h>
 
-static constexpr const char *SERVICE_UUID =
-  "10da4dd0-8eaa-4c69-9003-676174747277";
-static constexpr const char *CHARACTERISTIC_UUID =
-  "10da4dd1-8eaa-4c69-9003-676174747277";
-static constexpr const char *DESCRIPTOR_UUID =
-  "10da4dd2-8eaa-4c69-9003-676174747277";
+// en: Same UUIDs as the Gatt/Basics/Server example.
+// ja: Gatt/Basics/Server example と同じUUID。
+static constexpr const char *SERVICE_UUID = "10da4dd0-8eaa-4c69-9003-676174747277";
+static constexpr const char *CHARACTERISTIC_UUID = "10da4dd1-8eaa-4c69-9003-676174747277";
+static constexpr const char *DESCRIPTOR_UUID = "10da4dd2-8eaa-4c69-9003-676174747277";
+// en: The server produces this one's value when it is read (its onRead callback).
+// ja: Server側が読まれた瞬間に値を作るCharacteristic（onRead callback）。
+static constexpr const char *LIVE_UUID = "10da4dd3-8eaa-4c69-9003-676174747277";
 
 EspBleBluedroid bluetooth;
 bool connectionRequested = false;
-uint16_t targetCharacteristicHandle = 0;
 unsigned writePhase = 0;
 
 void setup()
@@ -21,68 +28,72 @@ void setup()
   Serial.begin(115200);
 
   EspBleConfig config;
-  config.deviceName = "EspBleBluedroid GATT Client";
+  config.deviceName = "Bluedroid GATT Client";
   if (!bluetooth.begin(config))
   {
-    Serial.printf("BLE initialization failed: %s\n",
-      bluetooth.lastErrorDetail().c_str());
+    Serial.printf("BLE initialization failed: %s\n", bluetooth.lastErrorDetail().c_str());
     return;
   }
 
+  // en: Once connected, enumerate the peer's GATT database.
+  // ja: 接続できたらpeerのGATT databaseを一覧Discoveryする。
   bluetooth.onConnected([](const EspBleConnection &connection) {
     if (!bluetooth.discoverServices(connection.id))
     {
-      Serial.printf("Discovery request failed: %s\n",
-        bluetooth.lastErrorDetail().c_str());
+      Serial.printf("Discovery request failed: %s\n", bluetooth.lastErrorDetail().c_str());
     }
   });
   bluetooth.onServicesDiscovered([](const EspBleGattResult &result) {
     if (!result.success)
     {
-      Serial.printf("Database discovery failed: %s\n",
-        result.detail.c_str());
+      Serial.printf("Database discovery failed: %s\n", result.detail.c_str());
       return;
     }
     Serial.printf("Services: %u, characteristics: %u, descriptors: %u\n",
-      static_cast<unsigned>(
-        bluetooth.discoveredServiceCount(result.connectionId)),
-      static_cast<unsigned>(
-        bluetooth.discoveredCharacteristicCount(result.connectionId)),
-      static_cast<unsigned>(
-        bluetooth.discoveredDescriptorCount(result.connectionId)));
-
-    const size_t count = bluetooth.discoveredCharacteristicCount(
-      result.connectionId, SERVICE_UUID);
-    for (size_t index = 0; index < count; ++index)
+      static_cast<unsigned>(bluetooth.discoveredServiceCount(result.connectionId)),
+      static_cast<unsigned>(bluetooth.discoveredCharacteristicCount(result.connectionId)),
+      static_cast<unsigned>(bluetooth.discoveredDescriptorCount(result.connectionId)));
+    bluetooth.discoverCharacteristic(result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID);
+  });
+  // en: Discovery done -> request a read.
+  // ja: Discovery完了 → Readを要求。
+  // en: One callback serves every characteristic, so branch on which one it is.
+  // ja: callbackは全Characteristic共通なので、どれの結果かで分岐する。
+  bluetooth.onCharacteristicDiscovered([](const EspBleGattResult &result) {
+    if (!result.success)
     {
-      EspBleGattCharacteristicInfo info;
-      if (bluetooth.discoveredCharacteristic(
-            result.connectionId, index, info, SERVICE_UUID) &&
-          info.characteristicUuid.equalsIgnoreCase(CHARACTERISTIC_UUID))
-      {
-        targetCharacteristicHandle = info.handle;
-        break;
-      }
-    }
-    if (targetCharacteristicHandle == 0)
-    {
-      Serial.println("Target characteristic was not found");
+      Serial.printf("Discovery failed: %s\n", result.detail.c_str());
       return;
     }
+    const bool live = result.characteristicUuid.equalsIgnoreCase(LIVE_UUID);
     bluetooth.readCharacteristic(
-      result.connectionId, targetCharacteristicHandle);
+      result.connectionId, SERVICE_UUID, live ? LIVE_UUID : CHARACTERISTIC_UUID);
   });
+  // en: Read done -> print the value and request a write (5th arg true = write with response).
+  // ja: Read完了 → 値を表示し、Writeを要求（第5引数true = Write with Response）。
   bluetooth.onCharacteristicRead([](const EspBleGattResult &result) {
     if (!result.success)
     {
       Serial.printf("Read failed: %s\n", result.detail.c_str());
       return;
     }
+    if (result.characteristicUuid.equalsIgnoreCase(LIVE_UUID))
+    {
+      // en: Not a stored value: the server built it while answering this read.
+      // ja: 保持された値ではなく、この読み取りに答える際にServerが作った値。
+      Serial.printf("Live: %s\n", result.value.c_str());
+      return;
+    }
     Serial.printf("Read: %s\n", result.value.c_str());
     bluetooth.writeCharacteristic(
-      result.connectionId, result.handle,
-      String("hello from Central"), true);
+      result.connectionId,
+      SERVICE_UUID,
+      CHARACTERISTIC_UUID,
+      String("hello from Central"),
+      true);
   });
+  // en: Follow the acknowledged write with Write Without Response, then read a descriptor.
+  // ja: 応答ありWriteの次にWrite Without Responseを行い、Descriptorを読む。
   bluetooth.onCharacteristicWritten([](const EspBleGattResult &result) {
     if (!result.success)
     {
@@ -92,14 +103,13 @@ void setup()
     if (writePhase++ == 0)
     {
       bluetooth.writeCharacteristic(
-        result.connectionId, result.handle,
+        result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID,
         String("unacknowledged Central write"), false);
     }
     else
     {
       bluetooth.readDescriptor(
-        result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID,
-        DESCRIPTOR_UUID);
+        result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID, DESCRIPTOR_UUID);
     }
   });
   bluetooth.onDescriptorRead([](const EspBleGattResult &result) {
@@ -110,31 +120,40 @@ void setup()
     }
     Serial.printf("Descriptor: %s\n", result.value.c_str());
     bluetooth.writeDescriptor(
-      result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID,
-      DESCRIPTOR_UUID, String("updated description"), true);
+      result.connectionId, SERVICE_UUID, CHARACTERISTIC_UUID, DESCRIPTOR_UUID,
+      String("updated description"), true);
   });
   bluetooth.onDescriptorWritten([](const EspBleGattResult &result) {
-    Serial.println(result.success
-      ? "Descriptor write complete" : "Descriptor write failed");
+    Serial.println(result.success ? "Descriptor write complete" : "Descriptor write failed");
+    if (!result.success) return;
+    // en: Last step: read the characteristic whose value the server makes on demand.
+    // ja: 最後に、Serverが要求時に値を作るCharacteristicを読む。
+    bluetooth.discoverCharacteristic(result.connectionId, SERVICE_UUID, LIVE_UUID);
   });
 
-  bluetooth.scanner().onResult([](const EspBleScanResult &result) {
-    if (connectionRequested || !result.advertisesService(SERVICE_UUID)) return;
+  // en: Connect once the target service UUID is found.
+  // ja: 対象Service UUIDを見つけたら接続する。
+  bluetooth.scanner().onResult([](const EspBleScanResult &scanResult) {
+    if (connectionRequested || !scanResult.advertisesService(SERVICE_UUID))
+    {
+      return;
+    }
     bluetooth.scanner().stop();
-    connectionRequested = bluetooth.connect(result);
+    connectionRequested = bluetooth.connect(scanResult);
   });
 
   EspBleScanConfig scanConfig;
   scanConfig.active = true;
   if (!bluetooth.scanner().start(scanConfig))
   {
-    Serial.printf("Scan start failed: %s\n",
-      bluetooth.lastErrorDetail().c_str());
+    Serial.printf("Scan start failed: %s\n", bluetooth.lastErrorDetail().c_str());
   }
 }
 
 void loop()
 {
+  // en: Discovery/read/write completion events are delivered from this update().
+  // ja: Discovery/Read/Write の各完了イベントはこの update() から配送される。
   bluetooth.update();
   delay(1);
 }

@@ -1,3 +1,10 @@
+// en: Inquiry - discover nearby discoverable Bluetooth Classic devices and print
+//     address, name, RSSI, and Class of Device. Classic Inquiry is a separate
+//     operation from BLE Scan, with its own result type; the capability snapshot
+//     is checked before begin() so an unsupported build says so up front.
+// ja: Inquiry - 周囲のdiscoverableなBluetooth Classic機器を探し、address、name、
+//     RSSI、Class of Deviceを表示する。Classic InquiryはBLE Scanとは別の操作で、
+//     結果型も別。非対応buildを先に判別するため、begin() 前にcapabilityを確認する。
 #include <EspBleBluedroid.h>
 
 EspBleBluedroid bluetooth;

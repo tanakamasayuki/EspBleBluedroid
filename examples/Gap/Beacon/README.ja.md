@@ -1,31 +1,39 @@
 # Beacon
 
 > English: [README.md](README.md)
+> 概念の説明: [BLE通信の入門ガイド](../../../docs/GUIDE_BLE_BASICS.ja.md) 2章「GAP編 — 探してつながる」
+> EspBleとの違い: [DIFFERENCES_FROM_ESPBLE.ja.md](../../DIFFERENCES_FROM_ESPBLE.ja.md)
 
-Manufacturer Dataをnon-connectable・non-scannableなLegacy Advertisingで放送します。
+manufacturer dataを載せたnon-connectable・non-scannableなbeaconをbroadcastします。connectableなPeripheralである[Advertise](../Advertise/)と違い、これは純粋なbroadcasterです。Centralから接続もscanもされず、設定した間隔でadvertising payloadを送信するだけです。
 
 ## 必要なもの
 
-- 無印ESP32 × 1
-- Manufacturer Dataを表示できるscanner、または[Gap/Scan](../Scan/)
+- このsketchを動かす無印ESP32 × 1（broadcaster）
+- BLEスキャナ — 2台目のボードで[Scan](../Scan/) example、またはnRF Connect等のスキャナアプリ
 
 ## 動作
 
-- 接続を受け付けないpure broadcasterにします
-- Scan Requestへ応答しない構成にします
-- Company IDとbinary payloadを100〜150ms間隔で送ります
+- manufacturer data（ここではcompany ID `0xFFFF` ＋小さなpayload）をnon-connectable・non-scannableなadvertisementとしてbroadcastします
+- 設定した間隔で送信するだけです。スキャナからは`connectable = false`・`scannable = false`として見えます
 
 ## 主なAPI
 
-- `setConnectable(false)` / `setScanResponseEnabled(false)`
-- `setManufacturerData()` — binary payloadを設定
-- `setInterval()` — Advertising Interval範囲をmsで指定
+- `bluetooth.advertising().setConnectable(false)` — non-connectableモード（GATT接続不可）
+- `bluetooth.advertising().setScanResponseEnabled(false)` — non-scannable（純粋なbroadcaster。scan responseなし）
+- `bluetooth.advertising().setManufacturerData(data, length)` — broadcastするpayload
+- `bluetooth.advertising().setInterval(minMs, maxMs)` — advertising間隔（ミリ秒。20〜10240。non-connectableでは仕様上100 ms以上が必要）
+- `bluetooth.advertising().start()` — broadcast開始
 
 ## メモ
 
-先頭2 byteはlittle-endianのBluetooth SIG Company IDです。`0xFFFF`はテスト用なので、
-製品では割り当て済みIDへ置き換えてください。
+- manufacturer dataは必要に応じて自社の割当company IDやiBeaconレイアウトに置き換える。31 byteのlegacy advertising制限が適用される。
+- 通常のconnectableなPeripheralにするには`setConnectable`を既定値（`true`）のままにする。
 
 ## 期待されるSerial出力
 
-正常開始時に定期出力はありません。scanner側で`ffff01020304`を確認してください。
+成功時は何も表示しません。失敗時:
+
+```
+BLE init failed: InvalidState (...)
+Advertising failed: InvalidArgument (...)
+```

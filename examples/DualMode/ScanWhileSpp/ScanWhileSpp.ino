@@ -1,3 +1,11 @@
+// en: ScanWhileSpp - run BLE and Bluetooth Classic at the same time. Connect an
+//     SPP session, then scan BLE for ten seconds without dropping it. One object
+//     owns one dual-mode stack, but the two transports stay separate APIs with
+//     separate result types: BLE at the root, Classic under classic().
+// ja: ScanWhileSpp - BLEとBluetooth Classicを同時に動かす。SPP sessionを接続し、
+//     それを維持したまま10秒間BLE Scanする。1つのオブジェクトが1つのdual mode stackを
+//     所有するが、2つのトランスポートはAPIも結果型も別のまま。BLEはroot直下、Classicは
+//     classic() 配下。
 #include <EspBleBluedroid.h>
 
 EspBleBluedroid bluetooth;

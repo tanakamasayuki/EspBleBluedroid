@@ -1,40 +1,81 @@
 # Client
 
 > 日本語版: [README.ja.md](README.ja.md)
+> Concepts: [BLE communication beginner guide (Japanese)](../../../../docs/GUIDE_BLE_BASICS.ja.md) — chapter 4, "GATT"
+> EspBle differences: [DIFFERENCES_FROM_ESPBLE.md](../../../DIFFERENCES_FROM_ESPBLE.md)
 
-Connects to a compatible custom GATT Server and runs database discovery,
-Characteristic Read, acknowledged and unacknowledged Writes, and Descriptor
-Read/Write.
+Connects to the [Gatt/Basics/Server](../Server/) example and walks through the central GATT client flow: database enumeration → known-UUID discovery → read → writes with and without response → descriptor read/write → reading a value the server builds on demand. Each request returns `bool` immediately and completes later as an event from `bluetooth.update()`.
 
-The peer must advertise Service
-`10da4dd0-8eaa-4c69-9003-676174747277`, expose a readable/writable
-Characteristic ending in `...dd1...`, and a readable/writable Descriptor
-ending in `...dd2...`. A generic GATT Server application or another firmware
-can provide this database.
+## Hardware
 
-## Requirements
+- 1 × original ESP32 running this sketch (central / GATT client)
+- 1 × original ESP32 running the [Gatt/Basics/Server](../Server/) example
 
-- One original ESP32 running this Central sketch
-- A compatible Peripheral providing the database described above
+## What it does
 
-## Behavior
+- Scans for the server's service UUID and connects
+- Enumerates services, characteristics, and descriptors into a connection-scoped snapshot
+- Discovers the known characteristic, then chains read, acknowledged/unacknowledged writes, and descriptor read/write
+- Finally reads `10da4dd3-…`, whose value the server produces in its `onRead()` callback, and prints it as `Live:`
+- Demonstrates that only one central GATT operation runs at a time — the next operation is issued from the completion callback of the previous one
 
-- Discovers the database and selects the known Characteristic handle
-- Runs Read, both Write modes, and Descriptor Read/Write in order
+## Writing it as a chain
 
-## Main APIs
+Every GATT operation is asynchronous, and **a central runs only one at a time**. Requesting a second while one is in flight fails synchronously with `InvalidState`. So the procedure cannot be written top to bottom; it becomes a **chain: request, then issue the next one from the completion event**.
 
-- `discoverServices()` and the connection-scoped discovery snapshot
-- Handle-based Characteristic Read/Write
-- Descriptor Read/Write and completion callbacks
+This example is that chain, made visible:
 
-Only one Central GATT operation runs at a time. Each next request is therefore
-issued from the preceding completion callback delivered by `update()`.
+```
+onConnected        → discoverServices()
+onServicesDiscovered → discoverCharacteristic()
+onCharacteristicDiscovered → readCharacteristic()
+onCharacteristicRead → writeCharacteristic()
+onCharacteristicWritten → (unacknowledged write) → readDescriptor()
+onDescriptorRead   → writeDescriptor()
+onDescriptorWritten → discoverCharacteristic(live) → readCharacteristic(live)
+```
+
+**There is one event per kind of operation, not per target.** With several characteristics in play, results arrive at the same callback in turn, so identify the target with `result.characteristicUuid` — or by handle when the UUID cannot tell them apart. This example reads two characteristics, so `onCharacteristicRead` branches.
+
+Enumeration results are held as a **per-connection snapshot**, valid until the connection drops or the next enumeration. `discoveredService*()` and friends query that snapshot without touching the radio.
+
+## Key APIs
+
+- `bluetooth.discoverServices()` / `onServicesDiscovered()` — enumerate the peer database
+- `discoveredService*()` / `discoveredCharacteristic*()` / `discoveredDescriptor*()` — inspect the snapshot until disconnect or the next enumeration
+- `bluetooth.discoverCharacteristic(connectionId, serviceUuid, characteristicUuid)` — known-UUID discovery
+- `bluetooth.onCharacteristicDiscovered(callback)` — `EspBleGattResult` with `success`, properties, and `detail`
+- `bluetooth.readCharacteristic(...)` / `bluetooth.onCharacteristicRead(callback)` — `result.value` holds the value (binary-safe)
+- `bluetooth.writeCharacteristic(connectionId, serviceUuid, characteristicUuid, value, withResponse)` / `bluetooth.onCharacteristicWritten(callback)`
+- `bluetooth.readDescriptor()` / `writeDescriptor()` and their completion callbacks
+- Trailing `timeoutMilliseconds` on each operation (default 10000; zero is invalid) — expiration completes with `EspBleError::Timeout`
+- Central GATT operations are exclusive: a second request while one is in flight fails synchronously with `InvalidState`
+
+## Notes
+
+- **A read returns one ATT response, so a long value is truncated.** `readCharacteristic()` issues a single ATT Read; a value that does not fit `mtu - 1` bytes comes back cut off, with no error. There is no automatic Read Long here — raise the MTU ([Gap/Mtu](../../../Gap/Mtu/)), or have the peer chunk the value across notifications, if it can exceed that.
+- **Writes are not split.** A write goes out as a single ATT request; Long Write (writing across several requests) is not performed. The asymmetry with reads is because whether splitting works also depends on the peer's implementation. The limit for one request is MTU − 3 bytes, the same value as `maximumNotificationPayload()`.
+
+## Differences from EspBle
+
+| | EspBle | EspBleBluedroid |
+|---|---|---|
+| Value longer than `mtu - 1` | read in pieces and joined automatically (Read Long) | **single ATT Read; the value is truncated** |
+| Concurrent GATT operations | more than one may be issued | one at a time per connection |
+| Discovery snapshot limits | 16 services / 48 characteristics / 48 descriptors | identical |
+
+**Why:** the read path uses `esp_ble_gattc_read_char()` (and the wrapper's single-read fallback), neither of which performs a Read Blob sequence. Rather than silently pretending otherwise, the library returns exactly what one response carried.
+
+**How to port:** keep values within `mtu - 1` bytes, negotiate a larger MTU, or split long payloads at the application level. The call itself is unchanged.
 
 ## Expected Serial output
 
-```text
+The enumeration counts depend on the peer's GATT database (including the standard services the backend provides), and `Live:` is `millis()` at the moment of the read.
+
+```
+Services: ..., characteristics: ..., descriptors: ...
 Read: ready
-Descriptor: value description
+Descriptor: EspBleBluedroid value
 Descriptor write complete
+Live: 8421
 ```

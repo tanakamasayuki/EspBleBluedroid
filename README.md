@@ -40,7 +40,14 @@ Japanese introductory guides cover
 [Bluetooth Classic](docs/GUIDE_CLASSIC_BASICS.ja.md) separately.
 
 The implemented and planned feature set is tracked in
-[Japanese](docs/STATUS.ja.md), with examples in [examples](examples/README.md).
+[Japanese](docs/STATUS.ja.md).
+
+The 91 examples are indexed in [examples/README.md](examples/README.md). The BLE
+ones are ported from the sibling library
+[EspBle](https://github.com/tanakamasayuki/EspBle) and use the same API;
+[examples/DIFFERENCES_FROM_ESPBLE.md](examples/DIFFERENCES_FROM_ESPBLE.md) lists
+every difference that affects how a sketch is written, and each example whose
+usage differs repeats the reason in its own README.
 
 Implementation follows the test-first policy documented in
 [Japanese](docs/DEVELOPMENT.ja.md).

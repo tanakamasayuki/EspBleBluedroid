@@ -1,40 +1,66 @@
 # ScanResponse
 
 > English: [README.md](README.md)
+> 概念の説明: [BLE通信の入門ガイド](../../../docs/GUIDE_BLE_BASICS.ja.md) 2章「GAP編 — 探してつながる」
+> EspBleとの違い: [DIFFERENCES_FROM_ESPBLE.ja.md](../../DIFFERENCES_FROM_ESPBLE.ja.md)
 
-Advertising本体とScan Responseを別々に構成し、2つの31 byte枠を使い分けます。
+広告データを **advertising payload** と **scan response payload** の2面に分ける例です。
+
+Legacy advertisingのpayloadは31byteしかありません。しかしscannerが**active scan**を行うと、advertiserへScan Requestを送り、advertiserはもう1つの31byteである**Scan Response**を返します。つまり合計62byteまで使えます。
+
+| | advertising payload | scan response payload |
+|---|---|---|
+| 誰に届くか | 近くの**全員**（passive scanでも見える） | **active scan**で要求してきた相手だけ |
+| 置くべきもの | 相手を判別するための最小限（Service UUIDなど） | 説明的な項目（name、appearance、manufacturer data） |
+| Flags | 自動で付与される | **載せられない**（仕様上advertising payload専用） |
+
+EspBleBluedroidでは `advertising().data()` と `advertising().scanResponse()` が同じbuilderを返すので、どちらの面にどの項目を置くかを自分で決められます。
 
 ## 既定の動作との関係
 
-Scan Responseを明示構成しない場合、長いdevice nameは自動的にScan Responseへ
-配置されます。このexampleでは両面をapplicationが明示します。
+scan responseに何も設定しない場合、EspBleBluedroidは**device nameを自動的にscan responseへ置きます**。31byteのadvertising payloadを名前で消費しないための既定動作です。
+
+scan responseに何か1つでも設定すると、この自動配置は解除されます。名前も出したい場合は、このexampleのように `scanResponse().setName(...)` を明示してください。
 
 ## 必要なもの
 
-- 無印ESP32 × 1
-- Passive/Active Scanを切り替えられるscanner
+- このsketchを動かす無印ESP32 × 1（Peripheral）
+- 受信側 — [Info/ScanDump](../../Info/ScanDump/)を動かす2台目のボード、またはnRF Connect等のスキャナアプリ
 
 ## 動作
 
-- Advertising本体へService UUID、Appearance、Tx Powerを載せます
-- 実際のBLE送信電力を3 dBmへ設定します
-- Scan ResponseへLocal NameとManufacturer Dataを載せます
-- Passive scannerには本体だけ、Active scannerには両面が届きます
+- advertising payloadに128bitのService UUID、appearance、Tx Powerを載せます（flagsを含めて31byte中28byte）
+- scan response payloadにname（22byte）とmanufacturer data（7byte）を載せます（31byte中29byte）
+- passive scanでは前者しか見えず、active scanでは両方がマージされて1件の結果になります
+
+各AD構造は値のほかに2byte（length + type）を消費します。sketchには各面の内訳をコメントで書いてあるので、配分を変えるときの目安にしてください。
 
 ## 主なAPI
 
-- `advertising().data()` — Advertising本体のbuilder
-- `advertising().scanResponse()` — Scan Responseのbuilder
-- `setAppearance()` / `setTxPowerIncluded()` / `setName()` / `setManufacturerData()`
-- `setTxPower()` / `txPower()` — 無線へ要求し、実際に適用された離散値を取得
+- `bluetooth.advertising().data()` — advertising payloadのbuilder。`setName()`等の既存setterはこれへの転送
+- `bluetooth.advertising().scanResponse()` — scan response payloadのbuilder
+- `EspBleAdvertisingData::setName()` / `addServiceUuid()` / `setManufacturerData()` / `addServiceData()` / `setAppearance()` / `setTxPowerIncluded()`
+- `bluetooth.advertising().setScanResponseEnabled(false)` — scan responseそのものを無効化（純粋なbroadcaster用。[Beacon](../Beacon/)を参照）
 
 ## 注意
 
-FlagsはAdvertising本体へ自動追加されます。各AD構造にはlengthとtypeの2 byteも必要です。
-どちらかが31 byteを超えると`start()`は`InvalidArgument`で失敗します。
+- **Tx Powerの値はコントローラが埋めます。** sketchで指定するのは「載せるかどうか」だけで、実際の送信電力は無線側が書き込みます。受信側は `txPowerLevel` と `rssi` の差（経路損失）から距離を推定できます。
+- Appearanceはスマホ側でアイコン表示に使われます。受信側の `EspBleScanResult` からは `appearance` / `hasAppearance()` で読めます。
+- どちらの面も31byteを超えると `start()` が `InvalidArgument` で失敗し、**どのフィールドが入らなかったか**が `lastErrorDetail()` に出ます。
+
+  ```
+  Advertising failed: INVALID_ARGUMENT (name does not fit in legacy scan response payload)
+  ```
+- **Flagsをscan responseへ置くことはできません。** Bluetooth Core Specification（CSS Part A）がFlags AD typeをadvertising payload専用と定めており、scan responseに入れると仕様違反になるためです。EspBleBluedroidはadvertising payloadにのみ自動で付与します。
 
 ## 期待されるSerial出力
 
-```text
-Advertising with an explicit scan response at 3 dBm
+```
+Advertising. Passive scanners see only the service UUID.
+```
+
+[Info/ScanDump](../../Info/ScanDump/)側（active scan）では次のように見えます。
+
+```
+d0:cf:13:58:fd:95 type=0 rssi=-38 connectable scannable name="Bluedroid Scan Response" uuid=5266f727-49d7-4eaf-a6f1-7363616e7270 manufacturer[5]=ffff010203
 ```

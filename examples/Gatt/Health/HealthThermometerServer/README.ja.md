@@ -1,0 +1,28 @@
+# HealthThermometerServer
+
+> English: [README.md](README.md)
+> 概念の説明: [BLE通信の入門ガイド](../../../../docs/GUIDE_BLE_BASICS.ja.md) 4章「GATT編 — データをやり取りする」
+> EspBleとの違い: [DIFFERENCES_FROM_ESPBLE.ja.md](../../../DIFFERENCES_FROM_ESPBLE.ja.md)
+
+標準Health Thermometer Service（0x1809）のPeripheral。Temperature Measurement（0x2A1C）をIEEE-11073 32-bit FLOATで**Indicate**し、Temperature Type（0x2A1D）はReadできます。
+
+## 必要なもの
+
+- 1 × 無印ESP32（このスケッチ。Peripheral）
+- 1 × Central: [HealthThermometerClient](../HealthThermometerClient/) example、または Health Thermometer collector
+
+## 動作
+
+- `begin()`の前にHealth Thermometer Serviceを登録し、0x1809をAdvertise
+- 2秒ごとに、緩やかに上昇する温度（36.50〜38.49℃）をIEEE-11073 FLOATでIndicate
+- `indicate()`は購読者にのみ届くため、Clientが購読するまでは何もしない
+
+## 主なAPI
+
+- `bluetooth.gattServer().addCharacteristic(..., { .indicatable = true })` — Temperature Measurement
+- `espBleWriteMedicalFloat32LE(out, mantissa, exponent)` — IEEE-11073 32-bit FLOAT（`EspBleMedicalFloat.h`）
+- `bluetooth.gattServer().indicate(service, characteristic, data, length)` — 確認応答付きIndication
+
+## 期待されるSerial出力
+
+Server側は出力しません。温度はClientで確認します。
