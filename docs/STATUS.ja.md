@@ -135,6 +135,8 @@ CCCD購読、notificationまで確認している。
   300 byteを実機確認）。同一UUIDのCharacteristicが複数ある相手も、handle指定で個別に
   Read・購読でき、Notificationは送信元handleへ対応づく（`tests/peer/duplicate_uuid`）。
 - GATT ServerはService 8、Characteristic 32、Descriptor 16までを`begin()`前に登録する。
+  登録時のUUID文字列は解析して検証し、不正なら`InvalidArgument`で拒否する
+  （検証しないとArduino wrapperが`begin()`中にnull nativeへ触ってcrashする）。
   現在の公開APIがUUIDで属性を指すため、同じService内で同一UUIDのCharacteristicは登録時に
   拒否する（別Serviceなら可）。Bluedroid自体の制約ではなく、HID over GATT実装時に解除する
   前提の制限で、契約は`tests/peer/duplicate_uuid`で固定している。
@@ -142,7 +144,9 @@ CCCD購読、notificationまで確認している。
   （`CONFIG_BT_GATTS_SEND_SERVICE_CHANGE_AUTO=y`）ため、applicationは登録しない
   （`tests/peer/service_changed`）。
   Read callbackだけは応答前に値を決めるためstack task、Write・Descriptor・購読・送信完了は
-  `update()`から配送する。Peripheral connection snapshot、複数observer、profile helper、
+  `update()`から配送する。実行中のGATT操作中に`disconnect()`しても要求は受理され、その操作へは
+  `InvalidState`の失敗完了を1件だけ配送してから`onDisconnected()`を配送する。操作slotは
+  解放され、次の接続のDiscovery / Readへ引き継がない（`tests/peer/gatt_disconnect_purge`）。Peripheral connection snapshot、複数observer、profile helper、
   自動再接続・再購読は未実装。
 - Discovery snapshot上限はService 16、Characteristic 48、Descriptor 48。
   PSRAMは使用せずDiscovery時だけheapへ確保し、切断時に無効化する。

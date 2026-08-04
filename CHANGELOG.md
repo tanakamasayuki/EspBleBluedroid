@@ -24,13 +24,37 @@
 - (JA) 共通codec `EspBleHidReportMap.h`・`EspBleKeymap.h`（layout表を含む）・
   `EspBleMidi.h`をEspBleからverbatim移植し、host unit testも移植。HID over GATTと
   BLE MIDIの土台。
+- (EN) Reject a malformed UUID string when a GATT Service, Characteristic, or
+  Descriptor is registered. It used to be stored and then crash inside `begin()`,
+  where the Arduino wrapper copies from an unset `BLEUUID`'s null native pointer.
+- (JA) GATT Service / Characteristic / Descriptor登録時に不正なUUID文字列を拒否。
+  以前はそのまま保持され、`begin()`中にArduino wrapperが未設定`BLEUUID`のnull nativeから
+  コピーしてcrashしていた。
+- (EN) Deliver a failure completion for a GATT operation that was in flight when
+  the link dropped. A handle-addressed read or a service discovery waiting on a
+  Bluedroid callback used to get no completion at all, leaving an application that
+  awaits one callback per request waiting forever with no error. It now reports
+  `InvalidState` with "connection closed before the GATT operation completed",
+  covered by `tests/peer/gatt_disconnect_purge`.
+- (JA) 切断時に実行中だったGATT操作へ失敗完了を配送。handle指定ReadやService Discoveryは
+  Bluedroid callbackを待っていたため完了が一切届かず、1要求1 callbackで待つapplicationが
+  エラーもないまま待ち続けていた。現在は`InvalidState`と
+  "connection closed before the GATT operation completed"を配送する
+  （`tests/peer/gatt_disconnect_purge`で確認）。
+- (EN) Reword the duplicate-characteristic-UUID error: the restriction belongs to
+  this library's UUID-addressed server API, not to Bluedroid, which can create
+  such attributes.
+- (JA) 重複Characteristic UUIDのエラー文言を修正。この制限はUUIDで属性を指す本ライブラリの
+  Server APIによるもので、Bluedroid自体の制約ではない。
 - (EN) Add peer coverage for a real GATT Indication, duplicate UUIDs
   (`duplicate_uuid`), reading above the MTU (`long_value`), and stack-owned
-  Service Changed (`service_changed`). `long_value` disproved the documented
+  Service Changed (`service_changed`), and an in-flight operation when the link
+  drops (`gatt_disconnect_purge`). `long_value` disproved the documented
   assumption that a long read is truncated: Bluedroid continues the read and the
   whole value arrives, so the examples now say so.
 - (JA) GATT Indicationの実発行、重複UUID（`duplicate_uuid`）、MTU超のRead
-  （`long_value`）、stackが所有するService Changed（`service_changed`）のpeerテストを追加。
+  （`long_value`）、stackが所有するService Changed（`service_changed`）、実行中GATT操作中の
+  切断（`gatt_disconnect_purge`）のpeerテストを追加。
   `long_value`により「長いReadは切り詰められる」という既存記述が誤りであることが判明し、
   Bluedroidが内部で読みを継続して全体が返ることをexamplesへ反映した。
 - (EN) Move the `security_bond` and `security_passkey` test UUIDs off the values

@@ -29,6 +29,14 @@ static constexpr const char *LOCAL_DESCRIPTOR_UUID =
 static constexpr const char *LOCAL_SECOND_SERVICE_UUID =
   "00030010-b1dd-4d00-9e5a-627564726f69";
 
+// A UUID whose last group has 14 hex digits instead of 12. It looks right at a
+// glance, which is exactly why registration has to reject it: the Arduino
+// wrapper leaves BLEUUID unset for a malformed string and then copies from its
+// null native pointer while begin() builds the database, crashing at a point far
+// from the call that caused it.
+static constexpr const char *MALFORMED_UUID =
+  "00030099-b1dd-4d00-9e5a-627564726f6964";
+
 // The peer's service, which carries two characteristics with one UUID.
 static constexpr const char *PEER_SERVICE_UUID =
   "00030020-b1dd-4d00-9e5a-627564726f69";
@@ -54,6 +62,10 @@ struct RegistrationReport
   String descriptorError;
   String descriptorDetail;
   bool sameUuidOtherServiceAccepted = false;
+  bool malformedServiceRejected = false;
+  String malformedServiceError;
+  String malformedServiceDetail;
+  bool malformedCharacteristicRejected = false;
 } registration;
 uint16_t firstHandle = 0;
 uint16_t secondHandle = 0;
@@ -98,6 +110,14 @@ void registerLocalServer()
   const EspBleGattCharacteristic sameUuidElsewhere = server.addCharacteristic(
     secondService, LOCAL_CHARACTERISTIC_UUID, characteristicConfig);
   registration.sameUuidOtherServiceAccepted = sameUuidElsewhere.valid();
+
+  const EspBleGattService malformedService = server.addService(MALFORMED_UUID);
+  registration.malformedServiceRejected = !malformedService.valid();
+  registration.malformedServiceError = bluetooth.lastErrorName();
+  registration.malformedServiceDetail = bluetooth.lastErrorDetail();
+  const EspBleGattCharacteristic malformedCharacteristic =
+    server.addCharacteristic(service, MALFORMED_UUID, characteristicConfig);
+  registration.malformedCharacteristicRejected = !malformedCharacteristic.valid();
 }
 
 void reportRegistration()
@@ -113,6 +133,11 @@ void reportRegistration()
     registration.descriptorDetail.c_str());
   Serial.printf("SAME_UUID_OTHER_SERVICE_ACCEPTED %u\n",
     registration.sameUuidOtherServiceAccepted ? 1 : 0);
+  Serial.printf("MALFORMED_UUID_REJECTED service=%u characteristic=%u error=%s detail=%s\n",
+    registration.malformedServiceRejected ? 1 : 0,
+    registration.malformedCharacteristicRejected ? 1 : 0,
+    registration.malformedServiceError.c_str(),
+    registration.malformedServiceDetail.c_str());
 }
 
 void setup()

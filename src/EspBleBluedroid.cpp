@@ -1656,15 +1656,42 @@ struct EspBleConnectionImpl
     }
     delete gattDiscoveryDatabase;
     gattDiscoveryDatabase = nullptr;
+    // An operation waiting on a Bluedroid callback will never get one once the
+    // link is gone, so its completion has to be produced here. Dropping it would
+    // leave an application waiting forever for a callback per request, with no
+    // error to explain it.
     if (gattDirectDiscovery)
     {
       gattDirectDiscovery = false;
       gattOperating = false;
+      if (!ending && !gattTimedOut)
+      {
+        Event failure;
+        failure.type = EventType::GattResult;
+        failure.gattResult.operation = EspBleGattOperation::DiscoverServices;
+        failure.gattResult.connectionId = gattConnectionId;
+        failure.gattResult.success = false;
+        failure.gattResult.error = EspBleError::InvalidState;
+        failure.gattResult.detail =
+          "connection closed before the GATT operation completed";
+        pushEventLocked(failure);
+      }
     }
     if (gattDirectCharacteristicRead)
     {
       gattDirectCharacteristicRead = false;
       gattOperating = false;
+      if (!ending && !gattTimedOut)
+      {
+        Event failure;
+        failure.type = EventType::GattResult;
+        failure.gattResult = gattDirectResult;
+        failure.gattResult.success = false;
+        failure.gattResult.error = EspBleError::InvalidState;
+        failure.gattResult.detail =
+          "connection closed before the GATT operation completed";
+        pushEventLocked(failure);
+      }
     }
     if (!ending)
     {

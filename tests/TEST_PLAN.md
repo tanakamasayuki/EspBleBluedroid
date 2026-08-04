@@ -110,7 +110,7 @@ Add a row here before using a new tag.
 
 | Suite tag | Suite |
 |---|---|
-| `0001` | reserved (queued GATT operations / discard on disconnect) |
+| `0001` | `gatt_disconnect_purge` |
 | `0002` | `service_changed` marker service |
 | `0003` | `duplicate_uuid` |
 | `0004` | `long_value` |
@@ -248,7 +248,7 @@ is the cross-stack suite against EspBle.
 | GATT server **indicate** (issued and confirmed) | | ✅ | ✅ `gatt_server` / `service_changed` | planned `gatt_basic` |
 | GATT server duplicate-UUID rejection error | | ✅ | ✅ `duplicate_uuid` | |
 | Service Changed (0x2A05) | | ✅ | ✅ `service_changed` | |
-| An in-flight GATT operation when the link drops | | ✅ | **missing** → `gatt_disconnect_purge` | |
+| An in-flight GATT operation when the link drops | | ✅ | ✅ `gatt_disconnect_purge` | |
 | Pairing / bonding (central) | | ✅ | ✅ `security_bond` | planned `security` |
 | Static passkey / MITM / authenticated attribute | | ✅ | ✅ `security_passkey` | planned `security` |
 | Runtime Passkey Entry | | ✅ | ✅ `runtime_passkey` | planned `security` |

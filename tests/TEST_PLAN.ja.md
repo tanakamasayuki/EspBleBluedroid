@@ -93,7 +93,7 @@ SSSSNNNN-b1dd-4d00-9e5a-627564726f69
 
 | suite tag | suite |
 |---|---|
-| `0001` | 予約（GATT操作のqueue/切断時破棄） |
+| `0001` | `gatt_disconnect_purge` |
 | `0002` | `service_changed`のmarker service |
 | `0003` | `duplicate_uuid` |
 | `0004` | `long_value` |
@@ -212,7 +212,7 @@ cross-stack試験を指す。
 | GATT Server **Indicate**（実発行と確認応答） | | ✅ | ✅ `gatt_server` / `service_changed` | 予定 `gatt_basic` |
 | GATT Server 重複UUID拒否の明示エラー | | ✅ | ✅ `duplicate_uuid` | |
 | Service Changed（0x2A05、stackが所有） | | ✅ | ✅ `service_changed` | |
-| 実行中GATT操作の切断時の扱い | | ✅ | **未** → `gatt_disconnect_purge` | |
+| 実行中GATT操作の切断時の扱い | | ✅ | ✅ `gatt_disconnect_purge` | |
 | Pairing / Bonding（Central） | | ✅ | ✅ `security_bond` | 予定 `security` |
 | 静的passkey / MITM / authenticated attribute | | ✅ | ✅ `security_passkey` | 予定 `security` |
 | 実行時Passkey Entry | | ✅ | ✅ `runtime_passkey` | 予定 `security` |
@@ -285,7 +285,7 @@ cross-stack試験を指す。
 
 ## 実装済みscenario
 
-現状: peer 30 suite / 36 test関数、unit 9 suite / 12 test関数（exampleのbuild確認は91件）。
+現状: peer 31 suite / 37 test関数、unit 9 suite / 12 test関数（exampleのbuild確認は91件）。
 
 1. ✅ `stack_smoke`: Arduino-ESP32同梱APIで2台接続、GATT read/write、CCCD購読、notification。
 2. ✅ `advertise_scan`: 公開APIのlifecycle、Advertising / Scan Response二面構成、Service Data・
@@ -345,7 +345,10 @@ cross-stack試験を指す。
 29. ✅ `service_changed`: Generic Attribute 0x1801とService Changed 0x2a05はstackが公開する。
     applicationが登録しなくてもpeerからindicatableな0x2a05が見えることを確認し、
     `notifyServicesChanged()`相当がこのライブラリに無い理由を固定する。
-30. ✅ host unit test: `uuid`、`codec`、`ibeacon`、`medical_float`、`cgm_crc`、`report_map`、
+30. ✅ `gatt_disconnect_purge`: 実行中Read中の`disconnect()`が受理され（拒否ではない）、
+    その操作の完了が**1件だけ**届き、`droppedEventCount()`が0で、続く再接続でDiscoveryと
+    Readが通ること。あわせてGATT登録時の不正UUID拒否も`duplicate_uuid`で固定した。
+31. ✅ host unit test: `uuid`、`codec`、`ibeacon`、`medical_float`、`cgm_crc`、`report_map`、
     `keymap`、`midi`、`api_parity`。
 
 ## 優先順位
@@ -360,9 +363,12 @@ cross-stack試験を指す。
 - ✅ `duplicate_uuid`（現行の拒否契約とエラー文字列の回帰。制限解除時はこのテストを反転させる）
 - ✅ `service_changed`（stackが所有することの固定）
 - ✅ `long_value`（MTU超Readで全体が返ることの固定。当初の「切り詰め」想定は実機で否定された）
-- **未**: `gatt_disconnect_purge`（実行中GATT操作中の`disconnect()`。1操作ずつの明示拒否は
-  `gatt_client`で既に確認済みなので、残るのは「実行中に切断したときに完了が1件だけ届き、
-  再接続とDiscoveryが通る」こと）
+- ✅ `gatt_disconnect_purge`（実行中GATT操作中の`disconnect()`が受理され、完了が1件だけ届き、
+  drop 0で、次の接続のDiscoveryとReadが通ること）
+- ✅ 実装修正3件（テスト作成中に判明）: 切断時に実行中だったGATT操作へ失敗完了を配送する
+  （以前は完了が届かず、applicationが永久に待つ経路だった）、 不正なUUID文字列をGATT登録時に拒否する
+  （以前は`begin()`中にwrapperのnull nativeでcrashしていた）、および重複Characteristic UUIDの
+  エラー文言をBluedroidの制約ではなくライブラリの制約として正しく述べる。
 
 **P2: 既存実装の穴**
 

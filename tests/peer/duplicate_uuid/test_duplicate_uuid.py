@@ -34,7 +34,7 @@ def test_duplicate_uuids_are_rejected_locally_and_handled_remotely(dut, peers):
     dut.expect_exact("LOCAL_BASE_ACCEPTED 1", timeout=20)
     dut.expect_exact(
         "DUPLICATE_CHARACTERISTIC_REJECTED 1 error=InvalidArgument "
-        "detail=Bluedroid does not support duplicate Characteristic UUIDs in "
+        "detail=this library cannot address duplicate Characteristic UUIDs in "
         "one Service",
         timeout=10,
     )
@@ -44,6 +44,14 @@ def test_duplicate_uuids_are_rejected_locally_and_handled_remotely(dut, peers):
         timeout=10,
     )
     dut.expect_exact("SAME_UUID_OTHER_SERVICE_ACCEPTED 1", timeout=10)
+    # A malformed UUID must fail the registration call, not begin(). The wrapper
+    # crashes on an unset BLEUUID while creating the database, which is a boot
+    # loop with a backtrace nowhere near the offending addService().
+    dut.expect_exact(
+        "MALFORMED_UUID_REJECTED service=1 characteristic=1 "
+        "error=InvalidArgument detail=invalid GATT Service UUID",
+        timeout=10,
+    )
 
     # Client side against the peer's two same-UUID characteristics.
     dut.write("c")

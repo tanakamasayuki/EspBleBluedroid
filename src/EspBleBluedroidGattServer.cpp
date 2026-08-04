@@ -1,5 +1,7 @@
 #include "EspBleBluedroid.h"
 
+#include "internal/EspBleBluedroidCodec.h"
+
 #include <BLECharacteristic.h>
 #include <BLEDescriptor.h>
 #include <BLEDevice.h>
@@ -20,6 +22,17 @@ uint32_t characteristicProperties(const EspBleGattCharacteristicConfig &config)
   if (config.notifiable) properties |= BLECharacteristic::PROPERTY_NOTIFY;
   if (config.indicatable) properties |= BLECharacteristic::PROPERTY_INDICATE;
   return properties;
+}
+
+// A registration UUID has to be parseable before it reaches the Arduino wrapper.
+// BLEUUID stores an unset value for a malformed string and BLEService::
+// executeCreate() then copies from its null native pointer, which crashes during
+// begin() instead of failing the registration call that caused it.
+bool validUuid(const char *uuid)
+{
+  espblebluedroid::internal::BleUuid parsed;
+  return uuid != nullptr && uuid[0] != '\0' &&
+    espblebluedroid::internal::parseBleUuid(uuid, parsed);
 }
 
 uint16_t accessPermissions(
@@ -273,7 +286,7 @@ EspBleGattServer::~EspBleGattServer()
 EspBleGattService EspBleGattServer::addService(const char *uuid)
 {
   EspBleGattService result;
-  if (impl_ == nullptr || uuid == nullptr || uuid[0] == '\0')
+  if (impl_ == nullptr || !validUuid(uuid))
   {
     owner_->setError(EspBleError::InvalidArgument, "invalid GATT Service UUID");
     return result;
@@ -298,7 +311,7 @@ EspBleGattCharacteristic EspBleGattServer::addCharacteristic(
 {
   EspBleGattCharacteristic result;
   if (impl_ == nullptr || !service.valid() || service.id > impl_->serviceCount ||
-      uuid == nullptr || uuid[0] == '\0')
+      !validUuid(uuid))
   {
     owner_->setError(EspBleError::InvalidArgument,
       "invalid GATT Characteristic registration");
@@ -319,7 +332,7 @@ EspBleGattCharacteristic EspBleGattServer::addCharacteristic(
         BLEUUID(existing.uuid.c_str()).equals(BLEUUID(uuid)))
     {
       owner_->setError(EspBleError::InvalidArgument,
-        "Bluedroid does not support duplicate Characteristic UUIDs in one Service");
+        "this library cannot address duplicate Characteristic UUIDs in one Service");
       return result;
     }
   }
@@ -338,8 +351,8 @@ EspBleGattDescriptor EspBleGattServer::addDescriptor(
 {
   EspBleGattDescriptor result;
   if (impl_ == nullptr || !characteristic.valid() ||
-      characteristic.id > impl_->characteristicCount || uuid == nullptr ||
-      uuid[0] == '\0' || config.maximumLength == 0)
+      characteristic.id > impl_->characteristicCount || !validUuid(uuid) ||
+      config.maximumLength == 0)
   {
     owner_->setError(EspBleError::InvalidArgument,
       "invalid GATT Descriptor registration");
