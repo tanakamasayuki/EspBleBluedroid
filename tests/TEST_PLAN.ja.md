@@ -121,7 +121,7 @@ SSSSNNNN-b1dd-4d00-9e5a-627564726f69
 | `0007` | `peripheral_connection` |
 | `0008` | `multi_listener` |
 | `0009` / `000a` | `midi_device` / `midi_host` — **tagのみでUUIDではない**。BLE MIDIのServiceとCharacteristic UUIDは仕様で固定されているため、このsuiteは未使用UUIDを選べない。代わりにデバイス名で隔離する（`Bluedroid MIDI 0009`、`Bluedroid MIDI Peer 000a`）。両側とも名前とService UUIDの両方が一致することを要求する |
-| `01xx` | interop scenario専用の範囲（`0100` = `interop/gatt_basic`、`0101` = `interop/advertise_scan`、`0102` = `interop/long_value`、`0103` = `interop/duplicate_uuid`、`0104` = `interop/security`、`0105` = `interop/profile_wire`） |
+| `01xx` | interop scenario専用の範囲（`0100` = `interop/gatt_basic`、`0101` = `interop/advertise_scan`、`0102` = `interop/long_value`、`0103` = `interop/duplicate_uuid`、`0104` = `interop/security`、`0105` = `interop/profile_wire`、`0106` = `interop/midi`はtagのみ — BLE MIDIのUUIDは仕様固定なので、このscenarioは役割を含むデバイス名（`EspBle MIDI Device 0106` / `Bluedroid MIDI Device 0106`）で隔離する） |
 
 既存suiteのうち上表に無いものは、移行前に個別に選んだ128-bit UUIDを使っている
 （`8d47a6xx`、`6b976bxx`、`48e8c1xx`など）。これらもEspBle側と重複しないことを確認済みで、
@@ -200,7 +200,8 @@ conftest hookは持たず、port設定と`sketch.yaml`だけで構成する。
 | `interop/profile_wire` | ✅ 共有header（`EspBleMedicalFloat.h`、`EspBleCgmCrc.h`、`EspBleIBeacon.h`）で組んだ値が相手stackで同じ値としてdecodeできること。wire byteとdecode結果（milli単位の整数）の両方でassertする。FLOAT32をReadとNotificationで、CGMのE2E-CRCを一方が付与し他方が検証、SFLOATを逆方向で、iBeaconはadvertisementだけからdecode。interopで初めて役割を反転させ、被検ライブラリがServer兼beaconになる |
 | `interop/duplicate_uuid` | ✅ 仕様が認める重複UUID（EspBle Peripheralが同一Service内に同一UUID Characteristicを2つ）を、Bluedroid Clientがhandle指定で扱えること。Discoveryで2件を区別、UUID指定は1件目に届く、Read / Write / 購読 / Notificationがすべて両側でhandleに帰属することを確認。Server側の拒否も同じファイルに記録する |
 | `interop/long_value` | ✅ EspBle Peripheralが公開した合意MTU超の値が、UUID指定・handle指定の両方のReadで全体として返ること。`peer/long_value`は両端がBluedroidなので、clientの性質として言えるのはこちら |
-| `interop/hid` / `interop/midi` | HID over GATT / BLE MIDI実装後。Device / Hostを入れ替えた両方向 |
+| `interop/midi` | ✅ BLE MIDIを両方向で検証し、各側が自分のライブラリでencode / decodeする。data byteが2・1・0個のchannel voiceメッセージと、rampを保ったまま再構成される99 byteのSysEx。codec headerはbyte一致、profile helperは型1つだけの差で、どちらも機械チェック済みなので、ここで足すのはtransport側（CCCD write、negotiated MTUに対するNotification、Write Without Response、packetを跨ぐSysEx）である。2つ目のテストでは役割を入れ替える — PeripheralとしてnotifyするのとCentralとしてwriteするのは別経路だからである。BLE MIDIのUUIDは仕様固定なので、隔離はデバイス名で行う |
+| `interop/hid` | HID over GATT実装後。Device / Hostを入れ替えた両方向 |
 
 自動で合否を決められるscenarioだけを対象にする。スマートフォン操作、GUI確認、聴感評価、
 手動pairing操作は含めず、リリースチェックリストの手動相互運用へ分離する。
@@ -284,7 +285,7 @@ cross-stack試験を指す。
 | keyboard layout / keymap | ✅ `unit/keymap` | — | — | |
 | BLE MIDI packet codec | ✅ `unit/midi` | — | — | |
 | 複数observer配送（`add*Listener()`） | | ✅ | ✅ `multi_listener` | |
-| BLE MIDI Device / Host | ✅ 上記codec | ✅ | ✅ `midi_device` / `midi_host` | 予定 `interop/midi` |
+| BLE MIDI Device / Host | ✅ 上記codec | ✅ | ✅ `midi_device` / `midi_host` | ✅ `interop/midi`（両方向） |
 | HID Device（keyboard / mouse / consumer / system / gamepad / vendor） | 上記parser | 予定 | 予定 `hid_keyboard_device`、`hid_robustness`、`hid_security`、`hid_boot_protocol`、`hid_custom`、`hid_convenience` | 予定 `interop/hid` |
 | HID Host | 上記parser | 予定 | 予定 `hid_keyboard_host`、`hid_boot_keyboard`、`hid_keyboard_nkro` | 予定 `interop/hid` |
 

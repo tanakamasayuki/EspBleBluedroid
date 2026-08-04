@@ -199,6 +199,26 @@
   ことを要求する。verbatim copyのheaderはsnapshot不要（素のdiffで足りる）が、このファイルは
   ライブラリオブジェクトへの参照を持つためverbatimにできない。`tools/gen_api_parity.py`に
   `--espble-midi-profile`を追加した。
+- (EN) Add `interop/midi`: BLE MIDI across the two stacks in both directions, with
+  each side encoding and decoding through its own library — channel-voice messages
+  of two, one and no data bytes, and a 99-byte SysEx reassembled with its ramp
+  intact. The codec header is byte-identical and the profile helper differs only in
+  one type, both already checked without hardware, so what this adds is the
+  transport: the CCCD write, notifications against the negotiated MTU, Write
+  Without Response, and a SysEx spanning packets. The second test swaps the roles,
+  because notifying as a peripheral and writing as a central are different paths.
+  One firmware per board serves both directions, the role is part of the advertised
+  name, and isolation is by name rather than by a suite-tag UUID because the BLE
+  MIDI UUIDs are fixed by the specification.
+- (JA) `interop/midi`を追加。BLE MIDIを2つのstack間で両方向に検証し、各側が自分の
+  ライブラリでencode / decodeする。data byteが2・1・0個のchannel voiceメッセージと、
+  rampを保ったまま再構成される99 byteのSysEx。codec headerはbyte一致、profile helperは
+  型1つだけの差で、どちらも実機なしで検証済みなので、ここで足すのはtransport側である。
+  CCCD write、negotiated MTUに対するNotification、Write Without Response、packetを
+  跨ぐSysEx。2つ目のテストでは役割を入れ替える — Peripheralとしてnotifyするのと
+  Centralとしてwriteするのは別経路だからである。1ボード1ファームで両方向をこなし、
+  役割はadvertise名に含める。BLE MIDIのUUIDは仕様固定なので、隔離はsuite tag UUIDでは
+  なく名前で行う。
 - (EN) CI: the unit-test step of `compile-examples.yml` now runs `pytest unit/`
   instead of repeating the g++ command lines, which had gone stale after the unit
   suites moved into per-suite directories (it still referenced

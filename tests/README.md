@@ -214,3 +214,11 @@ refusal must leave no encryption and no bond.
 FLOAT32, a CGM measurement with its E2E-CRC, an SFLOAT the other way, and an
 iBeacon — each asserted as the wire bytes and as the decode. Here the library under
 test is the GATT server and the beacon, and EspBle is the central.
+
+`interop/midi` runs BLE MIDI across the two stacks in both directions, each side
+encoding and decoding with its own library: channel-voice messages of two, one and
+no data bytes, and a 99-byte SysEx reassembled with its ramp intact. The codec and
+the profile helper are already checked without hardware, so what this adds is the
+transport — the CCCD write, notifications against the negotiated MTU, Write Without
+Response, and a SysEx spanning packets — and the second test swaps the roles,
+because notifying as a peripheral and writing as a central are different paths.

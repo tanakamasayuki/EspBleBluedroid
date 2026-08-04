@@ -116,3 +116,4 @@ uv run --env-file .env pytest interop/
 | `interop/duplicate_uuid` | EspBle Peripheral上の同一Service内・同一UUID Characteristic 2件（こちらのServer APIが拒否する形）に対し、Discovery、Read、Write、購読、Notificationが両側でhandleに帰属すること |
 | `interop/security` | Just Works、静的passkey（DisplayOnly対KeyboardOnly＝Passkey Entry）、Numeric Comparison（承認・拒否）のcross-stack pairing。encrypted / authenticated / bonded / key sizeを両側でassertし、attribute権限2段でどのlinkが何に到達できるかを確認。Numeric Comparisonは両実装が同一の6桁を導出すること、拒否時に何も残らないことも確認 |
 | `interop/profile_wire` | 共有codec headerで組んだ値（FLOAT32、E2E-CRC付きCGM Measurement、逆方向のSFLOAT、iBeacon）をwire byteとdecode結果の両方で照合。被検ライブラリがGATT Server兼beacon、EspBleがCentral |
+| `interop/midi` | BLE MIDIを両方向で検証。各側が自分のライブラリでencode / decodeし、data byteが2・1・0個のchannel voiceメッセージと99 byteのSysEx（ramp照合）を交換。codecとprofile helperは実機なしで検証済みなので、ここで足すのはtransport側（CCCD write、negotiated MTUに対するNotification、Write Without Response、packetを跨ぐSysEx）。2つ目のテストでは役割を入れ替える |
