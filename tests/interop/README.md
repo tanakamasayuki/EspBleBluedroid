@@ -61,9 +61,10 @@ uv run --env-file .env pytest interop/
 | Scenario | Content |
 |---|---|
 | [gatt_basic](gatt_basic/) | Bluedroid central against an EspBle peripheral: MTU 247 exchange, discovery including declared properties, characteristic read, write with and without response, descriptor read/write, notification, indication with its confirmation, unsubscribe, disconnect |
+| [advertise_scan](advertise_scan/) | Both directions of advertising and scanning: name, manufacturer data, Service Data, Appearance and Tx Power built by one stack's payload builder and reconstructed by the other's parser, plus a passive scan of the same advertiser that must see the advertising payload alone |
 
-The remaining planned scenarios — `advertise_scan`, `security`, `profile_wire`,
-`duplicate_uuid`, `long_value`, and the HID/MIDI pair — are listed with their
+The remaining planned scenarios — `security`, `profile_wire`, `duplicate_uuid`,
+`long_value`, and the HID/MIDI pair — are listed with their
 content in [../TEST_PLAN.md](../TEST_PLAN.md#scenarios-added-as-each-layer-settles).
 
 ## UUIDs
@@ -71,7 +72,8 @@ content in [../TEST_PLAN.md](../TEST_PLAN.md#scenarios-added-as-each-layer-settl
 Interop scenarios take suite tags from the `01xx` range of the test UUID scheme
 (`SSSSNNNN-b1dd-4d00-9e5a-627564726f69`), so they cannot collide with either
 library's own suites even when both run in the same room. `gatt_basic` uses
-`0100`.
+`0100` and `advertise_scan` uses `0101` (one UUID per direction, so neither
+scanner can be satisfied by the other side's payload).
 
 ## Reading the logs
 

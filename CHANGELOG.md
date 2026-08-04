@@ -19,6 +19,20 @@
   `pytest`にも含まれる。実機で確認済み（MTU 247交換、Service 3件・
   Characteristic handle 16のDiscovery、Read/Write、Descriptor、Notification、Indication、
   購読解除、切断）。
+- (EN) Add `interop/advertise_scan`: an advertising payload and scan response built
+  by one stack's builder, reconstructed field for field by the other's parser, in
+  both directions — device name, manufacturer data, Service Data (with the 16-bit
+  UUID reported in its 128-bit form), Appearance and Tx Power. A passive scan of
+  the same advertiser must see the advertising payload's fields and nothing from
+  the scan response, which is what pins the scanner's per-address merge to two
+  payloads actually received rather than one reported twice. Verified on hardware.
+- (JA) `interop/advertise_scan`を追加。一方のbuilderで組んだAdvertising payloadと
+  Scan Responseを、相手stackのparserが同じfieldへ復元することを両方向で検証する
+  （device name、manufacturer data、Service Data（16-bit UUIDが128-bit形で報告されること
+  を含む）、Appearance、Tx Power）。同じadvertiserをpassive scanしたときはAdvertising
+  payload側のfieldだけが見え、Scan Response側は見えないことも固定した。これによりScanner
+  のaddress単位mergeが「実際に受信した2つのpayloadの合成」であることを担保する。実機で
+  確認済み。
 - (EN) Add `tests/unit/api_parity`, `docs/API_PARITY.tsv`, and
   `tools/gen_api_parity.py`: every public-API difference from EspBle is now
   machine-checked and classified as `backend`, `classic`, or `planned`.

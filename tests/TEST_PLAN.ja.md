@@ -103,7 +103,7 @@ SSSSNNNN-b1dd-4d00-9e5a-627564726f69
 | `0004` | `long_value` |
 | `0005` | `security_bond` |
 | `0006` | `security_passkey` |
-| `01xx` | interop scenario専用の範囲（`0100` = `interop/gatt_basic`） |
+| `01xx` | interop scenario専用の範囲（`0100` = `interop/gatt_basic`、`0101` = `interop/advertise_scan`） |
 
 既存suiteのうち上表に無いものは、移行前に個別に選んだ128-bit UUIDを使っている
 （`8d47a6xx`、`6b976bxx`、`48e8c1xx`など）。これらもEspBle側と重複しないことを確認済みで、
@@ -177,7 +177,7 @@ conftest hookは持たず、port設定と`sketch.yaml`だけで構成する。
 | scenario | 内容 |
 |---|---|
 | `interop/gatt_basic` | ✅ Bluedroid Central ↔ EspBle Peripheral。MTU 247交換、宣言propertyを含むDiscovery、Read、応答あり/なしWrite、Descriptor Read/Write、Notify、確認応答を伴うIndicate、購読解除、切断。逆向き（EspBle Central ↔ Bluedroid Peripheral）はPeripheral connection snapshot実装後 |
-| `interop/advertise_scan` | EspBleのpayload builderが出したAdvertising / Scan Responseを、Bluedroid Scannerがaddress単位でmergeして同じfieldへ復元すること（およびその逆） |
+| `interop/advertise_scan` | ✅ EspBleのpayload builderが出したAdvertising / Scan Responseを、Bluedroid Scannerがaddress単位でmergeして同じfieldへ復元すること（およびその逆）。同じadvertiserをpassive scanしたときはAdvertising payloadのfieldだけが見え、Scan Response側は一切見えないこと |
 | `interop/security` | Just Works、静的passkey、Numeric Comparisonをcross-stackで。Bluedroid Peripheral側はconnection snapshot実装後に対象化する |
 | `interop/profile_wire` | 共有header（`EspBleMedicalFloat.h`、`EspBleCgmCrc.h`、`EspBleIBeacon.h`、`EspBleUuid.h`）で組んだ値が相手stackで同じbyte列としてdecodeできること |
 | `interop/duplicate_uuid` | 仕様が認める重複UUID（EspBle Peripheralが同一Service内に同一UUID Characteristicを2つ）を、Bluedroid Clientがhandle指定で扱えること。こちらのServer側制約が相手からどう見えるかも記録する |
@@ -197,24 +197,24 @@ cross-stack試験を指す。
 | 領域 | unit | build | peer | interop |
 |---|---|---|---|---|
 | test fixture / backend成立性 | | ✅ | ✅ `stack_smoke` | |
-| Advertising / Scan parser | 予定 | ✅ | ✅ `advertise_scan` / `advertise_payload` | 予定 `advertise_scan` |
-| Scan Response分割 / Appearance / Tx Power | | ✅ | ✅ `advertise_scan`に同梱 | 予定 |
-| Advertising Service Data（AD 0x16） | | ✅ | ✅ `advertise_scan`に同梱 | 予定 |
+| Advertising / Scan parser | 予定 | ✅ | ✅ `advertise_scan` / `advertise_payload` | ✅ `advertise_scan` |
+| Scan Response分割 / Appearance / Tx Power | | ✅ | ✅ `advertise_scan`に同梱 | ✅ `advertise_scan`に同梱（activeのmergeとpassiveの対比） |
+| Advertising Service Data（AD 0x16） | | ✅ | ✅ `advertise_scan`に同梱 | ✅ `advertise_scan`に同梱 |
 | non-connectable broadcast | | ✅ | ✅ `ibeacon` | |
 | iBeacon encode / decode | ✅ `unit/ibeacon` | ✅ | ✅ `ibeacon` | 予定 `profile_wire` |
 | UUID codec | ✅ `unit/uuid` | ✅ | — | |
-| connect / disconnect / timeout / 切断理由 | | ✅ | ✅ `connect_disconnect` | 予定 `gatt_basic` |
-| MTU交換（23→合意値、遅延要求） | | ✅ | ✅ `connect_disconnect`に同梱 | 予定 `gatt_basic` |
+| connect / disconnect / timeout / 切断理由 | | ✅ | ✅ `connect_disconnect` | ✅ `gatt_basic` |
+| MTU交換（23→合意値、遅延要求） | | ✅ | ✅ `connect_disconnect`に同梱 | ✅ `gatt_basic` |
 | 接続パラメータ | | ✅ | ✅ `connection_parameters` | |
 | own address / Tx Power | | ✅ | ✅ `local_identity` | |
 | Filter Accept List（advertising / scan） | | ✅ | ✅ `accept_list` | |
 | Directed Advertising | | ✅ | ✅ `directed_advertising` | |
-| GATT Client Discovery / Read / Write / Descriptor / Notify | ✅ `unit/codec` | ✅ | ✅ `gatt_client` | 予定 `gatt_basic` |
+| GATT Client Discovery / Read / Write / Descriptor / Notify | ✅ `unit/codec` | ✅ | ✅ `gatt_client` | ✅ `gatt_basic` |
 | GATT Client handle指定操作（重複UUID） | | ✅ | ✅ `duplicate_uuid` | 予定 `duplicate_uuid` |
 | GATT Client 1操作ずつの直列化と明示拒否 | | ✅ | ✅ `gatt_client`に同梱 | |
 | MTU超の値のRead（全体が返ること） | | ✅ | ✅ `long_value` | 予定 `long_value` |
-| GATT Server Read / Write / Descriptor / CCCD / Notify | | ✅ | ✅ `gatt_server` | 予定 `gatt_basic` |
-| GATT Server **Indicate**（実発行と確認応答） | | ✅ | ✅ `gatt_server` / `service_changed` | 予定 `gatt_basic` |
+| GATT Server Read / Write / Descriptor / CCCD / Notify | | ✅ | ✅ `gatt_server` | ✅ `gatt_basic` |
+| GATT Server **Indicate**（実発行と確認応答） | | ✅ | ✅ `gatt_server` / `service_changed` | ✅ `gatt_basic` |
 | GATT Server 重複UUID拒否の明示エラー | | ✅ | ✅ `duplicate_uuid` | |
 | Service Changed（0x2A05、stackが所有） | | ✅ | ✅ `service_changed` | |
 | 実行中GATT操作の切断時の扱い | | ✅ | ✅ `gatt_disconnect_purge` | |
@@ -393,7 +393,9 @@ cross-stack試験を指す。
 - BLE MIDI Device / Host（P1のcodec移植と`add*Listener()`が済めば最短）
 - BLE HID Device（重複Characteristic UUID制限の解除が前提）→ HID Host
 
-**interop**: 各層でAPIとwire動作が固まった順に`interop/`へ写す。`gatt_basic`が最初。
+**interop**: 各層でAPIとwire動作が固まった順に`interop/`へ写す。`gatt_basic`と
+`advertise_scan`は実装済み。以降は`security`、`profile_wire`、`duplicate_uuid`、
+`long_value`の順。
 
 ## 合格条件
 

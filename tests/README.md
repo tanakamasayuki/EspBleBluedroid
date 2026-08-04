@@ -167,3 +167,9 @@ too. Procedure and rules: [interop/README.md](interop/README.md); scenario list:
 the MTU 247 exchange, discovery including the declared properties, characteristic
 read, write with and without response, descriptor read/write, notification,
 indication with its confirmation, unsubscribe, and disconnection.
+
+`interop/advertise_scan` verifies advertising and scanning in both directions: a
+payload built by one stack's builder — name, manufacturer data, Service Data,
+Appearance, Tx Power, split across the advertising payload and the scan response —
+reconstructed field for field by the other stack's parser, plus a passive scan of
+the same advertiser that must see the advertising payload alone.
