@@ -173,3 +173,7 @@ payload built by one stack's builder — name, manufacturer data, Service Data,
 Appearance, Tx Power, split across the advertising payload and the scan response —
 reconstructed field for field by the other stack's parser, plus a passive scan of
 the same advertiser that must see the advertising payload alone.
+
+`interop/long_value` reads a 300-byte value published by an EspBle peripheral
+across the 247-byte MTU, through both the UUID form and the handle form, checking
+every byte against the peer's ramp.

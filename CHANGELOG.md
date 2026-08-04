@@ -33,6 +33,23 @@
   payload側のfieldだけが見え、Scan Response側は見えないことも固定した。これによりScanner
   のaddress単位mergeが「実際に受信した2つのpayloadの合成」であることを担保する。実機で
   確認済み。
+- (EN) Add `interop/long_value`: a 300-byte value published by an EspBle (NimBLE)
+  peripheral is read whole across the 247-byte MTU, through both the UUID form and
+  the handle form, with every byte checked against the peer's ramp. `peer/long_value`
+  has Bluedroid on both ends, so this is what makes the no-truncation claim about
+  the client rather than about the pair. Verified on hardware.
+- (JA) `interop/long_value`を追加。EspBle（NimBLE）Peripheralが公開した300 byteの値を、
+  MTU 247をまたいでUUID指定・handle指定の両方のReadで全体取得できることを、全byteを相手の
+  ramp列と照合して確認する。`peer/long_value`は両端がBluedroidなので、「切り詰めない」ことを
+  client側の性質として言えるのはこちら。実機で確認済み。
+- (EN) CI: the unit-test step of `compile-examples.yml` now runs `pytest unit/`
+  instead of repeating the g++ command lines, which had gone stale after the unit
+  suites moved into per-suite directories (it still referenced
+  `tests/unit/codec_test.cpp`) and only covered three of the nine suites.
+- (JA) CI: `compile-examples.yml`のunit test stepを`pytest unit/`実行に変更。g++の
+  コマンド列を二重管理していたため、unit suiteをsuite別ディレクトリへ移した後に古いパス
+  （`tests/unit/codec_test.cpp`）を指したまま壊れており、9 suiteのうち3つしか実行できて
+  いなかった。
 - (EN) Add `tests/unit/api_parity`, `docs/API_PARITY.tsv`, and
   `tools/gen_api_parity.py`: every public-API difference from EspBle is now
   machine-checked and classified as `backend`, `classic`, or `planned`.

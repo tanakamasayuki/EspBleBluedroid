@@ -60,9 +60,10 @@ uv run --env-file .env pytest interop/
 |---|---|
 | [gatt_basic](gatt_basic/) | Bluedroid CentralとEspBle Peripheral。MTU 247交換、宣言propertyを含むDiscovery、Characteristic Read、応答あり/なしWrite、Descriptor Read/Write、Notification、確認応答を伴うIndication、購読解除、切断 |
 | [advertise_scan](advertise_scan/) | Advertising / Scanの両方向。device name、manufacturer data、Service Data、Appearance、Tx Powerを一方のpayload builderで組み、相手のparserが同じfieldへ復元すること。同じadvertiserをpassive scanしたときはAdvertising payloadだけが見えること |
+| [long_value](long_value/) | EspBle Peripheralが公開した300 byteの値を、MTU 247をまたいでUUID指定・handle指定の両方のReadで全体取得。全byteを相手のramp列と照合 |
 
-残りの予定scenario（`security`、`profile_wire`、`duplicate_uuid`、`long_value`、
-HID/MIDI）は内容とともに
+残りの予定scenario（`security`、`profile_wire`、`duplicate_uuid`、HID/MIDI）は
+内容とともに
 [../TEST_PLAN.ja.md](../TEST_PLAN.ja.md#対象scenario実装が固まった順に追加)にあります。
 
 ## UUID
@@ -70,7 +71,7 @@ HID/MIDI）は内容とともに
 interop scenarioはテスト用UUID体系（`SSSSNNNN-b1dd-4d00-9e5a-627564726f69`）のうち
 `01xx`のsuite tagを使います。両ライブラリのsuiteを同じ部屋で同時に走らせても衝突しません。
 `gatt_basic`は`0100`、`advertise_scan`は`0101`（方向ごとに別UUIDを使い、どちらのscanner
-も相手側のpayloadでは満たされないようにしています）。
+も相手側のpayloadでは満たされないようにしています）、`long_value`は`0102`です。
 
 ## logの読み方
 

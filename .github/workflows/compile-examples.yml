@@ -6,6 +6,8 @@ on:
     paths:
       - "src/**"
       - "tests/unit/**"
+      - "tests/pyproject.toml"
+      - "tests/uv.lock"
       - "examples/**"
       - "library.properties"
       - ".github/workflows/compile-examples.yml"
@@ -13,6 +15,8 @@ on:
     paths:
       - "src/**"
       - "tests/unit/**"
+      - "tests/pyproject.toml"
+      - "tests/uv.lock"
       - "examples/**"
       - "library.properties"
       - ".github/workflows/compile-examples.yml"
@@ -35,25 +39,16 @@ jobs:
           path: ~/.arduino15
           key: arduino-esp32-${{ hashFiles('examples/CompileSmoke/sketch.yaml') }}
 
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      # Every unit suite is driven by pytest, which compiles it with g++ and runs
+      # the binary (tests/unit/README.md). Listing the g++ command lines here as
+      # well made this step drift out of date whenever a suite was added or moved,
+      # so the suite list lives in one place only.
       - name: Run backend-independent unit tests
-        run: |
-          g++ -std=c++17 -Wall -Wextra -Werror \
-            -Isrc/internal \
-            tests/unit/codec_test.cpp \
-            src/internal/EspBleBluedroidCodec.cpp \
-            src/internal/EspBleBluedroidGattcState.cpp \
-            -o /tmp/espblebluedroid-unit
-          /tmp/espblebluedroid-unit
-          g++ -std=c++17 -Wall -Wextra -Werror \
-            -Isrc \
-            tests/unit/ibeacon_test.cpp \
-            -o /tmp/espblebluedroid-ibeacon-unit
-          /tmp/espblebluedroid-ibeacon-unit
-          g++ -std=c++17 -Wall -Wextra -Werror \
-            -Isrc \
-            tests/unit/uuid_test.cpp \
-            -o /tmp/espblebluedroid-uuid-unit
-          /tmp/espblebluedroid-uuid-unit
+        working-directory: tests
+        run: uv run pytest unit/ -q
 
       - name: Compile all examples (original ESP32 / Bluedroid)
         run: |

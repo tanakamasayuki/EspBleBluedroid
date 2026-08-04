@@ -103,7 +103,7 @@ SSSSNNNN-b1dd-4d00-9e5a-627564726f69
 | `0004` | `long_value` |
 | `0005` | `security_bond` |
 | `0006` | `security_passkey` |
-| `01xx` | interop scenario専用の範囲（`0100` = `interop/gatt_basic`、`0101` = `interop/advertise_scan`） |
+| `01xx` | interop scenario専用の範囲（`0100` = `interop/gatt_basic`、`0101` = `interop/advertise_scan`、`0102` = `interop/long_value`） |
 
 既存suiteのうち上表に無いものは、移行前に個別に選んだ128-bit UUIDを使っている
 （`8d47a6xx`、`6b976bxx`、`48e8c1xx`など）。これらもEspBle側と重複しないことを確認済みで、
@@ -181,7 +181,7 @@ conftest hookは持たず、port設定と`sketch.yaml`だけで構成する。
 | `interop/security` | Just Works、静的passkey、Numeric Comparisonをcross-stackで。Bluedroid Peripheral側はconnection snapshot実装後に対象化する |
 | `interop/profile_wire` | 共有header（`EspBleMedicalFloat.h`、`EspBleCgmCrc.h`、`EspBleIBeacon.h`、`EspBleUuid.h`）で組んだ値が相手stackで同じbyte列としてdecodeできること |
 | `interop/duplicate_uuid` | 仕様が認める重複UUID（EspBle Peripheralが同一Service内に同一UUID Characteristicを2つ）を、Bluedroid Clientがhandle指定で扱えること。こちらのServer側制約が相手からどう見えるかも記録する |
-| `interop/long_value` | EspBle PeripheralがMTU超の値を公開したときに、Bluedroid Clientが全体を読めること（同stack間では`peer/long_value`で確認済み） |
+| `interop/long_value` | ✅ EspBle Peripheralが公開した合意MTU超の値が、UUID指定・handle指定の両方のReadで全体として返ること。`peer/long_value`は両端がBluedroidなので、clientの性質として言えるのはこちら |
 | `interop/hid` / `interop/midi` | HID over GATT / BLE MIDI実装後。Device / Hostを入れ替えた両方向 |
 
 自動で合否を決められるscenarioだけを対象にする。スマートフォン操作、GUI確認、聴感評価、
@@ -212,7 +212,7 @@ cross-stack試験を指す。
 | GATT Client Discovery / Read / Write / Descriptor / Notify | ✅ `unit/codec` | ✅ | ✅ `gatt_client` | ✅ `gatt_basic` |
 | GATT Client handle指定操作（重複UUID） | | ✅ | ✅ `duplicate_uuid` | 予定 `duplicate_uuid` |
 | GATT Client 1操作ずつの直列化と明示拒否 | | ✅ | ✅ `gatt_client`に同梱 | |
-| MTU超の値のRead（全体が返ること） | | ✅ | ✅ `long_value` | 予定 `long_value` |
+| MTU超の値のRead（全体が返ること） | | ✅ | ✅ `long_value` | ✅ `long_value` |
 | GATT Server Read / Write / Descriptor / CCCD / Notify | | ✅ | ✅ `gatt_server` | ✅ `gatt_basic` |
 | GATT Server **Indicate**（実発行と確認応答） | | ✅ | ✅ `gatt_server` / `service_changed` | ✅ `gatt_basic` |
 | GATT Server 重複UUID拒否の明示エラー | | ✅ | ✅ `duplicate_uuid` | |
@@ -393,9 +393,9 @@ cross-stack試験を指す。
 - BLE MIDI Device / Host（P1のcodec移植と`add*Listener()`が済めば最短）
 - BLE HID Device（重複Characteristic UUID制限の解除が前提）→ HID Host
 
-**interop**: 各層でAPIとwire動作が固まった順に`interop/`へ写す。`gatt_basic`と
-`advertise_scan`は実装済み。以降は`security`、`profile_wire`、`duplicate_uuid`、
-`long_value`の順。
+**interop**: 各層でAPIとwire動作が固まった順に`interop/`へ写す。`gatt_basic`、
+`advertise_scan`、`long_value`は実装済み。以降は`security`、`profile_wire`、
+`duplicate_uuid`の順。
 
 ## 合格条件
 

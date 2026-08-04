@@ -108,3 +108,4 @@ uv run --env-file .env pytest interop/
 |---|---|
 | `interop/gatt_basic` | Bluedroid CentralとEspBle Peripheral。MTU 247交換、宣言propertyを含むDiscovery、Read、応答あり/なしWrite、Descriptor Read/Write、Notification、確認応答を伴うIndication、購読解除、切断 |
 | `interop/advertise_scan` | Advertising / Scanの両方向。一方のbuilderで組んだpayload（name、manufacturer data、Service Data、Appearance、Tx PowerをAdvertising payloadとScan Responseへ分割）を相手のparserが同じfieldへ復元すること、およびpassive scanではAdvertising payloadだけが見えること |
+| `interop/long_value` | EspBle Peripheralが公開した300 byteの値を、MTU 247をまたいでUUID指定・handle指定の両方のReadで全体取得すること |
