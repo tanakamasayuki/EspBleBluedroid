@@ -324,6 +324,7 @@ once its prerequisites are met.
 | Area | unit | build | peer | interop |
 |---|---|---|---|---|
 | HID report map parser | ✅ `unit/report_map` | — | — | |
+| HID report descriptors published (wire spec) | ✅ `unit/hid_report_maps` (byte-for-byte against EspBle, and parsed back for meaning) | — | — | |
 | Keyboard layout / keymap | ✅ `unit/keymap` | — | — | |
 | BLE MIDI packet codec | ✅ `unit/midi` | — | — | |
 | Multi-observer dispatch (`add*Listener()`) | | ✅ | ✅ `multi_listener` | |
@@ -423,7 +424,8 @@ Current state: 27 peer suites / 33 test functions, 5 unit test functions.
     an active SPP session; 64 → 128 → 256 notifications on one link; per-round
     BLE event drop accounting; delivered notifications round-tripped over SPP;
     GATT completion prioritized when the queue is full.
-27. ✅ Host unit tests: `uuid`, `codec`, `ibeacon`, `medical_float`, `cgm_crc`.
+27. ✅ Host unit tests: `uuid`, `codec`, `ibeacon`, `medical_float`, `cgm_crc`,
+    `report_map`, `keymap`, `midi`, `hid_report_maps`, `api_parity`.
 
 ## Priorities
 

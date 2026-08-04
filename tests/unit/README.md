@@ -47,6 +47,16 @@ fails the test.
   header/low-byte decoding, running status (with and without the timestamp byte),
   System Real-Time interleaving, System Exclusive within one packet and across
   two, malformed packets, the packet builder, and the multi-packet SysEx encoder.
+- `hid_report_maps`: the HID Report Descriptors this library publishes
+  (`src/internal/EspBleBluedroidHidReportMaps.h`) and their composition into one
+  Report Map characteristic. The bytes are compared against EspBle's tables
+  (`espble.hid_maps`, regenerated with `tools/gen_hid_report_maps.py`) because a
+  host OS parses them, and the composed map is then fed back through the shared
+  parser so a descriptor equal to EspBle's but wrong is caught too: profile kinds
+  and report IDs, the LED output report, the NKRO bitmap, the mouse button count
+  that must not change the report size, and the vendor report size. It also pins
+  that the simple keyboard detector recognises 6KRO only — the boot-protocol case —
+  while NKRO needs the full parser.
 - `api_parity`: compares the public API surface of `src/EspBleBluedroid.h`
   against the pinned EspBle snapshot (`espble.symbols`) and fails on any
   difference that `docs/API_PARITY.tsv` does not classify with a reason. It also

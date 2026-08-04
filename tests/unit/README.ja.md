@@ -40,6 +40,14 @@ uv run --env-file .env pytest unit/
   lowバイトのデコード、running status（timestampバイト有無の両方）、
   System Real-Time割り込み、単一/2パケットのSystem Exclusive、異常系パケット、
   packet builder、複数パケットSysEx encoderを扱う。
+- `hid_report_maps`: 本ライブラリが公開するHID Report Descriptor
+  （`src/internal/EspBleBluedroidHidReportMaps.h`）と、1つのReport Map characteristicへの
+  合成規則を扱う。バイト列はEspBleの表と比較する（`espble.hid_maps`、
+  `tools/gen_hid_report_maps.py`で再生成）。host OSがこのバイト列を解析するため。さらに
+  合成後のmapを共有parserへ通し、EspBleと同一でも意味が誤っている場合を捕まえる。profileの
+  種別とReport ID、LED Output Report、NKRO bitmap、report長を変えてはならないマウスの
+  ボタン数、vendor report size。簡易keyboard検出が6KRO（boot protocol用）のみを認識し、
+  NKROには完全なparserが必要であることも固定する。
 - `api_parity`: `src/EspBleBluedroid.h`の公開API面をEspBleのsnapshot
   （`espble.symbols`）と突き合わせ、`docs/API_PARITY.tsv`に理由付きで分類されていない
   差分があれば失敗する。さらに`*Name()`関数の**戻り値**——`src/EspBleBluedroid.cpp`の

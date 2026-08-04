@@ -283,6 +283,7 @@ cross-stack試験を指す。
 | 領域 | unit | build | peer | interop |
 |---|---|---|---|---|
 | HID Report Map parser | ✅ `unit/report_map` | — | — | |
+| 公開するHID Report Descriptor（wire仕様） | ✅ `unit/hid_report_maps`（EspBleとbyte一致、および意味の再解析） | — | — | |
 | keyboard layout / keymap | ✅ `unit/keymap` | — | — | |
 | BLE MIDI packet codec | ✅ `unit/midi` | — | — | |
 | 複数observer配送（`add*Listener()`） | | ✅ | ✅ `multi_listener` | |
@@ -377,7 +378,7 @@ cross-stack試験を指す。
     その操作の完了が**1件だけ**届き、`droppedEventCount()`が0で、続く再接続でDiscoveryと
     Readが通ること。あわせてGATT登録時の不正UUID拒否も`duplicate_uuid`で固定した。
 31. ✅ host unit test: `uuid`、`codec`、`ibeacon`、`medical_float`、`cgm_crc`、`report_map`、
-    `keymap`、`midi`、`api_parity`。
+    `keymap`、`midi`、`hid_report_maps`、`api_parity`。
 
 ## 優先順位
 
