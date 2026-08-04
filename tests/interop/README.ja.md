@@ -63,9 +63,10 @@ uv run --env-file .env pytest interop/
 | [long_value](long_value/) | EspBle Peripheralが公開した300 byteの値を、MTU 247をまたいでUUID指定・handle指定の両方のReadで全体取得。全byteを相手のramp列と照合 |
 | [duplicate_uuid](duplicate_uuid/) | EspBle Peripheralが同一Service内に置いた同一UUID Characteristic 2件を、Discoveryで区別し、UUID指定は1件目に届き、Read / Write / 購読 / Notificationがすべて両側でhandleに帰属することを確認。こちらのServer側が同じ形を拒否することも併記 |
 | [security](security/) | Just Worksと静的passkeyのPasskey Entry。encrypted / authenticated / bonded / key sizeを両側でassertし、bondも両側で確認。encrypted / authenticatedのattribute権限2段を各link種別で検証 |
+| [profile_wire](profile_wire/) | 共有codec headerの相互運用。FLOAT32をRead / Notificationで、CGMのE2E-CRCを一方が付与し他方が検証、SFLOATを逆方向のWriteで、iBeaconをadvertisementからdecode。役割を反転し、被検ライブラリがGATT Server兼beaconになる |
 
-残りの予定scenario（`profile_wire`、`security`内のNumeric Comparison、HID/MIDI）は
-内容とともに
+残りの予定scenario（`security`内のNumeric Comparison、接続系scenarioの逆方向、
+HID/MIDI）は内容とともに
 [../TEST_PLAN.ja.md](../TEST_PLAN.ja.md#対象scenario実装が固まった順に追加)にあります。
 
 ## UUID
@@ -74,7 +75,9 @@ interop scenarioはテスト用UUID体系（`SSSSNNNN-b1dd-4d00-9e5a-627564726f6
 `01xx`のsuite tagを使います。両ライブラリのsuiteを同じ部屋で同時に走らせても衝突しません。
 `gatt_basic`は`0100`、`advertise_scan`は`0101`（方向ごとに別UUIDを使い、どちらのscanner
 も相手側のpayloadでは満たされないようにしています）、`long_value`は`0102`、
-`duplicate_uuid`は`0103`、`security`は`0104`です。
+`duplicate_uuid`は`0103`、`security`は`0104`、`profile_wire`は`0105`です
+（iBeacon payloadのUUIDも`0105 0100`なので、周囲の別beaconではbeacon scanが
+満たされません）。
 
 ## logの読み方
 

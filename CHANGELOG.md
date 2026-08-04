@@ -93,6 +93,21 @@
   差分はシンボル差と同じく`docs/API_PARITY.tsv`で分類する。対象関数は形で発見するため、
   後から追加された対応表もテスト改修なしで比較対象になる。`tools/gen_api_parity.py`に
   `--espble-source`を追加。
+- (EN) Add `interop/profile_wire`: the shared codec headers checked as a round trip
+  between the two libraries instead of against their own vectors — a FLOAT32 read
+  and notified, a CGM Measurement whose E2E-CRC one copy appends and the other
+  verifies, an SFLOAT written the other way, and an iBeacon decoded from the
+  advertisement alone. Every value is asserted as the wire bytes *and* as the
+  decode in milli-units, so a drifted endianness, SFLOAT exponent nibble or CRC
+  polynomial fails here even when both sides' unit tests still pass. First interop
+  scenario with the roles reversed: this library is the GATT server and the beacon.
+  Verified on hardware.
+- (JA) `interop/profile_wire`を追加。共有codec headerを各自のvectorではなく2ライブラリ間の
+  round tripで検証する。FLOAT32をRead / Notificationで、CGM MeasurementのE2E-CRCを一方が
+  付与し他方が検証、SFLOATを逆方向のWriteで、iBeaconはadvertisementだけからdecodeする。
+  各値をwire byteとmilli単位のdecode結果の両方でassertするため、endianness・SFLOATの指数
+  nibble・CRC多項式が食い違えば、双方のunit testが通っていてもここで落ちる。interopで初めて
+  役割を反転し、本ライブラリがGATT Server兼beaconになる。実機で確認済み。
 - (EN) CI: the unit-test step of `compile-examples.yml` now runs `pytest unit/`
   instead of repeating the g++ command lines, which had gone stale after the unit
   suites moved into per-suite directories (it still referenced

@@ -132,7 +132,7 @@ Add a row here before using a new tag.
 | `0004` | `long_value` |
 | `0005` | `security_bond` |
 | `0006` | `security_passkey` |
-| `01xx` | reserved for interop scenarios (`0100` = `interop/gatt_basic`, `0101` = `interop/advertise_scan`, `0102` = `interop/long_value`, `0103` = `interop/duplicate_uuid`, `0104` = `interop/security`) |
+| `01xx` | reserved for interop scenarios (`0100` = `interop/gatt_basic`, `0101` = `interop/advertise_scan`, `0102` = `interop/long_value`, `0103` = `interop/duplicate_uuid`, `0104` = `interop/security`, `0105` = `interop/profile_wire`) |
 
 Suites not in the table still use individually chosen 128-bit UUIDs from before
 this scheme (`8d47a6xx`, `6b976bxx`, `48e8c1xx`, …). Those are confirmed not to
@@ -223,7 +223,7 @@ ports. The suite needs no conftest hook of its own: port settings and
 | `interop/gatt_basic` | ✅ Bluedroid central ↔ EspBle peripheral: MTU 247 exchange, discovery including declared properties, read, write with and without response, descriptor read/write, notify, indicate with its confirmation, unsubscribe, disconnect. The reverse direction waits for the peripheral connection snapshot |
 | `interop/advertise_scan` | ✅ Advertising / scan response built by EspBle's payload builder reconstructed field-for-field by the Bluedroid scanner's per-address merge, and the reverse. A passive scan of the same advertiser must see the advertising payload's fields and nothing from the scan response |
 | `interop/security` | ✅ Just Works and static-passkey Passkey Entry across stacks, with encrypted / authenticated / bonded / key size asserted on *both* sides, the bond recorded by both, and the two attribute permission tiers exercised (an authenticated characteristic is refused on a Just Works link and reachable on a Passkey Entry one). Numeric Comparison and the Bluedroid peripheral side remain: the latter waits for the connection snapshot |
-| `interop/profile_wire` | Values built with the shared headers (`EspBleMedicalFloat.h`, `EspBleCgmCrc.h`, `EspBleIBeacon.h`, `EspBleUuid.h`) decode to the same bytes on the other stack |
+| `interop/profile_wire` | ✅ Values built with the shared headers (`EspBleMedicalFloat.h`, `EspBleCgmCrc.h`, `EspBleIBeacon.h`) decode to the same value on the other stack, asserted as both the wire bytes and the decode in milli-units: FLOAT32 by read and by notification, a CGM E2E-CRC one copy appends and the other verifies, an SFLOAT the other way round, and an iBeacon decoded from the advertisement alone. Roles reversed for the first time in interop — the library under test is the server and the beacon |
 | `interop/duplicate_uuid` | ✅ Spec-legal duplicates (an EspBle peripheral with two same-UUID characteristics in one service) handled by the Bluedroid client through handle-addressed operations: discovery keeps both apart, the UUID form reaches the first, reads/write/subscribe/notification are each attributed to a handle on both sides. The server-side rejection is recorded in the same file |
 | `interop/long_value` | ✅ A value longer than the negotiated MTU, published by an EspBle peripheral, arrives whole through both the UUID form and the handle form of the read. `peer/long_value` has Bluedroid on both ends, so this is what makes the claim about the client rather than about the pair |
 | `interop/hid` / `interop/midi` | After HID over GATT / BLE MIDI land; device and host roles in both directions |
@@ -246,7 +246,7 @@ is the cross-stack suite against EspBle.
 | Scan response split / Appearance / Tx Power | | ✅ | ✅ inside `advertise_scan` | ✅ inside `advertise_scan` (active merge vs passive) |
 | Advertising Service Data (AD 0x16) | | ✅ | ✅ inside `advertise_scan` | ✅ inside `advertise_scan` |
 | Non-connectable broadcast | | ✅ | ✅ `ibeacon` | |
-| iBeacon encode / decode | ✅ `unit/ibeacon` | ✅ | ✅ `ibeacon` | planned `profile_wire` |
+| iBeacon encode / decode | ✅ `unit/ibeacon` | ✅ | ✅ `ibeacon` | ✅ `profile_wire` |
 | UUID codec | ✅ `unit/uuid` | ✅ | — | |
 | Connect / disconnect / timeout / reason | | ✅ | ✅ `connect_disconnect` | ✅ `gatt_basic` |
 | MTU exchange (23 → negotiated, deferred request) | | ✅ | ✅ inside `connect_disconnect` | ✅ `gatt_basic` |
@@ -452,8 +452,10 @@ Start with the gaps that need no implementation work.
   HID host
 
 **interop**: each layer moves into `interop/` once its API and wire behaviour
-settle. `gatt_basic`, `advertise_scan`, `long_value`, `duplicate_uuid` and
-`security` are done; `profile_wire` follows.
+settle. `gatt_basic`, `advertise_scan`, `long_value`, `duplicate_uuid`,
+`security` and `profile_wire` are done. What remains is Numeric Comparison inside
+`security`, the reverse direction of the connection-oriented scenarios (waiting
+for the peripheral connection snapshot), and the HID/MIDI pair.
 
 ## Pass criteria
 

@@ -187,3 +187,8 @@ notification to a handle on both sides.
 passkey (DisplayOnly against KeyboardOnly, which is what selects Passkey Entry).
 Encrypted, authenticated, bonded and the key size are asserted on both sides, and
 the encrypted and authenticated attribute tiers show which link may reach what.
+
+`interop/profile_wire` exchanges values built with the shared codec headers — a
+FLOAT32, a CGM measurement with its E2E-CRC, an SFLOAT the other way, and an
+iBeacon — each asserted as the wire bytes and as the decode. Here the library under
+test is the GATT server and the beacon, and EspBle is the central.

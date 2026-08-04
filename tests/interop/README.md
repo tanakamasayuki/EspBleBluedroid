@@ -65,9 +65,11 @@ uv run --env-file .env pytest interop/
 | [long_value](long_value/) | A 300-byte value published by an EspBle peripheral read whole across the 247-byte MTU, through both the UUID form and the handle form, with every byte checked against the peer's ramp |
 | [duplicate_uuid](duplicate_uuid/) | Two characteristics sharing one UUID in one service on the EspBle peripheral: discovery keeps them apart, the UUID form reaches the first, and read, write, subscribe and notification are each attributed to a handle on both sides. This library's server-side rejection of the same shape is recorded alongside |
 | [security](security/) | Just Works and static-passkey Passkey Entry, with encrypted / authenticated / bonded / key size asserted on both sides, the bond recorded by both, and the encrypted and authenticated attribute tiers exercised on each link type |
+| [profile_wire](profile_wire/) | The shared codec headers across the two libraries: a FLOAT32 read and notified, a CGM E2E-CRC appended by one copy and verified by the other, an SFLOAT written back, and an iBeacon decoded from the advertisement. Roles reversed — the library under test is the GATT server and the beacon |
 
-The remaining planned scenarios — `profile_wire`, Numeric Comparison inside
-`security`, and the HID/MIDI pair — are listed with their
+The remaining planned scenarios — Numeric Comparison inside `security`, the
+reverse direction of the connection-oriented scenarios, and the HID/MIDI pair —
+are listed with their
 content in [../TEST_PLAN.md](../TEST_PLAN.md#scenarios-added-as-each-layer-settles).
 
 ## UUIDs
@@ -77,7 +79,9 @@ Interop scenarios take suite tags from the `01xx` range of the test UUID scheme
 library's own suites even when both run in the same room. `gatt_basic` uses
 `0100`, `advertise_scan` uses `0101` (one UUID per direction, so neither scanner
 can be satisfied by the other side's payload), `long_value` uses `0102`,
-`duplicate_uuid` uses `0103`, and `security` uses `0104`.
+`duplicate_uuid` uses `0103`, `security` uses `0104`, and `profile_wire` uses
+`0105` (its iBeacon payload carries the `0105 0100` UUID, so the beacon scan
+cannot be satisfied by another beacon in the room).
 
 ## Reading the logs
 

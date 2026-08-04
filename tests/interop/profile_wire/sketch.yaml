@@ -1,0 +1,18 @@
+# The EspBle side of the cross-stack scenario. The peer firmware is a released
+# EspBle from the Arduino library index, pinned here by version: this suite
+# verifies agreement with a version someone can actually install, not with a
+# development tree. Bumping it is a separate, reviewed change.
+profiles:
+  s3_peer_host:
+    # Board defaults, which put Serial on UART0. The S3 of this fixture is
+    # reached through a CH9102 USB-serial bridge (VID 1a86), so UART0 is the port
+    # pytest watches; enabling CDC On Boot would move the output to the native USB
+    # port and the board would look silent while running fine.
+    fqbn: esp32:esp32:esp32s3
+    platforms:
+      - platform: esp32:esp32 (3.3.11)
+        platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+    libraries:
+      - EspBle (1.1.0)
+
+default_profile: s3_peer_host

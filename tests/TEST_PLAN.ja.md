@@ -111,7 +111,7 @@ SSSSNNNN-b1dd-4d00-9e5a-627564726f69
 | `0004` | `long_value` |
 | `0005` | `security_bond` |
 | `0006` | `security_passkey` |
-| `01xx` | interop scenario専用の範囲（`0100` = `interop/gatt_basic`、`0101` = `interop/advertise_scan`、`0102` = `interop/long_value`、`0103` = `interop/duplicate_uuid`、`0104` = `interop/security`） |
+| `01xx` | interop scenario専用の範囲（`0100` = `interop/gatt_basic`、`0101` = `interop/advertise_scan`、`0102` = `interop/long_value`、`0103` = `interop/duplicate_uuid`、`0104` = `interop/security`、`0105` = `interop/profile_wire`） |
 
 既存suiteのうち上表に無いものは、移行前に個別に選んだ128-bit UUIDを使っている
 （`8d47a6xx`、`6b976bxx`、`48e8c1xx`など）。これらもEspBle側と重複しないことを確認済みで、
@@ -187,7 +187,7 @@ conftest hookは持たず、port設定と`sketch.yaml`だけで構成する。
 | `interop/gatt_basic` | ✅ Bluedroid Central ↔ EspBle Peripheral。MTU 247交換、宣言propertyを含むDiscovery、Read、応答あり/なしWrite、Descriptor Read/Write、Notify、確認応答を伴うIndicate、購読解除、切断。逆向き（EspBle Central ↔ Bluedroid Peripheral）はPeripheral connection snapshot実装後 |
 | `interop/advertise_scan` | ✅ EspBleのpayload builderが出したAdvertising / Scan Responseを、Bluedroid Scannerがaddress単位でmergeして同じfieldへ復元すること（およびその逆）。同じadvertiserをpassive scanしたときはAdvertising payloadのfieldだけが見え、Scan Response側は一切見えないこと |
 | `interop/security` | ✅ Just Worksと静的passkeyのPasskey Entryをcross-stackで検証。encrypted / authenticated / bonded / key sizeを**両側**でassertし、bondも両側で確認し、attribute権限の2段（authenticated CharacteristicがJust Works linkでは拒否され、Passkey Entry linkでは到達できること）も確認する。Numeric ComparisonとBluedroid Peripheral側は今後（後者はconnection snapshot実装後） |
-| `interop/profile_wire` | 共有header（`EspBleMedicalFloat.h`、`EspBleCgmCrc.h`、`EspBleIBeacon.h`、`EspBleUuid.h`）で組んだ値が相手stackで同じbyte列としてdecodeできること |
+| `interop/profile_wire` | ✅ 共有header（`EspBleMedicalFloat.h`、`EspBleCgmCrc.h`、`EspBleIBeacon.h`）で組んだ値が相手stackで同じ値としてdecodeできること。wire byteとdecode結果（milli単位の整数）の両方でassertする。FLOAT32をReadとNotificationで、CGMのE2E-CRCを一方が付与し他方が検証、SFLOATを逆方向で、iBeaconはadvertisementだけからdecode。interopで初めて役割を反転させ、被検ライブラリがServer兼beaconになる |
 | `interop/duplicate_uuid` | ✅ 仕様が認める重複UUID（EspBle Peripheralが同一Service内に同一UUID Characteristicを2つ）を、Bluedroid Clientがhandle指定で扱えること。Discoveryで2件を区別、UUID指定は1件目に届く、Read / Write / 購読 / Notificationがすべて両側でhandleに帰属することを確認。Server側の拒否も同じファイルに記録する |
 | `interop/long_value` | ✅ EspBle Peripheralが公開した合意MTU超の値が、UUID指定・handle指定の両方のReadで全体として返ること。`peer/long_value`は両端がBluedroidなので、clientの性質として言えるのはこちら |
 | `interop/hid` / `interop/midi` | HID over GATT / BLE MIDI実装後。Device / Hostを入れ替えた両方向 |
@@ -209,7 +209,7 @@ cross-stack試験を指す。
 | Scan Response分割 / Appearance / Tx Power | | ✅ | ✅ `advertise_scan`に同梱 | ✅ `advertise_scan`に同梱（activeのmergeとpassiveの対比） |
 | Advertising Service Data（AD 0x16） | | ✅ | ✅ `advertise_scan`に同梱 | ✅ `advertise_scan`に同梱 |
 | non-connectable broadcast | | ✅ | ✅ `ibeacon` | |
-| iBeacon encode / decode | ✅ `unit/ibeacon` | ✅ | ✅ `ibeacon` | 予定 `profile_wire` |
+| iBeacon encode / decode | ✅ `unit/ibeacon` | ✅ | ✅ `ibeacon` | ✅ `profile_wire` |
 | UUID codec | ✅ `unit/uuid` | ✅ | — | |
 | connect / disconnect / timeout / 切断理由 | | ✅ | ✅ `connect_disconnect` | ✅ `gatt_basic` |
 | MTU交換（23→合意値、遅延要求） | | ✅ | ✅ `connect_disconnect`に同梱 | ✅ `gatt_basic` |
@@ -402,8 +402,9 @@ cross-stack試験を指す。
 - BLE HID Device（重複Characteristic UUID制限の解除が前提）→ HID Host
 
 **interop**: 各層でAPIとwire動作が固まった順に`interop/`へ写す。`gatt_basic`、
-`advertise_scan`、`long_value`、`duplicate_uuid`、`security`は実装済み。以降は
-`profile_wire`。
+`advertise_scan`、`long_value`、`duplicate_uuid`、`security`、`profile_wire`は実装済み。
+残るのは`security`内のNumeric Comparison、接続系scenarioの逆方向（Peripheral connection
+snapshot待ち）、HID/MIDI。
 
 ## 合格条件
 
