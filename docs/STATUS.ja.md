@@ -153,7 +153,12 @@ CCCD購読、notificationまで確認している。
   `connection()`で引ける（`tests/peer/peripheral_connection`）。
   connection系・GATT Client系・GATT Server系のeventは`add*Listener()`で複数observerを
   登録できる（primary→登録順、1 event 4件まで、`tests/peer/multi_listener`）。
-  profile helper、自動再接続・再購読は未実装。
+  BLE MIDIのprofile helperは`EspBleMidiProfile.h`として利用できる。
+  `EspBleMidiDevice` / `EspBleMidiHost`はEspBleのファイルのライブラリ参照の型だけを
+  差し替えたもので、必要なeventは`add*Listener()`で購読するためsketch側の`on*()`を
+  奪わない（`tests/peer/midi_device`、`tests/peer/midi_host`、
+  [examples/Midi](../examples/Midi/)）。Host側の連続送信はCentral GATT操作が同時1件で
+  あるためwrite完了で連鎖させる。HIDのprofile helper、自動再接続・再購読は未実装。
 - Discovery snapshot上限はService 16、Characteristic 48、Descriptor 48。
   PSRAMは使用せずDiscovery時だけheapへ確保し、切断時に無効化する。
 - GATT timeoutの結果配送には`update()`が必要。timeout後の遅いbackend完了は配送しないが、

@@ -49,5 +49,5 @@ uv run --env-file .env pytest unit/
   詳細は[../TEST_PLAN.ja.md](../TEST_PLAN.ja.md#espbleとのapi整合をテストで固定する)。
 
 `keymap`、`report_map`、`midi`が対象とするheaderはEspBleからのverbatim copyであるため、
-テストプログラムもEspBleと同じものを使用しています。これらはこのライブラリで未実装の
-HID・BLE MIDI profileの土台です。
+テストプログラムもEspBleと同じものを使用しています。これらはBLE MIDI profile
+（`src/EspBleMidiProfile.h`、実装済み）と、未実装のHID over GATTの土台です。

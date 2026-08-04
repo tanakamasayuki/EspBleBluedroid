@@ -63,6 +63,8 @@ uv run --env-file .env pytest
 | `peer/gatt_server` | 静的GATT Server、動的Read、binary Write、Descriptor、CCCD購読、Notification、Indication（CCCD 0x0002と確認応答後の完了）、`update()`配送 |
 | `peer/peripheral_connection` | 相手から接続されたlink（`localRole = Peripheral`）の接続event・MTU event・connection snapshot・接続パラメータ・pairing event・HCI切断理由、Server eventのconnection IDがsnapshotと一致すること |
 | `peer/multi_listener` | `add*Listener()`の多重observer配送。primary→登録順、1 event 4件上限と5件目の拒否、owner単位のlistener id、dispatch中に追加したlistenerが同じdispatchで呼ばれないこと |
+| `peer/midi_device` | BLE MIDI Device（Peripheral）。timestamp headerを含むpacket生成、複数packetのSysEx送信と転送中の2本目拒否、Hostが書いたrunning status・3 packetのSysExの解釈 |
+| `peer/midi_host` | BLE MIDI Host（Central）。Discovery・購読、running status・間に挟まったSystem Real-Time・複数notificationのSysExの解釈、write完了で連鎖する送信 |
 | `peer/gatt_disconnect_purge` | 実行中Read中の`disconnect()`受理、完了が1件だけ届くこと、drop 0、再接続後のDiscovery/Read |
 | `peer/duplicate_uuid` | Server側の重複Characteristic / Descriptor UUID拒否と不正UUID拒否（error名・detail文字列）、別Serviceの同一UUID受理、Client側のhandle指定Read・購読とNotificationの経路分離 |
 | `peer/long_value` | MTUを超える値のRead。UUID指定・handle指定の両方で全体が返り、内容がpeerのrampと一致すること |

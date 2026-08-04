@@ -3,7 +3,7 @@
 > English: [README.md](README.md)
 > EspBleとの違い: [DIFFERENCES_FROM_ESPBLE.ja.md](DIFFERENCES_FROM_ESPBLE.ja.md)
 
-**無印ESP32**（Bluetooth Classicを持つESP32 SoC）向けの91個のexampleです。
+**無印ESP32**（Bluetooth Classicを持つESP32 SoC）向けの93個のexampleです。
 Arduino-ESP32同梱のBluedroid backendを使います。
 
 BLE側のexampleは兄弟ライブラリ
@@ -163,6 +163,13 @@ Bluetooth Classicを持つのは無印ESP32だけだからです。
 | [Security/RuntimePasskeyClient](Security/RuntimePasskeyClient/) | Central | `providePasskey()`で実行時にpasskeyを渡す |
 | [Security/NumericComparisonClient](Security/NumericComparisonClient/) | Central | 両側に表示された6桁を確認する |
 
+### BLE MIDI
+
+| Example | 役割 | 説明 |
+|---|---|---|
+| [Midi/MidiDevice](Midi/MidiDevice/) | Peripheral | BLE MIDI楽器。ノート、Control Change、SysEx、Hostから届くMIDI |
+| [Midi/MidiHost](Midi/MidiHost/) | Central | BLE MIDI Host。Discovery・購読・受信MIDIのデコード・ノート送信 |
+
 ### Bluetooth Classic — このライブラリのみ
 
 | Example | 役割 | 説明 |
@@ -204,6 +211,7 @@ Bluetooth Classicを持つのは無印ESP32だけだからです。
 - Security/JustWorksServer ↔ Security/JustWorksClient
 - Security/StaticPasskeyServer ↔ Security/StaticPasskeyClient
 - Security/RuntimePasskeyClientとNumericComparisonClient ↔ スマートフォン、EspBleのボード、raw ESP-IDFのpeer（[Security/README.ja.md](Security/README.ja.md)）
+- Midi/MidiDevice ↔ Midi/MidiHost（スマホ/タブレットのDAWや市販BLE MIDI楽器でも可）
 - Classic/SppServer ↔ Classic/SppClient、Classic/SppSerialServer ↔ Classic/SppSerialClient
 - Classic/A2dpSource ↔ Classic/A2dpSink、Classic/HfpAudioGateway ↔ Classic/HfpHandsFree
 - Classic/SppServer ↔ DualMode/ScanWhileSpp

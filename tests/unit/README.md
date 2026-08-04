@@ -53,11 +53,14 @@ fails the test.
   compares what the `*Name()` functions *return* — the enum-to-string maps in
   `src/EspBleBluedroid.cpp` against `espble.values` — because two libraries can
   agree on every signature and still hand the application different strings, which
-  no header shows. This suite reads the two committed snapshots, so it needs no
-  EspBle checkout. See
+  no header shows. Finally it holds `src/EspBleMidiProfile.h` to being EspBle's
+  file with one type renamed: both sides are reduced to their code lines,
+  `EspBleBluedroid` becomes `EspBle`, and the result must equal
+  `espble.midi_profile`. This suite reads the three committed snapshots, so it
+  needs no EspBle checkout. See
   [../TEST_PLAN.md](../TEST_PLAN.md#pinning-espble-api-agreement-with-tests).
 
 `keymap`, `report_map`, and `midi` cover headers that are verbatim copies of
 EspBle's, so the test programs are the same as EspBle's too. They are the
-foundation for the HID and BLE MIDI profiles, which are not implemented in this
-library yet.
+foundation for the BLE MIDI profile, which is now implemented on top of them
+(`src/EspBleMidiProfile.h`), and for HID over GATT, which is not.

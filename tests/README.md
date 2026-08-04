@@ -133,6 +133,14 @@ and the `add*Listener()` observers of the connection, GATT client and GATT Serve
 events, the order they run in, the four-listener limit, per-owner listener ids, and
 the rule that a listener added during a dispatch is left out of it.
 
+`peer/midi_device` and `peer/midi_host` cover the BLE MIDI profile helpers in
+both roles against a raw Arduino-ESP32 peer that encodes and decodes the BLE MIDI
+header itself: the timestamp header, running status carried across a packet, an
+interleaved System Real-Time byte, a SysEx spread over several packets in each
+direction, and the refusal of a second transfer while one is in flight. The host
+side also pins the chaining a serialized central forces: consecutive sends go out
+from the previous write's completion.
+
 `peer/peripheral_connection` covers the peripheral half of the connection
 lifecycle: a peer connecting to this device's GATT Server produces the connect
 event, the MTU event, a `connection()` snapshot with the negotiated parameters, a

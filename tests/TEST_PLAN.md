@@ -71,7 +71,7 @@ peer output does.
 
 "Match EspBle except where the backend forces a difference"
 ([docs/API_DESIGN_POLICY.ja.md](../docs/API_DESIGN_POLICY.ja.md)) decays if it
-lives only in prose. Four tests hold it in place.
+lives only in prose. Five tests hold it in place.
 
 1. **Names and shapes (unit).** `api_parity` diffs the public symbols of
    `EspBle.h` and `EspBleBluedroid.h` — classes, methods, struct fields, enum
@@ -101,6 +101,15 @@ lives only in prose. Four tests hold it in place.
    spelling, and the only remaining entry is `UNSUPPORTED`, whose enum constant
    exists only here. The functions are found by shape, so a second name map added
    later is compared without touching the test.
+
+5. **A ported file stays the ported file (unit).** `src/EspBleMidiProfile.h` is
+   not a public-API comparison: it is EspBle's file with the library reference
+   retyped, and nothing else. `api_parity` normalizes both sides to their code
+   lines, rewrites `EspBleBluedroid` to `EspBle`, and requires the result to be
+   identical to the `espble.midi_profile` snapshot. A behaviour change made in one
+   library alone fails here even though every signature still matches. Verbatim
+   copies (`EspBleMidi.h`, `EspBleKeymap.h`, …) need no snapshot: a plain diff
+   already proves those.
 
 The Classic extensions are held to the same standard. `classic().spp()`,
 `classic().a2dpSink()`, and the other session APIs are verified with the same
@@ -134,6 +143,7 @@ Add a row here before using a new tag.
 | `0006` | `security_passkey` |
 | `0007` | `peripheral_connection` |
 | `0008` | `multi_listener` |
+| `0009` / `000a` | `midi_device` / `midi_host` — **tags only, not UUIDs**: the BLE MIDI service and characteristic UUIDs are fixed by the specification, so these suites cannot pick unused ones. Isolation is by device name instead (`Bluedroid MIDI 0009`, `Bluedroid MIDI Peer 000a`), and each side requires both the name and the service UUID to match |
 | `01xx` | reserved for interop scenarios (`0100` = `interop/gatt_basic`, `0101` = `interop/advertise_scan`, `0102` = `interop/long_value`, `0103` = `interop/duplicate_uuid`, `0104` = `interop/security`, `0105` = `interop/profile_wire`) |
 
 Suites not in the table still use individually chosen 128-bit UUIDs from before
@@ -315,7 +325,7 @@ once its prerequisites are met.
 | Keyboard layout / keymap | ✅ `unit/keymap` | — | — | |
 | BLE MIDI packet codec | ✅ `unit/midi` | — | — | |
 | Multi-observer dispatch (`add*Listener()`) | | ✅ | ✅ `multi_listener` | |
-| BLE MIDI device / host | codec above | planned | planned `midi_device` / `midi_host` | planned `interop/midi` |
+| BLE MIDI device / host | ✅ codec above | ✅ | ✅ `midi_device` / `midi_host` | planned `interop/midi` |
 | HID device (keyboard / mouse / consumer / system / gamepad / vendor) | parser above | planned | planned `hid_keyboard_device`, `hid_robustness`, `hid_security`, `hid_boot_protocol`, `hid_custom`, `hid_convenience` | planned `interop/hid` |
 | HID host | parser above | planned | planned `hid_keyboard_host`, `hid_boot_keyboard`, `hid_keyboard_nkro` | planned `interop/hid` |
 
@@ -451,8 +461,11 @@ Start with the gaps that need no implementation work.
 
 **P4 — profile implementations**
 
-- BLE MIDI device / host (the shortest path, now that the P1 codecs and
-  `add*Listener()` are in)
+- ✅ BLE MIDI device / host (`src/EspBleMidiProfile.h`, `midi_device` /
+  `midi_host`, [examples/Midi](../examples/Midi/)). The helper is EspBle's file
+  with the library reference retyped; both peer tests decode the BLE MIDI header
+  with their own arithmetic, so the wire format is checked against the
+  specification rather than against the same codec twice
 - BLE HID device (needs the duplicate-characteristic-UUID restriction lifted) →
   HID host
 

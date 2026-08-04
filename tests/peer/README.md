@@ -34,3 +34,12 @@ against a raw Arduino-ESP32 BLE client: the connect event, the MTU exchange this
 side only observes, the `connection()` snapshot with its parameters, pairing in
 that role, the HCI disconnection reason, and the connection ID a GATT Server event
 carries.
+`midi_device` and `midi_host` verify the BLE MIDI profile helpers
+(`EspBleMidiProfile.h`) in both roles against a raw Arduino-ESP32 peer that
+encodes and decodes the BLE MIDI header with its own arithmetic, so the wire
+format is checked against the specification rather than against the same codec on
+both ends: the timestamp header, running status carried across a packet, an
+interleaved System Real-Time byte, and a SysEx spread over several packets in each
+direction — plus the refusal of a second transfer while one is in flight. The BLE
+MIDI UUIDs are fixed by the specification, so these two suites are isolated by
+device name instead of by a suite UUID tag.

@@ -1,0 +1,578 @@
+#ifndef ESP_BLE_MIDI_PROFILE_H
+#define ESP_BLE_MIDI_PROFILE_H
+
+// BLE MIDI Device (Peripheral) and Host (Central) profile helpers built on the
+// public EspBleBluedroid GATT API plus the Arduino-independent packet codec in
+// EspBleMidi.h. The API mirrors the USB siblings so code ports across
+// transports: EspBleMidiDevice follows EspUsbDeviceMidi (constructed with a
+// reference; noteOn/noteOff/controlChange/...), and EspBleMidiHost follows
+// EspUsbHost's MIDI surface (onMidiMessage + send helpers, EspBleMidiMessage
+// mirrors EspUsbHostMidiMessage).
+//
+// Both helpers register the generic GATT callbacks they need as add*Listener()
+// listeners (the device takes gattServer() written/subscriptionChanged/sent; the
+// host takes notification/characteristicDiscovered/subscribed/characteristicWritten),
+// not the single on*() primary. A sketch can therefore still install its own
+// on*() primary and/or additional add*Listener() observers for the same events
+// alongside a MIDI helper. Timestamps are derived from millis() (the BLE MIDI
+// 13-bit millisecond clock).
+//
+// Ported from the sibling library EspBle. The class names, the method names and
+// the logic are the same file; only the type of the library reference differs
+// (EspBleBluedroid instead of EspBle), so a sketch moves between the two by
+// changing that one declaration. Diff this file against EspBle's to see that the
+// substitution is all there is. Two Bluedroid properties do show through, and
+// both are properties of the GATT API rather than of this helper:
+//
+//   * one central GATT operation runs at a time, so a host send issued while a
+//     discovery, subscription or earlier write is still in flight fails at once
+//     with InvalidState instead of being queued (see
+//     examples/DIFFERENCES_FROM_ESPBLE.md). Call again from the completion
+//     event, exactly as sendSysEx() does internally;
+//   * the GATT Server exposes one peripheral link, so the device side has at
+//     most one subscriber even though the table below holds four.
+
+#include <Arduino.h>
+
+#include "EspBleBluedroid.h"
+#include "EspBleMidi.h"
+
+// Peripheral-side BLE MIDI. Register the service before EspBleBluedroid::begin(),
+// then send with the note/control helpers and receive host writes via onMessage().
+class EspBleMidiDevice
+{
+public:
+  explicit EspBleMidiDevice(EspBleBluedroid &ble) : ble_(ble) {}
+
+  using MessageCallback = std::function<void(const EspBleMidiMessage &message)>;
+
+  // Register the MIDI GATT service, its I/O characteristic and the advertised
+  // service UUID. Must be called before EspBleBluedroid::begin() (GATT services
+  // are registered before the server starts).
+  bool begin()
+  {
+    EspBleGattCharacteristicConfig config;
+    config.readable = true;              // spec: readable, returns empty
+    config.writableWithoutResponse = true;
+    config.writable = true;              // accept both, some hosts use write
+    config.notifiable = true;
+    const EspBleGattService service = ble_.gattServer().addService(ESP_BLE_MIDI_SERVICE_UUID);
+    if (!service.valid())
+      return false;
+    io_ = ble_.gattServer().addCharacteristic(
+      service, ESP_BLE_MIDI_IO_CHARACTERISTIC_UUID, config);
+    if (!io_.valid())
+      return false;
+    ble_.advertising().addServiceUuid(ESP_BLE_MIDI_SERVICE_UUID);
+
+    // Register as additional listeners (not the single on* primary) so a sketch
+    // can still observe these GATT Server events itself. Remove-before-add keeps
+    // a repeated begin() from stacking duplicate listeners.
+    auto &server = ble_.gattServer();
+    if (writtenListener_ != EspBleInvalidListenerId) server.removeListener(writtenListener_);
+    if (subscriptionListener_ != EspBleInvalidListenerId) server.removeListener(subscriptionListener_);
+    if (sentListener_ != EspBleInvalidListenerId) server.removeListener(sentListener_);
+    writtenListener_ = server.addWrittenListener([this](const EspBleGattWrite &write) {
+      if (!uuidEquals(write.characteristicUuid, ESP_BLE_MIDI_IO_CHARACTERISTIC_UUID))
+        return;
+      deliverWrite(write.connectionId,
+                   reinterpret_cast<const uint8_t *>(write.value.c_str()),
+                   write.value.length());
+    });
+    subscriptionListener_ = server.addSubscriptionChangedListener(
+      [this](const EspBleGattSubscription &subscription) {
+        if (!uuidEquals(subscription.characteristicUuid, ESP_BLE_MIDI_IO_CHARACTERISTIC_UUID))
+          return;
+        setSubscribed(subscription.connectionId, subscription.notifications);
+      });
+    // A multi-packet SysEx is sent one packet per send completion, driven from
+    // update() via onSent: the next notification is issued only once the
+    // previous one has been reported, which is what keeps the packets in order.
+    sentListener_ = server.addSentListener([this](const EspBleGattSendResult &result) {
+      if (!uuidEquals(result.characteristicUuid, ESP_BLE_MIDI_IO_CHARACTERISTIC_UUID))
+        return;
+      if (sysExActive_)
+        pumpSysEx();
+    });
+    return true;
+  }
+
+  // Callback for MIDI received from a connected host (host -> device).
+  void onMessage(MessageCallback callback) { messageCallback_ = callback; }
+
+  // True while at least one host is subscribed to notifications.
+  bool ready() const { return subscriberCount_ > 0; }
+
+  bool noteOn(uint8_t channel, uint8_t note, uint8_t velocity)
+  {
+    const uint8_t message[3] = {static_cast<uint8_t>(0x90 | (channel & 0x0F)),
+                                static_cast<uint8_t>(note & 0x7F),
+                                static_cast<uint8_t>(velocity & 0x7F)};
+    return sendMessage(message, 3);
+  }
+
+  bool noteOff(uint8_t channel, uint8_t note, uint8_t velocity)
+  {
+    const uint8_t message[3] = {static_cast<uint8_t>(0x80 | (channel & 0x0F)),
+                                static_cast<uint8_t>(note & 0x7F),
+                                static_cast<uint8_t>(velocity & 0x7F)};
+    return sendMessage(message, 3);
+  }
+
+  bool controlChange(uint8_t channel, uint8_t control, uint8_t value)
+  {
+    const uint8_t message[3] = {static_cast<uint8_t>(0xB0 | (channel & 0x0F)),
+                                static_cast<uint8_t>(control & 0x7F),
+                                static_cast<uint8_t>(value & 0x7F)};
+    return sendMessage(message, 3);
+  }
+
+  bool programChange(uint8_t channel, uint8_t program)
+  {
+    const uint8_t message[2] = {static_cast<uint8_t>(0xC0 | (channel & 0x0F)),
+                                static_cast<uint8_t>(program & 0x7F)};
+    return sendMessage(message, 2);
+  }
+
+  bool polyPressure(uint8_t channel, uint8_t note, uint8_t pressure)
+  {
+    const uint8_t message[3] = {static_cast<uint8_t>(0xA0 | (channel & 0x0F)),
+                                static_cast<uint8_t>(note & 0x7F),
+                                static_cast<uint8_t>(pressure & 0x7F)};
+    return sendMessage(message, 3);
+  }
+
+  bool channelPressure(uint8_t channel, uint8_t pressure)
+  {
+    const uint8_t message[2] = {static_cast<uint8_t>(0xD0 | (channel & 0x0F)),
+                                static_cast<uint8_t>(pressure & 0x7F)};
+    return sendMessage(message, 2);
+  }
+
+  bool pitchBend(uint8_t channel, uint16_t value)
+  {
+    const uint8_t message[3] = {static_cast<uint8_t>(0xE0 | (channel & 0x0F)),
+                                static_cast<uint8_t>(value & 0x7F),
+                                static_cast<uint8_t>((value >> 7) & 0x7F)};
+    return sendMessage(message, 3);
+  }
+
+  // Send one raw channel/system MIDI message (status byte + up to 2 data bytes)
+  // as a single BLE MIDI notification carrying the current timestamp. Rejected
+  // while a SysEx transfer is in progress to avoid interleaving the stream.
+  bool sendMessage(const uint8_t *message, size_t length)
+  {
+    if (sysExActive_)
+      return false;
+    uint8_t buffer[8];
+    EspBleMidiPacketBuilder builder(buffer, sizeof(buffer));
+    if (!builder.appendMessage(nowTimestamp(), message, length))
+      return false;
+    return ble_.gattServer().notify(io_, builder.data(), builder.size());
+  }
+
+  // Send a full System Exclusive message (framed 0xF0 .. 0xF7). Large messages
+  // are split across BLE packets that are notified one at a time as previous
+  // sends complete, so this returns after queuing and the transfer proceeds
+  // across ble.update() cycles. Only one SysEx transfer runs at a time.
+  bool sendSysEx(const uint8_t *data, size_t length)
+  {
+    if (sysExActive_)
+      return false;
+    if (data == nullptr || length < 2 || length > kMaxSysEx)
+      return false;
+    size_t maxPayload = minSubscriberPayload();
+    if (maxPayload == 0)
+      return false;
+    if (maxPayload > kPacketCapacity)
+      maxPayload = kPacketCapacity;
+    for (size_t i = 0; i < length; ++i)
+      sysExSource_[i] = data[i];
+    if (!sysExEncoder_.begin(sysExSource_, length, nowTimestamp(), maxPayload))
+      return false;
+    sysExPacketLength_ = 0;
+    sysExActive_ = true;
+    return pumpSysEx();
+  }
+
+  // True while a multi-packet SysEx transfer is still in flight.
+  bool sendingSysEx() const { return sysExActive_; }
+
+private:
+  static constexpr size_t MaxSubscribers = 4;
+  static constexpr size_t kMaxSysEx = 320;
+  static constexpr size_t kPacketCapacity = 244;
+
+  static uint16_t nowTimestamp() { return static_cast<uint16_t>(millis() & 0x1FFF); }
+
+  static bool uuidEquals(const String &value, const char *uuid)
+  {
+    return value.equalsIgnoreCase(uuid);
+  }
+
+  void deliverWrite(EspBleConnectionId connectionId, const uint8_t *data, size_t length)
+  {
+    if (!messageCallback_)
+      return;
+    parser_.parse(data, length, [&](const EspBleMidiMessage &decoded) {
+      EspBleMidiMessage message = decoded;
+      message.connectionId = connectionId;
+      messageCallback_(message);
+    });
+  }
+
+  size_t minSubscriberPayload() const
+  {
+    size_t minPayload = static_cast<size_t>(-1);
+    bool any = false;
+    for (size_t i = 0; i < MaxSubscribers; ++i)
+    {
+      if (!subscribers_[i].used)
+        continue;
+      EspBleConnection connection;
+      if (ble_.connection(subscribers_[i].connectionId, connection))
+      {
+        any = true;
+        const size_t payload = connection.maximumNotificationPayload();
+        if (payload < minPayload)
+          minPayload = payload;
+      }
+    }
+    return any ? minPayload : 0;
+  }
+
+  // Emit the next SysEx packet if one can be sent now. If the send stack is busy
+  // the packet is retained and retried from the next onSent.
+  bool pumpSysEx()
+  {
+    if (!sysExActive_)
+      return false;
+    if (sysExPacketLength_ == 0)
+    {
+      if (sysExEncoder_.finished())
+      {
+        sysExActive_ = false;
+        return false;
+      }
+      sysExPacketLength_ = sysExEncoder_.next(sysExPacket_, sizeof(sysExPacket_));
+      if (sysExPacketLength_ == 0)
+      {
+        sysExActive_ = false;
+        return false;
+      }
+    }
+    const bool sent = ble_.gattServer().notify(io_, sysExPacket_, sysExPacketLength_);
+    if (sent)
+    {
+      sysExPacketLength_ = 0;
+      if (sysExEncoder_.finished())
+        sysExActive_ = false;
+    }
+    return sent;
+  }
+
+  void setSubscribed(EspBleConnectionId connectionId, bool subscribed)
+  {
+    for (size_t i = 0; i < MaxSubscribers; ++i)
+    {
+      if (subscribers_[i].used && subscribers_[i].connectionId == connectionId)
+      {
+        if (!subscribed)
+        {
+          subscribers_[i].used = false;
+          if (subscriberCount_ > 0)
+            --subscriberCount_;
+        }
+        return;
+      }
+    }
+    if (!subscribed)
+      return;
+    for (size_t i = 0; i < MaxSubscribers; ++i)
+    {
+      if (!subscribers_[i].used)
+      {
+        subscribers_[i].used = true;
+        subscribers_[i].connectionId = connectionId;
+        ++subscriberCount_;
+        return;
+      }
+    }
+  }
+
+  struct Subscriber
+  {
+    bool used = false;
+    EspBleConnectionId connectionId = 0;
+  };
+
+  EspBleBluedroid &ble_;
+  // The BLE MIDI I/O characteristic this device registered.
+  EspBleGattCharacteristic io_;
+  EspBleListenerId writtenListener_ = EspBleInvalidListenerId;
+  EspBleListenerId subscriptionListener_ = EspBleInvalidListenerId;
+  EspBleListenerId sentListener_ = EspBleInvalidListenerId;
+  MessageCallback messageCallback_;
+  EspBleMidiParser parser_;
+  Subscriber subscribers_[MaxSubscribers];
+  size_t subscriberCount_ = 0;
+
+  EspBleMidiSysExEncoder sysExEncoder_;
+  uint8_t sysExSource_[kMaxSysEx];
+  uint8_t sysExPacket_[kPacketCapacity];
+  size_t sysExPacketLength_ = 0;
+  bool sysExActive_ = false;
+};
+
+// Central-side BLE MIDI. After connecting (and completing security if enabled),
+// call discover(connectionId) to find the MIDI service and subscribe; decoded
+// messages arrive via onMidiMessage().
+class EspBleMidiHost
+{
+public:
+  explicit EspBleMidiHost(EspBleBluedroid &ble) : ble_(ble) {}
+
+  using MessageCallback = std::function<void(const EspBleMidiMessage &message)>;
+
+  // Install the GATT client callbacks the host needs. Call once after
+  // EspBleBluedroid::begin().
+  bool begin()
+  {
+    // Register as additional GATT-client listeners (not the single on* primary)
+    // so a sketch can still observe these events itself. Remove-before-add keeps
+    // a repeated begin() from stacking duplicate listeners.
+    if (notificationListener_ != EspBleInvalidListenerId) ble_.removeGattListener(notificationListener_);
+    if (discoveredListener_ != EspBleInvalidListenerId) ble_.removeGattListener(discoveredListener_);
+    if (subscribedListener_ != EspBleInvalidListenerId) ble_.removeGattListener(subscribedListener_);
+    if (writtenListener_ != EspBleInvalidListenerId) ble_.removeGattListener(writtenListener_);
+    notificationListener_ = ble_.addNotificationListener(
+      [this](const EspBleGattNotification &notification) {
+        if (!uuidEquals(notification.characteristicUuid, ESP_BLE_MIDI_IO_CHARACTERISTIC_UUID))
+          return;
+        deliverNotification(notification.connectionId,
+                            reinterpret_cast<const uint8_t *>(notification.value.c_str()),
+                            notification.value.length());
+      });
+    discoveredListener_ = ble_.addCharacteristicDiscoveredListener(
+      [this](const EspBleGattResult &result) {
+        if (!uuidEquals(result.characteristicUuid, ESP_BLE_MIDI_IO_CHARACTERISTIC_UUID))
+          return;
+        if (!result.success)
+          return;
+        ble_.subscribe(result.connectionId, ESP_BLE_MIDI_SERVICE_UUID,
+                       ESP_BLE_MIDI_IO_CHARACTERISTIC_UUID);
+      });
+    subscribedListener_ = ble_.addSubscribedListener([this](const EspBleGattResult &result) {
+      if (!uuidEquals(result.characteristicUuid, ESP_BLE_MIDI_IO_CHARACTERISTIC_UUID))
+        return;
+      if (result.success)
+        markReady(result.connectionId);
+    });
+    // Drive the next SysEx packet from each write completion.
+    writtenListener_ = ble_.addCharacteristicWrittenListener([this](const EspBleGattResult &result) {
+      if (!uuidEquals(result.characteristicUuid, ESP_BLE_MIDI_IO_CHARACTERISTIC_UUID))
+        return;
+      if (sysExActive_ && result.connectionId == sysExConnectionId_)
+        pumpSysEx();
+    });
+    return true;
+  }
+
+  // Discover the MIDI I/O characteristic on a connection and subscribe to it.
+  bool discover(EspBleConnectionId connectionId, uint32_t timeoutMilliseconds = 10000)
+  {
+    slotFor(connectionId); // reserve a parser/state slot
+    return ble_.discoverCharacteristic(
+      connectionId, ESP_BLE_MIDI_SERVICE_UUID, ESP_BLE_MIDI_IO_CHARACTERISTIC_UUID,
+      timeoutMilliseconds);
+  }
+
+  // True once discovery and subscription have completed for a connection.
+  bool ready(EspBleConnectionId connectionId) const
+  {
+    for (size_t i = 0; i < MaxConnections; ++i)
+      if (slots_[i].used && slots_[i].connectionId == connectionId)
+        return slots_[i].ready;
+    return false;
+  }
+
+  void onMidiMessage(MessageCallback callback) { messageCallback_ = callback; }
+
+  bool sendNoteOn(EspBleConnectionId connectionId, uint8_t channel, uint8_t note, uint8_t velocity)
+  {
+    const uint8_t message[3] = {static_cast<uint8_t>(0x90 | (channel & 0x0F)),
+                                static_cast<uint8_t>(note & 0x7F),
+                                static_cast<uint8_t>(velocity & 0x7F)};
+    return sendMessage(connectionId, message, 3);
+  }
+
+  bool sendNoteOff(EspBleConnectionId connectionId, uint8_t channel, uint8_t note, uint8_t velocity)
+  {
+    const uint8_t message[3] = {static_cast<uint8_t>(0x80 | (channel & 0x0F)),
+                                static_cast<uint8_t>(note & 0x7F),
+                                static_cast<uint8_t>(velocity & 0x7F)};
+    return sendMessage(connectionId, message, 3);
+  }
+
+  bool sendControlChange(EspBleConnectionId connectionId, uint8_t channel, uint8_t control, uint8_t value)
+  {
+    const uint8_t message[3] = {static_cast<uint8_t>(0xB0 | (channel & 0x0F)),
+                                static_cast<uint8_t>(control & 0x7F),
+                                static_cast<uint8_t>(value & 0x7F)};
+    return sendMessage(connectionId, message, 3);
+  }
+
+  bool sendProgramChange(EspBleConnectionId connectionId, uint8_t channel, uint8_t program)
+  {
+    const uint8_t message[2] = {static_cast<uint8_t>(0xC0 | (channel & 0x0F)),
+                                static_cast<uint8_t>(program & 0x7F)};
+    return sendMessage(connectionId, message, 2);
+  }
+
+  // Send one raw channel/system MIDI message to a connected device using a
+  // Write Without Response. Rejected while a SysEx transfer is in progress.
+  bool sendMessage(EspBleConnectionId connectionId, const uint8_t *message, size_t length)
+  {
+    if (sysExActive_ && connectionId == sysExConnectionId_)
+      return false;
+    uint8_t buffer[8];
+    EspBleMidiPacketBuilder builder(buffer, sizeof(buffer));
+    if (!builder.appendMessage(nowTimestamp(), message, length))
+      return false;
+    return ble_.writeCharacteristic(
+      connectionId, ESP_BLE_MIDI_SERVICE_UUID, ESP_BLE_MIDI_IO_CHARACTERISTIC_UUID,
+      builder.data(), builder.size(), false);
+  }
+
+  // Send a full System Exclusive message (framed 0xF0 .. 0xF7) to a device.
+  // Large messages are split across BLE writes issued one at a time as previous
+  // writes complete. Only one SysEx transfer runs at a time across the host.
+  bool sendSysEx(EspBleConnectionId connectionId, const uint8_t *data, size_t length)
+  {
+    if (sysExActive_)
+      return false;
+    if (data == nullptr || length < 2 || length > kMaxSysEx)
+      return false;
+    EspBleConnection connection;
+    if (!ble_.connection(connectionId, connection))
+      return false;
+    size_t maxPayload = connection.maximumNotificationPayload();
+    if (maxPayload > kPacketCapacity)
+      maxPayload = kPacketCapacity;
+    for (size_t i = 0; i < length; ++i)
+      sysExSource_[i] = data[i];
+    if (!sysExEncoder_.begin(sysExSource_, length, nowTimestamp(), maxPayload))
+      return false;
+    sysExPacketLength_ = 0;
+    sysExActive_ = true;
+    sysExConnectionId_ = connectionId;
+    return pumpSysEx();
+  }
+
+  // True while a multi-packet SysEx transfer is still in flight.
+  bool sendingSysEx() const { return sysExActive_; }
+
+private:
+  static constexpr size_t MaxConnections = 4;
+  static constexpr size_t kMaxSysEx = 320;
+  static constexpr size_t kPacketCapacity = 244;
+
+  static uint16_t nowTimestamp() { return static_cast<uint16_t>(millis() & 0x1FFF); }
+
+  static bool uuidEquals(const String &value, const char *uuid)
+  {
+    return value.equalsIgnoreCase(uuid);
+  }
+
+  struct Slot
+  {
+    bool used = false;
+    bool ready = false;
+    EspBleConnectionId connectionId = 0;
+    EspBleMidiParser parser;
+  };
+
+  Slot *slotFor(EspBleConnectionId connectionId)
+  {
+    for (size_t i = 0; i < MaxConnections; ++i)
+      if (slots_[i].used && slots_[i].connectionId == connectionId)
+        return &slots_[i];
+    for (size_t i = 0; i < MaxConnections; ++i)
+    {
+      if (!slots_[i].used)
+      {
+        slots_[i] = Slot();
+        slots_[i].used = true;
+        slots_[i].connectionId = connectionId;
+        return &slots_[i];
+      }
+    }
+    return nullptr;
+  }
+
+  void markReady(EspBleConnectionId connectionId)
+  {
+    Slot *slot = slotFor(connectionId);
+    if (slot)
+      slot->ready = true;
+  }
+
+  void deliverNotification(EspBleConnectionId connectionId, const uint8_t *data, size_t length)
+  {
+    Slot *slot = slotFor(connectionId);
+    if (slot == nullptr || !messageCallback_)
+      return;
+    slot->parser.parse(data, length, [&](const EspBleMidiMessage &decoded) {
+      EspBleMidiMessage message = decoded;
+      message.connectionId = connectionId;
+      messageCallback_(message);
+    });
+  }
+
+  bool pumpSysEx()
+  {
+    if (!sysExActive_)
+      return false;
+    if (sysExPacketLength_ == 0)
+    {
+      if (sysExEncoder_.finished())
+      {
+        sysExActive_ = false;
+        return false;
+      }
+      sysExPacketLength_ = sysExEncoder_.next(sysExPacket_, sizeof(sysExPacket_));
+      if (sysExPacketLength_ == 0)
+      {
+        sysExActive_ = false;
+        return false;
+      }
+    }
+    const bool sent = ble_.writeCharacteristic(
+      sysExConnectionId_, ESP_BLE_MIDI_SERVICE_UUID, ESP_BLE_MIDI_IO_CHARACTERISTIC_UUID,
+      sysExPacket_, sysExPacketLength_, false);
+    if (sent)
+    {
+      sysExPacketLength_ = 0;
+      if (sysExEncoder_.finished())
+        sysExActive_ = false;
+    }
+    return sent;
+  }
+
+  EspBleBluedroid &ble_;
+  EspBleListenerId notificationListener_ = EspBleInvalidListenerId;
+  EspBleListenerId discoveredListener_ = EspBleInvalidListenerId;
+  EspBleListenerId subscribedListener_ = EspBleInvalidListenerId;
+  EspBleListenerId writtenListener_ = EspBleInvalidListenerId;
+  MessageCallback messageCallback_;
+  Slot slots_[MaxConnections];
+
+  EspBleMidiSysExEncoder sysExEncoder_;
+  uint8_t sysExSource_[kMaxSysEx];
+  uint8_t sysExPacket_[kPacketCapacity];
+  size_t sysExPacketLength_ = 0;
+  bool sysExActive_ = false;
+  EspBleConnectionId sysExConnectionId_ = 0;
+};
+
+#endif // ESP_BLE_MIDI_PROFILE_H

@@ -159,6 +159,46 @@
   `EspBleInvalidListenerId`で拒否、listener idはowner単位で一意。dispatchはcallbackを
   コピーしてから呼ぶため、callback内での追加・削除が同じdispatchに影響しない。
   `docs/API_PARITY.tsv`から26行が消えた。`tests/peer/multi_listener`で確認。
+- (EN) Add the BLE MIDI profile helpers `src/EspBleMidiProfile.h`:
+  `EspBleMidiDevice` (peripheral) and `EspBleMidiHost` (central) on top of the
+  shared `EspBleMidi.h` codec, plus the `examples/Midi/MidiDevice` and
+  `examples/Midi/MidiHost` examples. The file is EspBle's with the library
+  reference retyped — class names, method names and logic are unchanged, so a
+  sketch moves across by changing one declaration — and the helpers subscribe with
+  `add*Listener()`, leaving the application's `on*()` callbacks free. Two Bluedroid
+  properties of the GATT API show through: a central runs one operation at a time,
+  so consecutive host sends chain through the write completion (as `sendSysEx()`
+  already did), and the GATT Server exposes one peripheral link, so the device side
+  has one subscriber. Covered by `tests/peer/midi_device` and
+  `tests/peer/midi_host`, where the peer encodes and decodes the BLE MIDI header
+  with its own arithmetic: the timestamp header, running status carried across a
+  packet, an interleaved System Real-Time byte, a SysEx spread over several packets
+  in both directions, and the refusal of a second transfer while one is in flight.
+- (JA) BLE MIDIのprofile helper `src/EspBleMidiProfile.h`を追加。共有codecの
+  `EspBleMidi.h`の上に`EspBleMidiDevice`（Peripheral）と`EspBleMidiHost`（Central）を
+  実装し、`examples/Midi/MidiDevice`・`examples/Midi/MidiHost`を追加した。ファイルは
+  EspBleのものでライブラリ参照の型だけを差し替えており、クラス名・メソッド名・ロジックは
+  同一なので、sketchは宣言1行の変更で移植できる。必要なeventは`add*Listener()`で購読する
+  ため、applicationの`on*()`は空いたままになる。GATT API側のBluedroid特性が2点現れる。
+  Central操作は同時1件なのでHostの連続送信はwrite完了で連鎖させる（`sendSysEx()`は元から
+  そうしている）。GATT Serverが公開するPeripheralリンクは1本なのでDevice側の購読者は1つ。
+  `tests/peer/midi_device`・`tests/peer/midi_host`で確認し、peer側はBLE MIDIヘッダを
+  自前の演算で組み立て・デコードする。timestamp header、packetを越えるrunning status、
+  間に挟まったSystem Real-Time byte、複数packetに分かれるSysExを両方向で検証し、
+  転送中の2本目が拒否されることも固定した。
+- (EN) `tests/unit/api_parity` now also holds `src/EspBleMidiProfile.h` to being
+  EspBle's file with one type renamed: both sides are reduced to their code lines,
+  `EspBleBluedroid` is rewritten to `EspBle`, and the result must equal the new
+  `espble.midi_profile` snapshot. The verbatim-copy headers need no snapshot — a
+  plain diff proves those — but this one cannot be verbatim, because it holds a
+  reference to the library object. `tools/gen_api_parity.py` gained
+  `--espble-midi-profile`.
+- (JA) `tests/unit/api_parity`が`src/EspBleMidiProfile.h`についても「EspBleのファイルの
+  型名だけを差し替えたもの」であることを固定する。両側をコード行へ落とし、
+  `EspBleBluedroid`を`EspBle`へ書き換えて、新しい`espble.midi_profile` snapshotと一致する
+  ことを要求する。verbatim copyのheaderはsnapshot不要（素のdiffで足りる）が、このファイルは
+  ライブラリオブジェクトへの参照を持つためverbatimにできない。`tools/gen_api_parity.py`に
+  `--espble-midi-profile`を追加した。
 - (EN) CI: the unit-test step of `compile-examples.yml` now runs `pytest unit/`
   instead of repeating the g++ command lines, which had gone stale after the unit
   suites moved into per-suite directories (it still referenced

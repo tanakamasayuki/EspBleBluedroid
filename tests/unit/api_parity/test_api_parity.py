@@ -7,6 +7,12 @@ pinned EspBle snapshot in `espble.symbols` and requires `docs/API_PARITY.tsv` to
 account for each difference — no unlisted difference, no listed row that stopped
 being one, no unexplained reason.
 
+The profile helpers are checked differently again. `src/EspBleMidiProfile.h` is
+EspBle's file with one type renamed, so the promise is not "the same public API"
+but "the same code": it is compared line for line against the
+`espble.midi_profile` snapshot after comments are dropped and `EspBleBluedroid` is
+rewritten to `EspBle`.
+
 Names and shapes are not the whole API. Two libraries can agree on every
 signature and still return different strings, which is what happened to
 `lastErrorName()`: `INVALID_ARGUMENT` in one and `InvalidArgument` in the other,
@@ -23,6 +29,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
+import ported as ported_normalizer
 import symbols as symbol_extractor
 import values as value_extractor
 
@@ -31,6 +38,8 @@ HEADER = REPOSITORY / "src" / "EspBleBluedroid.h"
 SOURCE = REPOSITORY / "src" / "EspBleBluedroid.cpp"
 SNAPSHOT = pathlib.Path(__file__).parent / "espble.symbols"
 VALUE_SNAPSHOT = pathlib.Path(__file__).parent / "espble.values"
+MIDI_PROFILE = REPOSITORY / "src" / "EspBleMidiProfile.h"
+MIDI_PROFILE_SNAPSHOT = pathlib.Path(__file__).parent / "espble.midi_profile"
 TABLE = REPOSITORY / "docs" / "API_PARITY.tsv"
 
 VALID_REASONS = {"backend", "classic", "planned"}
@@ -201,3 +210,47 @@ def test_classic_extensions_are_only_ours():
     assert not wrong, "classic is for symbols only this library has:\n  " + "\n  ".join(
         sorted(wrong)
     )
+
+
+def read_midi_profile_snapshot():
+    metadata = {}
+    lines = []
+    for line in MIDI_PROFILE_SNAPSHOT.read_text().split("\n"):
+        if line.startswith("#\t") or line.startswith("# "):
+            fields = line.lstrip("# ").split("\t")
+            if len(fields) == 2:
+                metadata[fields[0]] = fields[1]
+            continue
+        if line:
+            lines.append(line)
+    return metadata, lines
+
+
+def test_the_midi_profile_helper_is_espbles_file_with_one_type_renamed():
+    """`EspBleMidiProfile.h` may differ from EspBle's only in comments and the type.
+
+    The helper cannot be a verbatim copy the way the codec headers are, because it
+    holds a reference to the library object and that type is exactly what differs.
+    So the narrower claim is checked instead: normalize both sides to their code
+    lines, rewrite `EspBleBluedroid` to `EspBle`, and the two must be identical. A
+    behaviour change smuggled into one library alone fails here even though every
+    signature still matches.
+    """
+    metadata, expected = read_midi_profile_snapshot()
+    assert metadata.get("espble_version"), "the snapshot must name the EspBle version"
+    assert len(metadata.get("sha256", "")) == 64, "the snapshot must pin a sha256"
+    assert len(expected) > 100, "the snapshot looks empty: %d lines" % len(expected)
+
+    ours = ported_normalizer.normalize(MIDI_PROFILE.read_text(), rename=True)
+    if ours != expected:
+        import difflib
+
+        difference = "\n".join(
+            difflib.unified_diff(expected, ours, "espble", "ours", lineterm="", n=1)
+        )
+        raise AssertionError(
+            "src/EspBleMidiProfile.h no longer matches EspBle's file. Either port "
+            "the change to EspBle too, or -- if a backend constraint forces the "
+            "difference -- note it in the header and regenerate the snapshot with "
+            "tools/gen_api_parity.py:\n" + difference
+        )

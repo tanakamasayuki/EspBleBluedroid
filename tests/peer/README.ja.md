@@ -43,3 +43,10 @@ GATT Client系・GATT Server系eventの`add*Listener()`が登録順に配送さ�
 lifecycleを検証します。接続event、こちらが観測するだけのMTU交換、パラメータを含む
 `connection()` snapshot、その役割でのpairing、HCI切断理由、GATT Server eventが持つ
 connection IDの一致を確認します。
+`midi_device`と`midi_host`は、BLE MIDI profile helper（`EspBleMidiProfile.h`）を
+Device・Host両方の役割で検証します。相手はraw Arduino-ESP32で、BLE MIDIのヘッダを
+自前の演算で組み立て・デコードします。したがって同じcodecを両端で突き合わせるのではなく、
+仕様と突き合わせることになります。timestamp header、packetを越えて持ち越されるrunning
+status、間に挟まったSystem Real-Time byte、複数packetに分かれるSysExを両方向で確認し、
+転送中の2本目が拒否されることも固定します。BLE MIDIのUUIDは仕様で固定されているため、
+この2つのsuiteはsuite UUID tagではなくデバイス名で隔離します。

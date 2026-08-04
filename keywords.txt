@@ -224,6 +224,8 @@ espBleReadMedicalSFloatLE	KEYWORD2
 espBleCgmCrc	KEYWORD2
 espBleCgmAppendCrc	KEYWORD2
 espBleCgmVerifyCrc	KEYWORD2
+EspBleMidiDevice	KEYWORD1
+EspBleMidiHost	KEYWORD1
 EspBleMidiMessage	KEYWORD1
 EspBleMidiParser	KEYWORD1
 EspBleMidiPacketBuilder	KEYWORD1
@@ -232,6 +234,7 @@ EspBleHidKeyboardReportMapInfo	KEYWORD1
 EspBleHidReportMapInfo	KEYWORD1
 EspBleHidReportMapEntry	KEYWORD1
 EspBleHidReportField	KEYWORD1
+onMidiMessage	KEYWORD2
 espBleMidiDataLength	KEYWORD2
 espBleParseKeyboardReportMap	KEYWORD2
 espBleParseHidReportMap	KEYWORD2
@@ -239,4 +242,6 @@ espBleHidReadFieldValue	KEYWORD2
 espBleUsageToUnicode	KEYWORD2
 espBleUsageToAscii	KEYWORD2
 espBleKeypadUsageToAscii	KEYWORD2
+ESP_BLE_MIDI_SERVICE_UUID	LITERAL1
+ESP_BLE_MIDI_IO_CHARACTERISTIC_UUID	LITERAL1
 ESPBLEBLUEDROID_VERSION_STR	LITERAL1

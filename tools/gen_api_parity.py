@@ -9,12 +9,17 @@ exists.
 
     python3 tools/gen_api_parity.py --espble-header ../EspBle/src/EspBle.h \
                                     --espble-source ../EspBle/src/EspBle.cpp \
+                                    --espble-midi-profile ../EspBle/src/EspBleMidiProfile.h \
                                     --espble-version 1.1.0
 
-The snapshot has two parts: `espble.symbols` (names and shapes, from the header)
-and `espble.values` (the enum-to-string maps of the `*Name()` functions, from the
-implementation). The second exists because two libraries can agree on every
-signature and still return different strings — see tests/unit/api_parity/values.py.
+The snapshot has three parts: `espble.symbols` (names and shapes, from the header),
+`espble.values` (the enum-to-string maps of the `*Name()` functions, from the
+implementation) and `espble.midi_profile` (the code lines of the MIDI profile
+helper). The second exists because two libraries can agree on every signature and
+still return different strings — see tests/unit/api_parity/values.py. The third
+exists because that helper is not a public-API comparison at all: it is EspBle's
+file with one type renamed, and the test holds it to being exactly that — see
+tests/unit/api_parity/ported.py.
 
 Rows the tool cannot classify are written with reason `TODO`, which makes the
 test fail until a human decides whether the difference is a backend constraint, a
@@ -31,12 +36,14 @@ REPOSITORY = pathlib.Path(__file__).resolve().parents[1]
 PARITY_DIR = REPOSITORY / "tests" / "unit" / "api_parity"
 sys.path.insert(0, str(PARITY_DIR))
 
+import ported as ported_normalizer  # noqa: E402
 import symbols as symbol_extractor  # noqa: E402
 import values as value_extractor  # noqa: E402
 
 TABLE = REPOSITORY / "docs" / "API_PARITY.tsv"
 SNAPSHOT = PARITY_DIR / "espble.symbols"
 VALUE_SNAPSHOT = PARITY_DIR / "espble.values"
+MIDI_PROFILE_SNAPSHOT = PARITY_DIR / "espble.midi_profile"
 HEADER = REPOSITORY / "src" / "EspBleBluedroid.h"
 SOURCE = REPOSITORY / "src" / "EspBleBluedroid.cpp"
 
@@ -117,6 +124,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--espble-header", required=True)
     parser.add_argument("--espble-source", required=True)
+    parser.add_argument("--espble-midi-profile", required=True)
     parser.add_argument("--espble-version", required=True)
     arguments = parser.parse_args()
 
@@ -157,6 +165,21 @@ def main():
         for (function, key), value in sorted(espble_values.items())
     )
     VALUE_SNAPSHOT.write_text("\n".join(value_lines) + "\n")
+
+    midi_profile = pathlib.Path(arguments.espble_midi_profile)
+    midi_profile_text = midi_profile.read_text()
+    midi_profile_lines = [
+        "# Code lines of EspBle's BLE MIDI profile helper, used by",
+        "# tests/unit/api_parity. Our copy is the same file with the library",
+        "# reference retyped, so comments are dropped and EspBleBluedroid is",
+        "# rewritten to EspBle before comparing -- see ported.py.",
+        "# Regenerate with tools/gen_api_parity.py; never edit by hand.",
+        "# espble_version\t%s" % arguments.espble_version,
+        "# espble_midi_profile\t%s" % midi_profile.name,
+        "# sha256\t%s" % hashlib.sha256(midi_profile_text.encode()).hexdigest(),
+    ]
+    midi_profile_lines.extend(ported_normalizer.normalize(midi_profile_text))
+    MIDI_PROFILE_SNAPSHOT.write_text("\n".join(midi_profile_lines) + "\n")
 
     existing = read_table()
     differences = [("espble_only", symbol) for symbol in sorted(espble - ours)]

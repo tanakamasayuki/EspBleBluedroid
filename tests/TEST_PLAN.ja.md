@@ -61,7 +61,7 @@ Peer側の出力を主にassertする。
 
 「backend制約以外はEspBleに合わせる」という設計方針
 （[docs/API_DESIGN_POLICY.ja.md](../docs/API_DESIGN_POLICY.ja.md)）は、文書だけでは
-劣化する。次の4つをテストで固定する。
+劣化する。次の5つをテストで固定する。
 
 1. **名前と形の整合（unit）**: `api_parity`は`EspBle.h`と`EspBleBluedroid.h`の公開シンボル
    （class、method、struct field、enum定数）を突き合わせ、差分を`docs/API_PARITY.tsv`の
@@ -83,6 +83,13 @@ Peer側の出力を主にassertする。
    いたため、この文字列をログや比較に使うsketchは移植できなかった。現在はEspBleの綴りに
    合わせており、残る差分はこちらにしか存在するenum定数の`UNSUPPORTED`だけである。対象関数は
    形で発見するので、後から追加された対応表もテストを触らずに比較される。
+
+5. **移植したファイルが移植したままであることを固定する（unit）**: `src/EspBleMidiProfile.h`
+   は公開APIの比較対象ではなく、EspBleのファイルのライブラリ参照の型だけを差し替えたもので
+   ある。`api_parity`は両側をコード行へ正規化し、`EspBleBluedroid`を`EspBle`へ書き換えた上で
+   `espble.midi_profile` snapshotと完全一致することを要求する。片方のライブラリだけで挙動を
+   変えると、signatureが全一致していてもここで落ちる。verbatim copy（`EspBleMidi.h`、
+   `EspBleKeymap.h`など）はsnapshot不要で、素のdiffで足りる。
 
 Classic拡張APIも同じ扱いにする。`classic().spp()`、`classic().a2dpSink()`などのsession API
 は、EspBleのconnection APIと同じ語彙（非同期要求 → `update()`からの完了event、runtime ID、
@@ -113,6 +120,7 @@ SSSSNNNN-b1dd-4d00-9e5a-627564726f69
 | `0006` | `security_passkey` |
 | `0007` | `peripheral_connection` |
 | `0008` | `multi_listener` |
+| `0009` / `000a` | `midi_device` / `midi_host` — **tagのみでUUIDではない**。BLE MIDIのServiceとCharacteristic UUIDは仕様で固定されているため、このsuiteは未使用UUIDを選べない。代わりにデバイス名で隔離する（`Bluedroid MIDI 0009`、`Bluedroid MIDI Peer 000a`）。両側とも名前とService UUIDの両方が一致することを要求する |
 | `01xx` | interop scenario専用の範囲（`0100` = `interop/gatt_basic`、`0101` = `interop/advertise_scan`、`0102` = `interop/long_value`、`0103` = `interop/duplicate_uuid`、`0104` = `interop/security`、`0105` = `interop/profile_wire`） |
 
 既存suiteのうち上表に無いものは、移行前に個別に選んだ128-bit UUIDを使っている
@@ -276,7 +284,7 @@ cross-stack試験を指す。
 | keyboard layout / keymap | ✅ `unit/keymap` | — | — | |
 | BLE MIDI packet codec | ✅ `unit/midi` | — | — | |
 | 複数observer配送（`add*Listener()`） | | ✅ | ✅ `multi_listener` | |
-| BLE MIDI Device / Host | 上記codec | 予定 | 予定 `midi_device` / `midi_host` | 予定 `interop/midi` |
+| BLE MIDI Device / Host | ✅ 上記codec | ✅ | ✅ `midi_device` / `midi_host` | 予定 `interop/midi` |
 | HID Device（keyboard / mouse / consumer / system / gamepad / vendor） | 上記parser | 予定 | 予定 `hid_keyboard_device`、`hid_robustness`、`hid_security`、`hid_boot_protocol`、`hid_custom`、`hid_convenience` | 予定 `interop/hid` |
 | HID Host | 上記parser | 予定 | 予定 `hid_keyboard_host`、`hid_boot_keyboard`、`hid_keyboard_nkro` | 予定 `interop/hid` |
 
@@ -402,7 +410,10 @@ cross-stack試験を指す。
 
 **P4: profile実装**
 
-- BLE MIDI Device / Host（P1のcodec移植と`add*Listener()`が済んだので最短経路）
+- ✅ BLE MIDI Device / Host（`src/EspBleMidiProfile.h`、`midi_device` / `midi_host`、
+  [examples/Midi](../examples/Midi/)）。helperはEspBleのファイルのライブラリ参照の型だけを
+  差し替えたもの。peer test側はBLE MIDIのヘッダを自前の演算でデコードするため、同じcodecを
+  2回突き合わせるのではなく仕様と突き合わせている
 - BLE HID Device（重複Characteristic UUID制限の解除が前提）→ HID Host
 
 **interop**: 各層でAPIとwire動作が固まった順に`interop/`へ写す。`gatt_basic`、
