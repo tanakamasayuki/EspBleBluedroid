@@ -41,7 +41,8 @@ peerテストでは次を確認します。
 - Classic DisplayOnly/KeyboardOnly Passkeyの表示・入力とI/O capability変更再初期化
 - active SPP sessionとBLE GATT Discovery / Read / Write / Notificationの同時利用
 
-セットアップと実行方法は[tests/README.ja.md](tests/README.ja.md)を参照してください。
+セットアップと実行方法は[tests/README.ja.md](tests/README.ja.md)、検証済み範囲と空白・
+優先順位は[tests/TEST_PLAN.ja.md](tests/TEST_PLAN.ja.md)を参照してください。
 
 公開APIとBluetooth Classicを共存させる設計方針は
 [docs/API_DESIGN_POLICY.ja.md](docs/API_DESIGN_POLICY.ja.md)にまとめています。

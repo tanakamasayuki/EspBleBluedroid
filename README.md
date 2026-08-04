@@ -29,7 +29,9 @@ post-connect interval, latency, and supervision-timeout updates.
 Random Static and controller-managed RPA advertising, local identity reporting,
 and configurable BLE transmit power are also covered over the air.
 
-See [tests/README.md](tests/README.md) for setup and usage.
+See [tests/README.md](tests/README.md) for setup and usage, and
+[tests/TEST_PLAN.md](tests/TEST_PLAN.md) for what is verified, what is missing,
+and the order in which the gaps get closed.
 
 The current API and Bluetooth Classic coexistence policy is documented in
 [Japanese](docs/API_DESIGN_POLICY.ja.md).

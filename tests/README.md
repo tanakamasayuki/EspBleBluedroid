@@ -1,9 +1,20 @@
 # Tests
 
+> 日本語版: [README.ja.md](README.ja.md)
+> What is covered, what is missing, and in which order it gets added:
+> [TEST_PLAN.md](TEST_PLAN.md)
+
 EspBleBluedroid uses `pytest-embedded` with its Arduino CLI backend for
-hardware tests. `unit/` contains backend-independent codec and state tests that
-do not require hardware. `peer/` connects two original ESP32 boards using the
-bundled Bluedroid stack.
+hardware tests.
+
+```text
+unit/     backend-independent codecs, parsers, state transitions (no hardware)
+peer/     two original ESP32 boards on the bundled Bluedroid stack
+interop/  original ESP32 + ESP32-S3 running a released EspBle package (planned)
+```
+
+The layers, the fixtures, the coverage tables, and the priority order live in
+[TEST_PLAN.md](TEST_PLAN.md). This file is the operating manual.
 
 ```sh
 cd tests
@@ -117,14 +128,29 @@ callback contexts, disconnection, and shutdown.
 end-to-end, including SLC, SCO, bidirectional mono PCM through the built-in
 CVSD/mSBC codec, and disconnection.
 
-## Future EspBle interoperability suite
+## EspBle interoperability suite (`interop/`, planned)
 
-After the EspBleBluedroid-side API is stable, cross-stack tests against EspBle
-(NimBLE) will live in this `tests/` tree. They will consume a released EspBle
-package pinned by version and artifact checksum, never `../EspBle` or a
-development branch.
+Cross-stack tests against EspBle (NimBLE) live in this `tests/` tree. They
+consume a released EspBle package pinned by version and artifact checksum, never
+`../EspBle` or a development branch.
+
+Because EspBle does not run on the original ESP32, the second board is an
+ESP32-S3 (profile `s3_peer_device`). Configure its port to enable the suite; it
+skips itself when the port is absent, so a bare `pytest` still completes with
+the two permanently connected ESP32 boards.
+
+```dotenv
+TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB2
+```
+
+```sh
+uv run --env-file .env pytest interop/
+```
 
 Only scenarios that pytest can build, flash, drive, assert, time out, and clean
 up without human interaction are in scope. Smartphone UI, manual pairing, and
 subjective audio checks remain outside this suite. Package updates are explicit
 reviewed changes rather than automatic latest-release tracking.
+
+The scenario list, the package pinning rules, and the skip semantics are in
+[TEST_PLAN.md](TEST_PLAN.md#espble-release-package-interop-suite-interop).

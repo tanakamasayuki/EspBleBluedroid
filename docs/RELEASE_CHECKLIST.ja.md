@@ -42,6 +42,8 @@ done
 
 ### EspBle cross-stack suite（実装確定後）
 
+構成とscenario一覧は[テスト計画](../tests/TEST_PLAN.ja.md)を参照する。
+
 - `../EspBle`や開発branchではなく、version/checksum固定のEspBleリリースパッケージを使う。
 - EspBleBluedroid側でAPIとwire動作が確定した機能だけを対象にする。
 - build、flash、接続、data照合、切断、timeout、cleanupを無人実行できるscenarioだけを追加する。

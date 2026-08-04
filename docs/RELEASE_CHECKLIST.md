@@ -34,6 +34,8 @@ done
 
 ### Future EspBle cross-stack suite
 
+The layout and scenario list live in [the test plan](../tests/TEST_PLAN.md).
+
 - Use a released EspBle package pinned by version and artifact checksum, not a
   sibling checkout or development branch.
 - Add scenarios only after the corresponding EspBleBluedroid API and wire

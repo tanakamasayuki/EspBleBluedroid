@@ -18,3 +18,5 @@
   Arduino BLE wrapperを撤去してESP-IDF Bluedroid APIへ直接接続する段階と完了条件
 - [リリースチェックリスト](RELEASE_CHECKLIST.ja.md) — リリース前の確認手順
 - [Peerテスト](../tests/README.ja.md) — 無印ESP32 2台での実機テスト手順
+- [テスト計画](../tests/TEST_PLAN.ja.md) — 層の分け方、カバレッジ、EspBleとのAPI整合、
+  EspBle相互接続suite、優先順位

@@ -1,11 +1,18 @@
 # Tests
 
+> English: [README.md](README.md)
+> 何が検証済みで、何が空白で、どの順に埋めるか: [TEST_PLAN.ja.md](TEST_PLAN.ja.md)
+
 `pytest-embedded`とArduino CLI backendを利用するEspBleBluedroidの実機テストです。
 
 ```text
-unit/   backend非依存のcodec、parser、状態変換（実機不要）
-peer/   無印ESP32 2台のBluedroid BLE / Classic接続自動テスト
+unit/     backend非依存のcodec、parser、状態変換（実機不要）
+peer/     無印ESP32 2台のBluedroid BLE / Classic接続自動テスト
+interop/  無印ESP32＋ESP32-S3（EspBleリリースパッケージ）のcross-stack試験（予定）
 ```
+
+層の分け方、fixture、カバレッジ表、優先順位は[TEST_PLAN.ja.md](TEST_PLAN.ja.md)にあります。
+この文書は実行手順です。
 
 ## セットアップ
 
@@ -76,13 +83,27 @@ uv run --env-file .env pytest
 uv run --env-file .env pytest peer/stack_smoke/ -v
 ```
 
-## 将来のEspBle相互接続suite
+## EspBle相互接続suite（`interop/`、実装中）
 
-EspBleBluedroid側の実装確定後、EspBle（NimBLE）との相互接続を他stack試験として
-この`tests/`へ追加します。兄弟directoryや開発branchは参照せず、versionとchecksumを固定した
-公開済みEspBleリリースパッケージをpeer firmwareの依存に使用します。
+EspBle（NimBLE）との相互接続を他stack試験としてこの`tests/`へ置きます。兄弟directoryや
+開発branchは参照せず、versionとchecksumを固定した公開済みEspBleリリースパッケージを
+peer firmwareの依存に使用します。
 
-追加対象は、build、2台へのflash、接続操作、期待値判定、timeout、cleanupまでpytestから
-自動実行できるscenarioだけです。スマートフォン、GUI、聴感確認など手動操作を必要とするものは
-このsuiteへ含めません。対象versionの更新は明示的な変更としてreviewし、自動でlatest releaseへ
-追従させません。
+EspBleは無印ESP32では動作しないため、2台目はESP32-S3（profile `s3_peer_device`）です。
+そのportを設定するとsuiteが有効になり、未設定なら自動skipします。したがって無指定の
+`pytest`は常設の無印ESP32 2台だけで完走します。
+
+```dotenv
+TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB2
+```
+
+```sh
+uv run --env-file .env pytest interop/
+```
+
+追加対象は、build、flash、接続操作、期待値判定、timeout、cleanupまでpytestから自動実行できる
+scenarioだけです。スマートフォン、GUI、聴感確認など手動操作を必要とするものはこのsuiteへ
+含めません。対象versionの更新は明示的な変更としてreviewし、自動でlatest releaseへ追従させません。
+
+scenario一覧、パッケージ固定の規則、skipの意味は
+[TEST_PLAN.ja.md](TEST_PLAN.ja.md#espbleリリースパッケージとの相互接続suiteinterop)にあります。

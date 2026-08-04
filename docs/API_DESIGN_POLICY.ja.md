@@ -440,6 +440,9 @@ installしてもheader解決が衝突しないよう、root headerとroot class�
 
 新しい公開APIは、対応するテストなしに「EspBle互換」または「対応済み」としない。
 実装手順は[DEVELOPMENT.ja.md](DEVELOPMENT.ja.md)のRed-Green-Refactorに従う。
+層の分け方、カバレッジの現在地、EspBle相互接続suiteの構成は
+[テスト計画](../tests/TEST_PLAN.ja.md)を正本とする。EspBleとの差分は文書だけに置かず、
+`tests/unit/api_parity`と`docs/API_PARITY.tsv`で機械チェックへ落とす。
 
 - BLE共通面: EspBleと同じscenario名・wire期待値を可能な範囲で再利用する。
 - backend差: callback順、timeout、切断理由、MTU、Securityを両端Serialで確認する。

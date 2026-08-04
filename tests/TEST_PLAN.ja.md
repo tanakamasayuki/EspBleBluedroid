@@ -1,0 +1,340 @@
+# テスト計画
+
+> English: [TEST_PLAN.md](TEST_PLAN.md)
+> 実行手順: [README.ja.md](README.ja.md)
+> 設計上の位置づけ: [docs/API_DESIGN_POLICY.ja.md](../docs/API_DESIGN_POLICY.ja.md)、
+> 現在地: [docs/STATUS.ja.md](../docs/STATUS.ja.md)
+
+この文書は兄弟ライブラリ[EspBle](https://github.com/tanakamasayuki/EspBle)の
+`tests/TEST_PLAN.md`と同じ構造を土台にし、Bluedroid固有の層（Bluetooth Classic、
+dual mode、backend制約）を足したものである。EspBleと同名のscenarioは同じ意味で使い、
+差分がある場所だけを明示する。
+
+## 方針
+
+BLEもClassicも、接続・切断・Discovery・購読・Security・Bondingが複数の非同期eventに
+またがる。このためPeerテストを補助的なsmokeではなく、実装を進めるための主要な自動テストに
+する。
+
+- **unit**: backend非依存のcodec、parser、状態変換をhost上のg++で検証する（`tests/unit/`）。
+  実機不要。API整合の機械チェック（後述）もここに置く。
+- **examples_compile**: 公開APIと対象SoCのbuild回帰を検出する。`arduino-cli compile
+  --profile esp32`で全exampleをコンパイルする（カバレッジ表のbuild列✅はこの検証を指す）。
+- **peer**: 無印ESP32 2台を標準fixtureとし、実際のradio、controller、host stackを通した
+  接続を検証する（`tests/peer/`）。
+- **interop**: 無印ESP32（このライブラリ）＋ESP32-S3（**公開済みEspBleリリースパッケージ**）で、
+  Bluedroid ↔ NimBLEのcross-stack相互接続を検証する（`tests/interop/`、実装後に追加）。
+- **manual**: スマートフォン、PC、市販機器との相互運用を検証する。自動テストの合格条件へは
+  混ぜず、[リリースチェックリスト](../docs/RELEASE_CHECKLIST.ja.md)で記録する。
+
+Peer不要のruntime behaviorを1台で検証する「single」層は使用しない。必要になった時点で追加する。
+
+## Peerハードウェア
+
+| fixture | 親側DUT | 2台目Peer | 目的 | 接続方針 |
+|---|---|---|---|---|
+| 標準回帰 | 無印ESP32 | 無印ESP32 | 公開APIの全機能、Bluedroid経路、Classic、dual mode | 常時接続 |
+| EspBle相互接続 | 無印ESP32 | ESP32-S3（EspBleリリース） | Bluedroid ↔ NimBLEのwire・手続き整合 | 必要時の接続でよい |
+| 手動相互運用 | 無印ESP32 | スマートフォン / PC / 市販機器 | OS実装との相互運用 | 手動 |
+
+EspBleは無印ESP32では動作しない（NimBLEを直接使用し、Coreの制約でclassic ESP32を対象外に
+している）。したがって相互接続fixtureの2台目は必ずS3系などNimBLE対応SoCになる。BLEもClassicも
+ボード間配線は不要で、各ボードをPCへ接続するSerial/給電だけを使う。
+
+pytest-embedded-cliの既存規約に従う。
+
+- 親側profile: `esp32_peer_host`
+- 2台目profile: `esp32_peer_device`（同一SoCのpeer）／`s3_peer_device`（EspBle peer）
+- 2台目directory: `peer_device/`
+- Python fixture: `peers["device"]`
+
+`host` / `device`はpytest fixture上の識別名であり、BLE roleでもClassic roleでもない。
+現行scenarioは親側をCentral / SPP Client / A2DP片側などに固定し、役割の入れ替えを前提にしない。
+公開APIをCentralとして検証するときは親側の出力を主にassertし、Peripheralとして検証するときは
+Peer側の出力を主にassertする。
+
+## EspBleとのAPI整合をテストで固定する
+
+「backend制約以外はEspBleに合わせる」という設計方針
+（[docs/API_DESIGN_POLICY.ja.md](../docs/API_DESIGN_POLICY.ja.md)）は、文書だけでは
+劣化する。次の3つをテストで固定する。
+
+1. **名前と形の整合（unit）**: `api_parity`は`EspBle.h`と`EspBleBluedroid.h`の公開シンボル
+   （class、method、struct field、enum定数）を突き合わせ、差分を`docs/API_PARITY.tsv`の
+   許容表と照合する。表に理由付きで載っていない差分が出たら失敗する。EspBle側にしか無い
+   API、こちら側にしか無いAPI、同名で引数が違うAPIをすべて分類させる。
+   - 許容理由は`backend`（Bluedroid制約）、`classic`（Classic拡張でEspBleに存在しない）、
+     `planned`（未実装、Issue/計画へのリンク必須）のいずれか。`planned`が残っている項目は
+     「EspBle互換」と呼ばない。
+2. **wire期待値の共有（peer / interop）**: EspBleと同名のscenarioは、同じ16進バイト列を
+   期待値に使う。値が違う場合はbackend差ではなく実装バグとして扱う。
+3. **差分は必ず明示エラーで観測する（peer）**: 制約で機能しない要求は、黙って成功したり
+   無反応になったりせず`lastError()`と理由文字列を返す。テストはその文字列を固定する
+   （例: 重複Characteristic UUID、legacy payload超過、実行中GATT操作の二重発行）。
+
+Classic拡張APIも同じ扱いにする。`classic().spp()`、`classic().a2dpSink()`などのsession API
+は、EspBleのconnection APIと同じ語彙（非同期要求 → `update()`からの完了event、runtime ID、
+`lastError()`、bounded queueとdrop計数）で検証する。**Classic側だけ別の作法になっていないこと
+そのものをテストの観点にする。**
+
+## Peerテスト原則
+
+- テスト専用128-bit Service UUID / 専用RFCOMM名で周囲の機器を除外する。
+- device nameだけで接続相手を決めない。
+- 可能な範囲で一方をArduino-ESP32同梱API、またはraw ESP-IDF/Bluedroid APIの直接実装にする。
+  公開APIどうしだけの通信では、library固有の思い込みが両端で相殺されて見えなくなる。
+- Serial logだけで合否をassertできるscenarioにする。
+- 各テスト終了時にscan、advertising、subscription、connection、SPP session、audio streamを
+  停止する。
+- Securityテストは開始時と終了時のBond / NVS状態を明示する。BLE bondとClassic bondは
+  別storeなので、どちらを見たのかをテスト名と出力に出す。
+- radio環境による一時的な遅延にtimeoutは許すが、無制限retryで不具合を隠さない。
+- 接続・切断理由、MTU、Security状態を可能な限り両側で照合する。
+- **`update()`配送を明示的に確認する**。callbackがstack task上ではなく利用者の`loop()`
+  contextで呼ばれることを、出力に`context=loop`を含めて固定する。A2DP/HFPのPCM callbackだけは
+  stack task上で呼ばれる例外なので、そのcontextも同様に出力へ出す。
+- **bounded queueは溢れさせて数える**。scan result 16件、BLE connection event、SPP write 8件、
+  SPP RX ring 2048 byteは、上限そのものを仕様として固定するのではなく、超過時のdrop計数
+  （`droppedResultCount()` / `droppedEventCount()`など）が正しいことを固定する。
+- **test-only seam**（`ESP_BLE_BLUEDROID_TESTING`）は、外から決定的に再現できない経路
+  （queue overflow、security timeout短縮）だけに使う。公開APIで再現できる経路には使わない。
+
+## EspBleリリースパッケージとの相互接続suite（`interop/`）
+
+同梱Bluedroidどうしの通信だけでは、実装が「Bluedroidの癖」に依存していても気づけない。
+EspBle（NimBLE）を相手にしたcross-stack試験をこのrepositoryへ置く。
+
+### 依存の固定
+
+- 開発中の`../EspBle`、default branch、未release commitは**基準にしない**。
+- 公開済みEspBleリリースパッケージ（zip）を取得し、`tests/interop/espble.lock.json`へ
+  versionとsha256を固定する。`tests/interop/fetch_espble.py`が取得・検証・展開し、
+  `tests/interop/vendor/EspBle-<version>/`へ置く（Git管理外）。
+- Peer側`sketch.yaml`は`libraries: [- dir: ../vendor/EspBle-<version>]`でそれを参照する。
+  package自体へpatchを当てない。EspBle側を直さないと通らない場合は、その事実を結果に残す。
+- version更新は自動追従させず、差分と全相互接続結果をreviewする明示的な変更として扱う。
+
+### 実行と既定suiteの扱い
+
+無指定の`pytest`および`pytest peer/`は、常設可能な無印ESP32 2台だけで完走できることを原則と
+する。S3 fixtureを`default_profile`にしてはならない。`interop/`は`.env`にS3のportが
+設定されていないとき自動skipする。
+
+```sh
+uv run --env-file .env pytest interop/
+```
+
+skipは「相互接続を確認済み」という意味ではなく、「このfixtureでは対象外であることを明示的に
+確認した」という意味である。相互接続を実施したことにするには、S3 portを設定した実行結果を使う。
+
+### 対象scenario（実装が固まった順に追加）
+
+| scenario | 内容 |
+|---|---|
+| `interop/gatt_basic` | 両方向。Bluedroid Central ↔ EspBle Peripheral、EspBle Central ↔ Bluedroid Peripheralで、Discovery、Read、応答あり/なしWrite、Notify、Indicate、MTU 247交換 |
+| `interop/advertise_scan` | EspBleのpayload builderが出したAdvertising / Scan Responseを、Bluedroid Scannerがaddress単位でmergeして同じfieldへ復元すること（およびその逆） |
+| `interop/security` | Just Works、静的passkey、Numeric Comparisonをcross-stackで。Bluedroid Peripheral側はconnection snapshot実装後に対象化する |
+| `interop/profile_wire` | 共有header（`EspBleMedicalFloat.h`、`EspBleCgmCrc.h`、`EspBleIBeacon.h`、`EspBleUuid.h`）で組んだ値が相手stackで同じbyte列としてdecodeできること |
+| `interop/duplicate_uuid` | 仕様が認める重複UUID（EspBle Peripheralが同一Service内に同一UUID Characteristicを2つ）を、Bluedroid Clientがhandle指定で扱えること。こちらのServer側制約が相手からどう見えるかも記録する |
+| `interop/long_value` | EspBle PeripheralがMTU超の値を公開したときのBluedroid Clientの挙動（切り詰め）を契約として固定し、回避策を文書へ紐付ける |
+| `interop/hid` / `interop/midi` | HID over GATT / BLE MIDI実装後。Device / Hostを入れ替えた両方向 |
+
+自動で合否を決められるscenarioだけを対象にする。スマートフォン操作、GUI確認、聴感評価、
+手動pairing操作は含めず、リリースチェックリストの手動相互運用へ分離する。
+
+## カバレッジ計画
+
+`build`列はexampleコンパイル、`peer`列は無印ESP32 2台、`interop`列はEspBle相手の
+cross-stack試験を指す。
+
+### BLE共通面（EspBleと同じ観点）
+
+| 領域 | unit | build | peer | interop |
+|---|---|---|---|---|
+| test fixture / backend成立性 | | ✅ | ✅ `stack_smoke` | |
+| Advertising / Scan parser | 予定 | ✅ | ✅ `advertise_scan` / `advertise_payload` | 予定 `advertise_scan` |
+| Scan Response分割 / Appearance / Tx Power | | ✅ | ✅ `advertise_scan`に同梱 | 予定 |
+| Advertising Service Data（AD 0x16） | | ✅ | ✅ `advertise_scan`に同梱 | 予定 |
+| non-connectable broadcast | | ✅ | ✅ `ibeacon` | |
+| iBeacon encode / decode | ✅ `unit/ibeacon` | ✅ | ✅ `ibeacon` | 予定 `profile_wire` |
+| UUID codec | ✅ `unit/uuid` | ✅ | — | |
+| connect / disconnect / timeout / 切断理由 | | ✅ | ✅ `connect_disconnect` | 予定 `gatt_basic` |
+| MTU交換（23→合意値、遅延要求） | | ✅ | ✅ `connect_disconnect`に同梱 | 予定 `gatt_basic` |
+| 接続パラメータ | | ✅ | ✅ `connection_parameters` | |
+| own address / Tx Power | | ✅ | ✅ `local_identity` | |
+| Filter Accept List（advertising / scan） | | ✅ | ✅ `accept_list` | |
+| Directed Advertising | | ✅ | ✅ `directed_advertising` | |
+| GATT Client Discovery / Read / Write / Descriptor / Notify | ✅ `unit/codec` | ✅ | ✅ `gatt_client` | 予定 `gatt_basic` |
+| GATT Client handle指定操作（重複UUID） | | ✅ | **未** → `duplicate_uuid` | 予定 `duplicate_uuid` |
+| GATT Client 1操作ずつの直列化と明示拒否 | | ✅ | **未** → `gatt_queue_purge` | |
+| MTU超の値のRead切り詰め契約 | | ✅ | **未** → `long_value` | 予定 `long_value` |
+| GATT Server Read / Write / Descriptor / CCCD / Notify | | ✅ | ✅ `gatt_server` | 予定 `gatt_basic` |
+| GATT Server **Indicate**（実発行と完了） | | ✅ | **未**（現行はflag表示のみ） | 予定 `gatt_basic` |
+| GATT Server 重複UUID拒否の明示エラー | | ✅ | **未** → `duplicate_uuid` | |
+| Service Changed（0x2A05） | | ✅ | **未** → `service_changed` | |
+| 未処理GATT操作の切断時破棄 | | ✅ | **未** → `gatt_queue_purge` | |
+| Pairing / Bonding（Central） | | ✅ | ✅ `security_bond` | 予定 `security` |
+| 静的passkey / MITM / authenticated attribute | | ✅ | ✅ `security_passkey` | 予定 `security` |
+| 実行時Passkey Entry | | ✅ | ✅ `runtime_passkey` | 予定 `security` |
+| Numeric Comparison（確認 / 拒否 / timeout） | | ✅ | ✅ `numeric_comparison` | 予定 `security` |
+| Peripheral connection snapshot / security event | | | **未**（API未実装） | |
+| lifecycle反復 / heap / task / event leak | | ✅ | **未** → `lifecycle_stress` | |
+| Wi-Fi / BLE共存（無印ESP32の内蔵radio共有） | | ✅ | **未** → `wifi_ble_coexistence` | |
+| PHY更新 | — | — | **対象外**（Bluetooth 4.2 LE、2M/Coded PHYなし） | |
+| persistent subscription / auto-reconnect | — | — | **対象外**（API非提供、EspBleとの差分として文書化済み） | |
+| 複数同時接続 | — | — | **対象外**（Central 1接続、Peripheral 1接続） | |
+
+### 標準GATT profile（examplesと1対1）
+
+現状**peer列は全件未実装**であり、[examples](../examples/)のprofile sketchはコンパイル確認
+のみである。wire形式が誰にも検証されていないことを明示するため、行を落とさず「未」で残す。
+
+| profile | unit | build | peer | interop |
+|---|---|---|---|---|
+| Battery Service | | ✅ | 未 `battery_service` | |
+| Device Information Service | | ✅ | 未 `device_information` | |
+| Current Time / Reference Time Update | | ✅ | 未 `current_time` / `reference_time_update` | |
+| Heart Rate | | ✅ | 未 `heart_rate` | 予定 `profile_wire` |
+| Health Thermometer | ✅ `unit/medical_float` | ✅ | 未 `health_thermometer` | 予定 `profile_wire` |
+| Blood Pressure | ✅ `unit/medical_float` | ✅ | 未 `blood_pressure` | |
+| Pulse Oximeter | ✅ `unit/medical_float` | ✅ | 未 `pulse_oximeter` | |
+| Weight Scale / Body Composition | | ✅ | 未 `weight_scale` / `body_composition` | |
+| Glucose（RACP手続き） | ✅ `unit/medical_float` | ✅ | 未 `glucose` | |
+| Continuous Glucose Monitoring | ✅ `unit/cgm_crc` | ✅ | 未 `continuous_glucose_monitoring` | 予定 `profile_wire` |
+| Environmental Sensing | | ✅ | 未 `environmental_sensing` | |
+| Cycling Speed and Cadence / Power | | ✅ | 未 `cycling_speed_cadence` / `cycling_power` | |
+| Running Speed and Cadence | | ✅ | 未 `running_speed_cadence` | |
+| Fitness Machine（FTMS） | | ✅ | 未 `fitness_machine` | |
+| Location and Navigation | | ✅ | 未 `location_navigation` | |
+| User Data | | ✅ | 未 `user_data` | |
+| Alert Notification / Immediate Alert / Phone Alert Status | | ✅ | 未 `alert_notification` / `immediate_alert` / `phone_alert_status` | |
+| Proximity（Link Loss + Tx Power） | | ✅ | 未 `proximity` | |
+| Bond Management | | ✅ | 未 `bond_management` | |
+
+### HID / MIDI（未実装、[Phase 1](../docs/PROFILE_BRIDGE_ROADMAP.ja.md)）
+
+実装漏れであり、backend上の不可能要因ではない。前提条件を満たした順に有効化する。
+
+| 領域 | unit | build | peer | interop |
+|---|---|---|---|---|
+| HID Report Map parser | 予定 `unit/report_map`（移植） | — | — | |
+| keyboard layout / keymap | 予定 `unit/keymap`（移植） | — | — | |
+| BLE MIDI packet codec | 予定 `unit/midi`（移植） | — | — | |
+| 複数observer配送（`add*Listener()`） | | 予定 | 予定 `multi_listener` | |
+| BLE MIDI Device / Host | 上記codec | 予定 | 予定 `midi_device` / `midi_host` | 予定 `interop/midi` |
+| HID Device（keyboard / mouse / consumer / system / gamepad / vendor） | 上記parser | 予定 | 予定 `hid_keyboard_device`、`hid_robustness`、`hid_security`、`hid_boot_protocol`、`hid_custom`、`hid_convenience` | 予定 `interop/hid` |
+| HID Host | 上記parser | 予定 | 予定 `hid_keyboard_host`、`hid_boot_keyboard`、`hid_keyboard_nkro` | 予定 `interop/hid` |
+
+### Bluetooth Classic / dual mode（このライブラリ固有）
+
+| 領域 | unit | build | peer |
+|---|---|---|---|
+| capability / profile対応理由 | | ✅ | ✅ `classic_inquiry`に同梱 |
+| Inquiry（name / CoD / RSSI / 停止 / 完了） | | ✅ | ✅ `classic_inquiry` |
+| SPP Server / Client | | ✅ | ✅ `spp_server` / `spp_client` |
+| SPP RX ring（binary / overflow / 切断時無効化） | | ✅ | ✅ `spp_receive_buffer` |
+| SPP Stream wrapper | | ✅ | ✅ `spp_serial` |
+| SPP複数session（raw feasibility） | | — | ✅ `spp_multi_backend` |
+| Classic Security（SSP / Passkey / bond store） | | ✅ | ✅ `spp_security` / `spp_passkey` |
+| A2DP Sink / Source + AVRCP | | ✅ | ✅ `a2dp_sink` / `a2dp_source` |
+| A2DP長時間soak（underrun / heap / latency） | | — | **未** → `a2dp_soak` |
+| HFP HF / AG（SLC / SCO / CVSD / mSBC） | | ✅ | ✅ `hfp_backend` |
+| BLE + SPP dual mode | | ✅ | ✅ `dual_mode_scan_spp` |
+| profile間resource競合（A2DP + SPP同時など） | | — | **未** → `profile_resource_conflict` |
+| Classic session APIのEspBle語彙整合 | ✅ 予定 `unit/api_parity` | ✅ | 既存suiteの観点として追加 |
+
+## 実装済みscenario
+
+現状: peer 27 suite / 33 test関数、unit 5 test関数。
+
+1. ✅ `stack_smoke`: Arduino-ESP32同梱APIで2台接続、GATT read/write、CCCD購読、notification。
+2. ✅ `advertise_scan`: 公開APIのlifecycle、Advertising / Scan Response二面構成、Service Data・
+   Appearance・Tx Powerを含むactive Scan merge、payload超過拒否、値型result、duration停止と
+   明示停止、16件queueへ18件を決定的に注入したdrop計数、`end()`時flush、再初期化。
+3. ✅ `advertise_payload`: raw AD構造、複数UUIDの集約、31 byte境界、時間指定停止。
+4. ✅ `ibeacon`: 共有codecでのiBeacon encode → broadcast → scan → decode。
+5. ✅ `connect_disconnect`: non-blocking接続、再接続ID、23→合意値のMTU交換、HCI切断理由、
+   非advertising peerへのtimeout分類、接続試行中と接続確立後の`end()`、peer切断、再初期化。
+6. ✅ `connection_parameters`: 初期snapshot、Centralからの更新要求、両peerの合意値、`update()`配送。
+7. ✅ `local_identity`: Random Static / RPA、現在アドレスと観測値の一致、−12/+9 dBmと電波上の
+   Tx Power Level。
+8. ✅ `accept_list`: 初期化前拒否、重複登録、一覧外Centralの接続拒否、Scan側`acceptListOnly`、
+   `Any`変更後の接続と切断。
+9. ✅ `directed_advertising`: 宛先CentralへのpayloadなしHigh Duty、接続・切断、1.28秒自動停止、
+   Low Duty継続と明示停止。
+10. ✅ `gatt_client`: connection単位のdatabase snapshot、Characteristic単体探索、UUID / handle
+    指定Characteristic操作、Descriptor Read / Write、Notification購読・解除、binary-safe値、
+    切断時の無効化、`update()`配送。
+11. ✅ `gatt_server`: 静的GATT Server、動的Read、binary Write、Descriptor Write、CCCD購読、
+    Notification、送信完了、`update()`配送。
+12. ✅ `security_bond`: Just Works、暗号化GATT、bond保存、暗号化再接続、security callback、bond削除。
+13. ✅ `security_passkey`: 静的passkey MITM、passkey表示、authenticated GATT、bond保存。
+14. ✅ `runtime_passkey`: KeyboardOnlyの実行時passkey入力、入力待ち中の`disconnect()` / `end()`、
+    未回答timeout、直後のretry、再初期化。
+15. ✅ `numeric_comparison`: DisplayYesNoの6桁一致、明示拒否（linkは維持）、未回答timeout、retry。
+16. ✅ `classic_inquiry`: dual-mode初期化、compile-time capability snapshot、Classic name /
+    Class of Device / RSSI、result callback内からの停止、完了eventの`update()`配送。
+17. ✅ `spp_server`: raw ESP-IDF Client相手のbinary-safe双方向data、再接続ID、remote切断、
+    稼働中`end()`、8件送信queueの順序とoverflow、受理8件の送信完了。
+18. ✅ `spp_client`: 非同期SDP / RFCOMM接続、共通session API、binary data、送信完了、local切断、
+    再接続ID、失敗 / timeout配送。
+19. ✅ `spp_receive_buffer`: 2048 byte固定長RX ring、binary read、overflow byte数、切断時無効化。
+20. ✅ `spp_serial`: rootへbindした`EspBluedroidSppSerial`、連続2 sessionへの自動追従、
+    `Stream` / `Print`、1000 byte分割write、`flush()`、切断後の無効化。
+21. ✅ `spp_security`: Client / Server両roleのDisplayYesNo SSP、明示拒否、認証失敗後のretry、
+    Classic bond列挙・再接続・削除、認証・暗号化data。
+22. ✅ `spp_passkey`: Classic DisplayOnly / KeyboardOnlyの両方向、未回答timeout、期限後入力の拒否、
+    retry、入力待ち中の`end()`、I/O capability反転での再初期化。
+23. ✅ `spp_multi_backend`: raw Bluedroidで同一ACL上の2 SCNへ2 session同時接続、handle別双方向data、
+    両session切断（公開API拡張の前提となるfeasibility）。
+24. ✅ `a2dp_sink` / `a2dp_source`: 公開A2DPとraw相手のPCM、AVRCP Play/Pause Press・Release、
+    absolute volume、callback context（PCMはstack task、controlは`update()`）、切断・終了。
+25. ✅ `hfp_backend`: 公開HFP Hands-Free / Audio Gateway間のSLC、SCO、CVSD / mSBC mono PCM
+    双方向data、切断。
+26. ✅ `dual_mode_scan_spp`: active SPP session中のBLE Scan・GATT接続・Discovery・Read / Write、
+    同一接続で64→128→256通知、round別BLE event drop集計、配送済み通知のSPP往復、
+    満杯時のGATT完了優先配送。
+27. ✅ host unit test: `uuid`、`codec`、`ibeacon`、`medical_float`、`cgm_crc`。
+
+## 優先順位
+
+現在の空白のうち、実装作業を伴わないものから着手する。
+
+**P1: 実装0行で埋まる穴**
+
+- `unit/api_parity` と `docs/API_PARITY.tsv`（EspBleとの差分を機械チェックへ変換する）
+- `unit/report_map` / `unit/keymap` / `unit/midi`（EspBleからheaderごと移植。HID / MIDIの土台）
+- `gatt_server`への**Indicate実発行**追加（現状はflagを表示しているだけ）
+- `duplicate_uuid`（現行の拒否契約とエラー文字列の回帰。制限解除時はこのテストを反転させる）
+- `gatt_queue_purge`（実行中操作の遅延完了と、queue済み操作の切断時失敗配送）
+- `service_changed`
+- `long_value`（MTU超Readの切り詰めを契約として固定）
+
+**P2: 既存実装の穴**
+
+- 標準GATT profile peer test 24件（examplesと1対1、wire期待値はEspBleと共有）
+- `lifecycle_stress`
+- `wifi_ble_coexistence`（無印ESP32の内蔵radio共有）
+- `a2dp_soak`、`profile_resource_conflict`
+
+**P3: 基盤API追加を伴うもの**
+
+- Peripheral connection snapshot / security event → Security Server scenario、
+  [examples/Security](../examples/Security/)の非対称解消、HID Deviceの前提
+- `add*Listener()` → `multi_listener`
+
+**P4: profile実装**
+
+- BLE MIDI Device / Host（P1のcodec移植と`add*Listener()`が済めば最短）
+- BLE HID Device（重複Characteristic UUID制限の解除が前提）→ HID Host
+
+**interop**: 各層でAPIとwire動作が固まった順に`interop/`へ写す。`gatt_basic`が最初。
+
+## 合格条件
+
+- test codeがすべての入力を生成し、Serial assertionで結果を判定する。
+- timeoutやretryを含む合否条件が固定されている。
+- 公開APIどうしだけでなく、Arduino-ESP32同梱APIまたはraw ESP-IDF実装との組み合わせがある。
+- EspBleと同名scenarioは同じwire期待値を使い、差分は`docs/API_PARITY.tsv`に理由付きで載っている。
+- 手動確認が必要な項目を自動テストの合格条件へ混ぜない。
+- 無指定の`pytest`が常設2台だけで完走する。
