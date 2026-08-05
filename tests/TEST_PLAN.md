@@ -554,13 +554,40 @@ timed out, which would have failed `begin()`/`start()`, and the run shows three
 successful `restarted=1` toggles before the bad attempt — but a wait that any prior
 event can satisfy is wrong on its own terms.
 
+**Fixed** (not established as the cause of this failure): the shared flags are now
+`BackendGapOperation` tickets (`src/EspBleBluedroid.cpp`). Every command takes a
+ticket, every completion event advances a counter, and a wait accepts only a count
+that reached its own ticket, so an event that predates the command can no longer
+answer it. A wait that times out resynchronises the counter before failing —
+leaving the gap would make every later operation wait for the missing event, so one
+lost completion would break the rest of the session. The other waits of the same
+shape were converted with it: the accept-list writes, the directed-advertising
+start, and the scanner's parameter / start / stop commands. Verified on hardware by
+`local_identity`, `directed_advertising`, `accept_list`, `advertise_scan`,
+`long_value` and `connect_disconnect`.
+
+The scan conversion does not explain the scan miss below: that sketch starts its
+scan once, so there was no earlier operation whose event could have been mistaken
+for its own.
+
 **A scan missed every advertisement** (`long_value`, same run). Both boards were up
 (`LONG_VALUE_READY`, `LONG_VALUE_PEER_READY length=300`) and the DUT's continuous
 scan never delivered a result matching the peer's service UUID, so `TARGET_FOUND`
 was never printed. Missing an advertisement is normal radio behaviour; the suite
-fails on a single miss because it waits for one result with no retry. Hardening it
-(retry the scan once before failing) is a test correction rather than a workaround —
-unlike the RPA case, where a retry would hide the defect.
+failed on a single miss because it waited for one result with no retry.
+
+**Fixed.** The sketch now restarts its scan up to twice, 12 s apart, printing
+`SCAN_RESTARTED n`, and the test's window covers those tries. This is a test
+correction rather than a workaround — unlike the RPA case, where a retry would hide
+the defect: a scan that stays dead through the restarts still fails the test, so no
+reproducible defect is masked. Restarting a scan that produced nothing is also what
+an application would do.
+
+The restart fired on its first hardware run: `LONG_VALUE_READY` → `SCAN_RESTARTED 1`
+→ `TARGET_FOUND`. So the first 12 s window really did deliver nothing matching, which
+makes the original failure a recurring condition on this bench rather than a one-off.
+It does not prove the old test would have failed that run — the old 30 s window might
+still have caught a later advertisement — but the miss itself is clearly not rare.
 
 ## Pass criteria
 

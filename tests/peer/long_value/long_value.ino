@@ -31,6 +31,16 @@ static constexpr size_t PEER_VALUE_LENGTH = 300;
 EspBleBluedroid bluetooth;
 TaskHandle_t loopTask = nullptr;
 bool connectionRequested = false;
+// A scan can legitimately miss every advertisement for a while, and this scenario
+// needs exactly one result to get going. Restarting the scan is what any
+// application would do, and it keeps a single miss from failing a test that is
+// about long reads (tests/TEST_PLAN.md, known intermittent failures). A restart
+// that does not help still fails the test: the defect it would hide does not exist
+// while the restarts keep failing too.
+static constexpr uint32_t ScanRetryMilliseconds = 12000;
+static constexpr uint8_t MaxScanRetries = 2;
+uint32_t scanStartedAt = 0;
+uint8_t scanRetries = 0;
 uint16_t characteristicHandle = 0;
 uint16_t negotiatedMtu = 23;
 uint8_t readPhase = 0;
@@ -64,6 +74,14 @@ void reportRead(const char *label, const EspBleGattResult &result)
     static_cast<unsigned>(result.value.length()),
     static_cast<unsigned>(negotiatedMtu),
     isRamp(result.value) ? 1 : 0, contextName());
+}
+
+void startScan()
+{
+  EspBleScanConfig scanConfig;
+  scanConfig.active = true;
+  bluetooth.scanner().start(scanConfig);
+  scanStartedAt = millis();
 }
 
 void setup()
@@ -142,14 +160,20 @@ void setup()
       bluetooth.connect(result, 10000) ? 1 : 0);
   });
 
-  EspBleScanConfig scanConfig;
-  scanConfig.active = true;
-  bluetooth.scanner().start(scanConfig);
+  startScan();
   Serial.println("LONG_VALUE_READY");
 }
 
 void loop()
 {
+  if (!connectionRequested && scanRetries < MaxScanRetries &&
+      static_cast<uint32_t>(millis() - scanStartedAt) > ScanRetryMilliseconds)
+  {
+    ++scanRetries;
+    bluetooth.scanner().stop();
+    startScan();
+    Serial.printf("SCAN_RESTARTED %u\n", scanRetries);
+  }
   bluetooth.update();
   delay(1);
 }

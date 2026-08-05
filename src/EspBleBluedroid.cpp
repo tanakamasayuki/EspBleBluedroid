@@ -175,6 +175,81 @@ bool isValidBleAddress(const char *address)
 }
 } // namespace
 
+// A GAP command whose completion arrives as its own event, waited for on the
+// calling thread.
+//
+// Bluedroid's completion event carries nothing that names the command it answers,
+// so a shared "completed" flag is not enough: a late event from an earlier
+// operation whose wait already timed out can set the flag again and satisfy the
+// next wait, which then reads the *previous* operation's status. Counting closes
+// that. Every command takes a ticket, every event advances the completion count,
+// and a wait only accepts a count that reached its own ticket, so an event that
+// predates the command can never answer it.
+//
+// A wait that times out resynchronises the count before failing. Leaving the gap
+// would be worse than the bug it fixes: every later operation would need the
+// missing event as well, so one lost completion would break the rest of the
+// session instead of just its own call.
+struct BackendGapOperation
+{
+  std::atomic<uint32_t> issued{0};
+  std::atomic<uint32_t> completed{0};
+  std::atomic<bool> succeeded{false};
+
+  // Taken by the requester immediately before it sends the command.
+  uint32_t issue()
+  {
+    return issued.fetch_add(1, std::memory_order_acq_rel) + 1;
+  }
+  // Called from the GAP callback for every completion event of this kind.
+  void complete(bool success)
+  {
+    succeeded.store(success, std::memory_order_release);
+    completed.fetch_add(1, std::memory_order_acq_rel);
+  }
+  // True when this ticket's completion arrived in time and reported success.
+  bool wait(uint32_t ticket, uint32_t timeoutMilliseconds = 2000)
+  {
+    const uint32_t startedAt = millis();
+    while (completed.load(std::memory_order_acquire) < ticket &&
+           static_cast<uint32_t>(millis() - startedAt) < timeoutMilliseconds)
+    {
+      delay(1);
+    }
+    if (completed.load(std::memory_order_acquire) < ticket)
+    {
+      completed.store(
+        issued.load(std::memory_order_acquire), std::memory_order_release);
+      return false;
+    }
+    return succeeded.load(std::memory_order_acquire);
+  }
+  // For a command the backend refused outright: there will be no event, so the
+  // ticket has to be given back or the next wait would need it.
+  void abandon()
+  {
+    completed.store(
+      issued.load(std::memory_order_acquire), std::memory_order_release);
+  }
+};
+
+// Send one GAP command and wait for the completion event that answers it. Taking
+// the ticket and sending the command belong together — a ticket taken for a
+// command the backend never accepted would be waited for by the next operation —
+// so the command is passed in rather than left to the caller to remember.
+// `command` returns true when the backend accepted it.
+template <typename Command>
+bool runGapOperation(BackendGapOperation &operation, Command command)
+{
+  const uint32_t ticket = operation.issue();
+  if (!command())
+  {
+    operation.abandon();
+    return false;
+  }
+  return operation.wait(ticket);
+}
+
 struct EspBleScannerImpl
 {
   struct QueueEntry
@@ -428,10 +503,8 @@ struct EspBleScannerImpl
   {
     if (event == ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT)
     {
-      scanParamsSucceeded.store(
-        param->scan_param_cmpl.status == ESP_BT_STATUS_SUCCESS,
-        std::memory_order_release);
-      scanParamsCompleted.store(true, std::memory_order_release);
+      scanParamsOperation.complete(
+        param->scan_param_cmpl.status == ESP_BT_STATUS_SUCCESS);
       return;
     }
     if (event == ESP_GAP_BLE_SCAN_START_COMPLETE_EVT)
@@ -439,14 +512,13 @@ struct EspBleScannerImpl
       const bool success =
         param->scan_start_cmpl.status == ESP_BT_STATUS_SUCCESS;
       scanning.store(success, std::memory_order_release);
-      scanStartSucceeded.store(success, std::memory_order_release);
-      scanStartCompleted.store(true, std::memory_order_release);
+      scanStartOperation.complete(success);
       return;
     }
     if (event == ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT)
     {
       scanning.store(false, std::memory_order_release);
-      scanStopCompleted.store(true, std::memory_order_release);
+      scanStopOperation.complete(true);
       return;
     }
     if (event != ESP_GAP_BLE_SCAN_RESULT_EVT) return;
@@ -522,11 +594,9 @@ struct EspBleScannerImpl
   bool wantDuplicates = false;
   std::set<std::string> reportedAddresses;
   BackendCallbacks callbacks;
-  std::atomic<bool> scanParamsCompleted{false};
-  std::atomic<bool> scanParamsSucceeded{false};
-  std::atomic<bool> scanStartCompleted{false};
-  std::atomic<bool> scanStartSucceeded{false};
-  std::atomic<bool> scanStopCompleted{false};
+  BackendGapOperation scanParamsOperation;
+  BackendGapOperation scanStartOperation;
+  BackendGapOperation scanStopOperation;
   std::atomic<bool> scanning{false};
 };
 
@@ -1358,6 +1428,7 @@ void sppCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *parameter)
 }
 } // namespace
 #endif
+
 
 struct EspBleConnectionImpl
 {
@@ -2248,35 +2319,23 @@ struct EspBleConnectionImpl
     }
     else if (event == ESP_GAP_BLE_SET_STATIC_RAND_ADDR_EVT)
     {
-      owner->randomAddressOperationSucceeded.store(
-        param->set_rand_addr_cmpl.status == ESP_BT_STATUS_SUCCESS,
-        std::memory_order_release);
-      owner->randomAddressOperationCompleted.store(
-        true, std::memory_order_release);
+      owner->randomAddressOperation.complete(
+        param->set_rand_addr_cmpl.status == ESP_BT_STATUS_SUCCESS);
     }
     else if (event == ESP_GAP_BLE_SET_LOCAL_PRIVACY_COMPLETE_EVT)
     {
-      owner->privacyOperationSucceeded.store(
-        param->local_privacy_cmpl.status == ESP_BT_STATUS_SUCCESS,
-        std::memory_order_release);
-      owner->privacyOperationCompleted.store(
-        true, std::memory_order_release);
+      owner->privacyOperation.complete(
+        param->local_privacy_cmpl.status == ESP_BT_STATUS_SUCCESS);
     }
     else if (event == ESP_GAP_BLE_UPDATE_WHITELIST_COMPLETE_EVT)
     {
-      owner->acceptListOperationSucceeded.store(
-        param->update_whitelist_cmpl.status == ESP_BT_STATUS_SUCCESS,
-        std::memory_order_release);
-      owner->acceptListOperationCompleted.store(
-        true, std::memory_order_release);
+      owner->acceptListOperation.complete(
+        param->update_whitelist_cmpl.status == ESP_BT_STATUS_SUCCESS);
     }
     else if (event == ESP_GAP_BLE_ADV_START_COMPLETE_EVT)
     {
-      owner->advertisingStartOperationSucceeded.store(
-        param->adv_start_cmpl.status == ESP_BT_STATUS_SUCCESS,
-        std::memory_order_release);
-      owner->advertisingStartOperationCompleted.store(
-        true, std::memory_order_release);
+      owner->advertisingStartOperation.complete(
+        param->adv_start_cmpl.status == ESP_BT_STATUS_SUCCESS);
     }
   }
 
@@ -2809,14 +2868,10 @@ struct EspBleConnectionImpl
   uint16_t pendingConnectionInterval = 0;
   uint16_t pendingConnectionLatency = 0;
   uint16_t pendingConnectionTimeout = 0;
-  std::atomic<bool> randomAddressOperationCompleted{false};
-  std::atomic<bool> randomAddressOperationSucceeded{false};
-  std::atomic<bool> privacyOperationCompleted{false};
-  std::atomic<bool> privacyOperationSucceeded{false};
-  std::atomic<bool> acceptListOperationCompleted{false};
-  std::atomic<bool> acceptListOperationSucceeded{false};
-  std::atomic<bool> advertisingStartOperationCompleted{false};
-  std::atomic<bool> advertisingStartOperationSucceeded{false};
+  BackendGapOperation randomAddressOperation;
+  BackendGapOperation privacyOperation;
+  BackendGapOperation acceptListOperation;
+  BackendGapOperation advertisingStartOperation;
   EspBleConnectionId nextConnectionId = 1;
   Event events[EventCapacity];
   size_t eventHead = 0;
@@ -2829,23 +2884,21 @@ EspBleConnectionImpl *EspBleConnectionImpl::customGapOwner = nullptr;
 
 namespace
 {
-bool waitForAcceptListOperation(EspBleConnectionImpl *impl)
+bool clearAcceptList(EspBleConnectionImpl *impl)
 {
-  const uint32_t startedAt = millis();
-  while (!impl->acceptListOperationCompleted.load(std::memory_order_acquire) &&
-         static_cast<uint32_t>(millis() - startedAt) < 2000)
-  {
-    delay(1);
-  }
-  return
-    impl->acceptListOperationCompleted.load(std::memory_order_acquire) &&
-    impl->acceptListOperationSucceeded.load(std::memory_order_acquire);
+  return runGapOperation(impl->acceptListOperation, [] {
+    return esp_ble_gap_clear_whitelist() == ESP_OK;
+  });
 }
 
-void prepareAcceptListOperation(EspBleConnectionImpl *impl)
+bool addToAcceptList(
+  EspBleConnectionImpl *impl,
+  esp_bd_addr_t address,
+  esp_ble_wl_addr_type_t addressType)
 {
-  impl->acceptListOperationCompleted.store(false, std::memory_order_release);
-  impl->acceptListOperationSucceeded.store(false, std::memory_order_release);
+  return runGapOperation(impl->acceptListOperation, [&] {
+    return esp_ble_gap_update_whitelist(true, address, addressType) == ESP_OK;
+  });
 }
 
 esp_ble_wl_addr_type_t acceptListBackendAddressType(
@@ -3197,26 +3250,15 @@ bool EspBleAdvertising::applyOwnAddress()
 
   BLEAdvertising *backend = BLEDevice::getAdvertising();
   EspBleConnectionImpl *operations = owner_->connectionImpl_;
-  const auto waitFor = [](std::atomic<bool> &completed) {
-    const uint32_t startedAt = millis();
-    while (!completed.load(std::memory_order_acquire) &&
-           static_cast<uint32_t>(millis() - startedAt) < 2000)
-    {
-      delay(1);
-    }
-    return completed.load(std::memory_order_acquire);
+  const auto setPrivacy = [operations](bool enable) {
+    return runGapOperation(operations->privacyOperation, [enable] {
+      return esp_ble_gap_config_local_privacy(enable) == ESP_OK;
+    });
   };
   if (owner_->activeOwnAddressType_ ==
       EspBleOwnAddressType::ResolvablePrivate)
   {
-    operations->privacyOperationCompleted.store(
-      false, std::memory_order_release);
-    operations->privacyOperationSucceeded.store(
-      false, std::memory_order_release);
-    if (esp_ble_gap_config_local_privacy(false) != ESP_OK ||
-        !waitFor(operations->privacyOperationCompleted) ||
-        !operations->privacyOperationSucceeded.load(
-          std::memory_order_acquire))
+    if (!setPrivacy(false))
     {
       owner_->setError(
         EspBleError::BackendFailure,
@@ -3233,14 +3275,9 @@ bool EspBleAdvertising::applyOwnAddress()
         EspBleOwnAddressType::ResolvablePrivate
       ? BLE_ADDR_TYPE_RPA_RANDOM
       : BLE_ADDR_TYPE_RANDOM;
-  operations->randomAddressOperationCompleted.store(
-    false, std::memory_order_release);
-  operations->randomAddressOperationSucceeded.store(
-    false, std::memory_order_release);
-  if (!backend->setDeviceAddress(address, addressType) ||
-      !waitFor(operations->randomAddressOperationCompleted) ||
-      !operations->randomAddressOperationSucceeded.load(
-        std::memory_order_acquire))
+  if (!runGapOperation(operations->randomAddressOperation, [&] {
+        return backend->setDeviceAddress(address, addressType);
+      }))
   {
     owner_->setError(
       EspBleError::BackendFailure,
@@ -3250,14 +3287,7 @@ bool EspBleAdvertising::applyOwnAddress()
   if (owner_->activeOwnAddressType_ ==
       EspBleOwnAddressType::ResolvablePrivate)
   {
-    operations->privacyOperationCompleted.store(
-      false, std::memory_order_release);
-    operations->privacyOperationSucceeded.store(
-      false, std::memory_order_release);
-    if (esp_ble_gap_config_local_privacy(true) != ESP_OK ||
-        !waitFor(operations->privacyOperationCompleted) ||
-        !operations->privacyOperationSucceeded.load(
-          std::memory_order_acquire))
+    if (!setPrivacy(true))
     {
       owner_->setError(
         EspBleError::BackendFailure, "failed to enable BLE privacy");
@@ -3332,28 +3362,19 @@ bool EspBleAdvertising::start(uint32_t durationSeconds)
     parameters.adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY;
 
     EspBleConnectionImpl *operations = owner_->connectionImpl_;
-    operations->advertisingStartOperationCompleted.store(
-      false, std::memory_order_release);
-    operations->advertisingStartOperationSucceeded.store(
-      false, std::memory_order_release);
+    // Spelled out rather than run through runGapOperation() so a command the
+    // backend refused keeps its own message, separate from one that was accepted
+    // and then failed.
+    const uint32_t ticket = operations->advertisingStartOperation.issue();
     if (esp_ble_gap_start_advertising(&parameters) != ESP_OK)
     {
+      operations->advertisingStartOperation.abandon();
       owner_->setError(
         EspBleError::BackendFailure,
         "failed to request directed advertising");
       return false;
     }
-    const uint32_t requestedAt = millis();
-    while (!operations->advertisingStartOperationCompleted.load(
-             std::memory_order_acquire) &&
-           static_cast<uint32_t>(millis() - requestedAt) < 2000)
-    {
-      delay(1);
-    }
-    if (!operations->advertisingStartOperationCompleted.load(
-          std::memory_order_acquire) ||
-        !operations->advertisingStartOperationSucceeded.load(
-          std::memory_order_acquire))
+    if (!operations->advertisingStartOperation.wait(ticket))
     {
       owner_->setError(
         EspBleError::BackendFailure,
@@ -3374,9 +3395,7 @@ bool EspBleAdvertising::start(uint32_t durationSeconds)
   backend->reset();
   if (filterPolicy_ != EspBleAdvertisingFilterPolicy::Any)
   {
-    prepareAcceptListOperation(owner_->connectionImpl_);
-    if (esp_ble_gap_clear_whitelist() != ESP_OK ||
-        !waitForAcceptListOperation(owner_->connectionImpl_))
+    if (!clearAcceptList(owner_->connectionImpl_))
     {
       owner_->setError(
         EspBleError::BackendFailure, "failed to clear the BLE accept list");
@@ -3393,13 +3412,11 @@ bool EspBleAdvertising::start(uint32_t durationSeconds)
           "invalid BLE accept list address");
         return false;
       }
-      prepareAcceptListOperation(owner_->connectionImpl_);
-      if (esp_ble_gap_update_whitelist(
-            true,
+      if (!addToAcceptList(
+            owner_->connectionImpl_,
             address,
             acceptListBackendAddressType(
-              owner_->acceptList_[index].peerAddressType)) != ESP_OK ||
-          !waitForAcceptListOperation(owner_->connectionImpl_))
+              owner_->acceptList_[index].peerAddressType)))
       {
         owner_->setError(
           EspBleError::BackendFailure,
@@ -3770,9 +3787,7 @@ bool EspBleScanner::start(const EspBleScanConfig &config)
 
   if (config.acceptListOnly)
   {
-    prepareAcceptListOperation(owner_->connectionImpl_);
-    if (esp_ble_gap_clear_whitelist() != ESP_OK ||
-        !waitForAcceptListOperation(owner_->connectionImpl_))
+    if (!clearAcceptList(owner_->connectionImpl_))
     {
       owner_->setError(
         EspBleError::BackendFailure, "failed to clear the BLE accept list");
@@ -3789,13 +3804,11 @@ bool EspBleScanner::start(const EspBleScanConfig &config)
           "invalid BLE accept list address");
         return false;
       }
-      prepareAcceptListOperation(owner_->connectionImpl_);
-      if (esp_ble_gap_update_whitelist(
-            true,
+      if (!addToAcceptList(
+            owner_->connectionImpl_,
             address,
             acceptListBackendAddressType(
-              owner_->acceptList_[index].peerAddressType)) != ESP_OK ||
-          !waitForAcceptListOperation(owner_->connectionImpl_))
+              owner_->acceptList_[index].peerAddressType)))
       {
         owner_->setError(
           EspBleError::BackendFailure,
@@ -3827,43 +3840,18 @@ bool EspBleScanner::start(const EspBleScanConfig &config)
   parameters.scan_duplicate = BLE_SCAN_DUPLICATE_DISABLE;
 
   activeBleScanner.store(impl_, std::memory_order_release);
-  impl_->scanParamsCompleted.store(false, std::memory_order_release);
-  impl_->scanParamsSucceeded.store(false, std::memory_order_release);
-  if (esp_ble_gap_set_scan_params(&parameters) != ESP_OK)
-  {
-    owner_->setError(
-      EspBleError::BackendFailure, "failed to configure BLE scan");
-    return false;
-  }
-  const uint32_t parametersRequestedAt = millis();
-  while (!impl_->scanParamsCompleted.load(std::memory_order_acquire) &&
-         static_cast<uint32_t>(millis() - parametersRequestedAt) < 2000)
-  {
-    delay(1);
-  }
-  if (!impl_->scanParamsCompleted.load(std::memory_order_acquire) ||
-      !impl_->scanParamsSucceeded.load(std::memory_order_acquire))
+  if (!runGapOperation(impl_->scanParamsOperation, [&] {
+        return esp_ble_gap_set_scan_params(&parameters) == ESP_OK;
+      }))
   {
     owner_->setError(
       EspBleError::BackendFailure, "BLE scan parameters were rejected");
     return false;
   }
 
-  impl_->scanStartCompleted.store(false, std::memory_order_release);
-  impl_->scanStartSucceeded.store(false, std::memory_order_release);
-  if (esp_ble_gap_start_scanning(config.durationSeconds) != ESP_OK)
-  {
-    owner_->setError(EspBleError::BackendFailure, "failed to start BLE scan");
-    return false;
-  }
-  const uint32_t startRequestedAt = millis();
-  while (!impl_->scanStartCompleted.load(std::memory_order_acquire) &&
-         static_cast<uint32_t>(millis() - startRequestedAt) < 2000)
-  {
-    delay(1);
-  }
-  if (!impl_->scanStartCompleted.load(std::memory_order_acquire) ||
-      !impl_->scanStartSucceeded.load(std::memory_order_acquire))
+  if (!runGapOperation(impl_->scanStartOperation, [&] {
+        return esp_ble_gap_start_scanning(config.durationSeconds) == ESP_OK;
+      }))
   {
     owner_->setError(EspBleError::BackendFailure, "BLE scan did not start");
     return false;
@@ -3885,19 +3873,9 @@ bool EspBleScanner::stop()
     owner_->clearError();
     return true;
   }
-  impl_->scanStopCompleted.store(false, std::memory_order_release);
-  if (esp_ble_gap_stop_scanning() != ESP_OK)
-  {
-    owner_->setError(EspBleError::BackendFailure, "failed to stop BLE scan");
-    return false;
-  }
-  const uint32_t requestedAt = millis();
-  while (!impl_->scanStopCompleted.load(std::memory_order_acquire) &&
-         static_cast<uint32_t>(millis() - requestedAt) < 2000)
-  {
-    delay(1);
-  }
-  if (!impl_->scanStopCompleted.load(std::memory_order_acquire))
+  if (!runGapOperation(impl_->scanStopOperation, [] {
+        return esp_ble_gap_stop_scanning() == ESP_OK;
+      }))
   {
     owner_->setError(EspBleError::BackendFailure, "BLE scan did not stop");
     return false;

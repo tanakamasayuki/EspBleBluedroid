@@ -491,11 +491,34 @@ Bluetooth Classic suite——A2DP・HFP・SPP——を含む）と、混雑し�
 失敗するが、ログには失敗前に`restarted=1`が3回成功して並んでいる。それでも
 「任意の先行イベントが満たせる待ち」はそれ自体が誤りである。
 
+**修正済み（この失敗の原因とは確定していない）**: 共有フラグを`BackendGapOperation`の
+チケット方式へ置き換えた（`src/EspBleBluedroid.cpp`）。各コマンドがチケットを取り、完了イベントは
+カウンタを進め、待ちは自分のチケットに到達したカウントだけを受け付ける。コマンドより前のイベントが
+その待ちを満たすことはもう起こらない。タイムアウト時はカウントを再同期してから失敗する
+——ずれを残すと以後の全操作が失われたイベントを待つことになり、1件の取りこぼしがセッション全体を
+壊すため。同じ形をしていた他の待ちも同じ方式へ揃えた——accept listの書き込み、directed
+advertisingの開始、scannerのparameter / start / stopである。`local_identity` /
+`directed_advertising` / `accept_list` / `advertise_scan` / `long_value` /
+`connect_disconnect`で実機確認済み。
+
+なお、scanの置き換えは後述のscan missを説明しない。あのsketchはscanを1度しか開始しないので、
+自分のものと取り違えうる先行操作がそもそも存在しない。
+
 **scanがadvertisementを1件も受け取らなかった**（`long_value`、同じrun）。両ボードは正常起動して
 おり（`LONG_VALUE_READY`、`LONG_VALUE_PEER_READY length=300`）、DUTの継続scanがpeerの
 service UUIDに一致する結果を配送しなかったため`TARGET_FOUND`が印字されなかった。
 advertisementの取りこぼしは無線として正常な事象で、このsuiteは結果を1回だけリトライなしで
-待つため1回のmissで落ちる。scanを1度リトライさせるのは回避策ではなくテストの修正である
+待っていたため1回のmissで落ちた。
+
+**修正済み。** sketchが12秒間隔で最大2回scanを再開し（`SCAN_RESTARTED n`を印字）、testの
+待ち時間がその範囲を覆うようにした。これは回避策ではなくテストの修正である——RPAの件では
+リトライが欠陥を隠すが、こちらは再開しても復活しないscanなら結局failするので、再現する欠陥を
+隠すことはない。何も取れなかったscanを再開するのはアプリケーションとしても普通の対処である。
+
+この再開は**実機初回の実行で実際に発火した**（`LONG_VALUE_READY` → `SCAN_RESTARTED 1` →
+`TARGET_FOUND`）。つまり最初の12秒の窓では一致する結果が本当に1件も来ておらず、元の失敗は
+この環境で稀な事象ではないことになる。旧testがその回にfailしたはずだとまでは言えない
+（旧30秒の窓なら後続のadvertisementを拾えた可能性がある）が、missそのものは明らかに珍しくない
 ——RPAの件とは違い、こちらはリトライが不具合を隠さない。
 
 ## 合格条件

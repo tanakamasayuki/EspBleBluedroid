@@ -17,7 +17,12 @@ def test_read_above_the_mtu_returns_the_whole_value(dut, peers):
     )
     peer_length = int(peer_ready.group(1))
     dut.expect_exact("LONG_VALUE_READY", timeout=30)
-    dut.expect(re.compile(rb"TARGET_FOUND ([0-9a-f:]+)"), timeout=30)
+    # The sketch restarts its scan up to twice if no advertisement matched (it
+    # prints SCAN_RESTARTED when it does), so the window here covers those tries.
+    # Missing an advertisement is normal radio behaviour and this scenario is about
+    # long reads, not about scanning; a scan that stays dead through the restarts
+    # still fails here.
+    dut.expect(re.compile(rb"TARGET_FOUND ([0-9a-f:]+)"), timeout=45)
     dut.expect_exact("CONNECT_REQUESTED 1", timeout=10)
     dut.expect(re.compile(rb"CONNECTED id=\d+ mtu=23"), timeout=20)
 
