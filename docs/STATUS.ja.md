@@ -86,6 +86,13 @@ CCCD購読、notificationまで確認している。
 
 ## 現在の制限
 
+- **接続ごとに数百byteのfree heapが返らない**（`tests/peer/lifecycle_stress`が検出）。
+  `begin()` → 接続 → `end()` の繰り返しで、接続・切断のみの周は約165〜200 byte、GATT操作を
+  含む周は約440 byteが返らない。`begin()`/`end()`だけの繰り返しとscanだけの繰り返しは0 byteで、
+  Arduino BLE wrapper側で同型の繰り返しを行っても0 byteなので、原因はこのライブラリの接続経路に
+  ある。再接続を繰り返し続けるsketchでは累積し、1000回で空きheapを超える。切り分け済みの候補と
+  次の手順は[../tests/TEST_PLAN.ja.md](../tests/TEST_PLAN.ja.md)の「既知の不具合」にある。
+
 - 対象はBluetooth Classicを搭載する無印ESP32系とArduino-ESP32 3.3.11。
 - 必須機能はPSRAMなしで動作する設計とし、build確認はgeneric `esp32` profileに集約する。
   PSRAM搭載moduleなど、同じESP32 SoC内のboard variant別matrixは作らない。

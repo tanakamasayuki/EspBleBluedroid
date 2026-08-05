@@ -509,6 +509,74 @@ settle. `gatt_basic`, `advertise_scan`, `long_value`, `duplicate_uuid`,
 direction of the connection-oriented scenarios, which the peripheral connection
 snapshot has now unblocked.
 
+## Known defects
+
+Reproducible faults this repository's own tests found and that are not fixed yet.
+Recorded with what has already been ruled out, so the next attempt starts there.
+
+**A connection retains a few hundred bytes** (`lifecycle_stress`). Eight rounds of
+`begin()` → connect → GATT → `end()`, all completing cleanly (`ok=1`, HCI reason
+`0x16`, task count unchanged, no dropped events), lose free heap monotonically:
+
+```
+196932 196512 196084 195648 195112 194664 194236 193928   (full round)
+```
+
+~165-200 bytes per round for a connect/disconnect round and ~440 for a full round.
+Free heap is a *total*, which fragmentation does not reduce, so this is retention and
+not layout. A sketch that reconnects all day is the case that suffers: a thousand
+reconnections is more than this chip's free heap.
+
+Attributed to this library, not to the Arduino BLE wrapper. Six controls of eight
+rounds each lost **nothing**:
+
+| Control | Per round |
+|---|---|
+| `BLEDevice::init()` / `deinit()` | 0 |
+| A reused `BLEClient` connecting and disconnecting | 0 |
+| The wrapper doing exactly this round's shape: `init` → `createClient` → connect → disconnect → `deinit` | 0 |
+| The same plus `setMTU(247)`, the one call this library makes that the control did not | 0 |
+| This library's `begin()` / `end()` | 0 |
+| This library's `begin()` / scan / `end()` | 0 |
+| A 6144-byte task created and self-deleted, no BLE at all | 0 |
+
+Ruled out, with the reason:
+
+- **A `BLEClient` per round.** The wrapper's `deinit()` deletes `m_pClient`, and the
+  control that creates one per round loses nothing.
+- **The connect worker task.** Task churn alone is free, the task count returns to its
+  previous value every round, and a leaked 6144-byte stack is two orders of magnitude
+  larger than what goes missing.
+- **The MTU exchange.** Neither the raised value (a run with `preferredMtu = 23` drifts
+  the same) nor the request itself (adding `setMTU()` to the control changes nothing).
+- **The GATTC app registration.** One leaked registration per round would exhaust the
+  slots and fail a connect by round five or six; all eight connect.
+- **The scanner's duplicate-address set.** Adding `EspBleScanner::resetBackend()` to
+  `end()` did not change the drift. (That fix is correct on its own terms and stayed:
+  without it an address seen before `end()` is still in the set after the next
+  `begin()`, so the first scan of the new lifecycle silently omits that peer.)
+- **`new BLESecurity()`** — deleted by the connection impl's destructor, and not even
+  allocated in these runs.
+- **Callbacks registered per round by the sketch** — the stack-only rounds register the
+  same eight and lose nothing.
+
+Where it is: between `begun` and `disc` in the per-round samples, and `begin()`'s own
+cost is constant at ~100,800 bytes from the second round on, so neither `begin()` nor
+`end()` grows. What is left of the connect path is the wrapper's `BLEClient` state as
+this library drives it, and Bluedroid's per-connection state.
+
+Next step, in order of directness:
+
+1. `heap_trace_init_standalone()` would name the allocation outright, but
+   `CONFIG_HEAP_TRACING_STANDALONE` is off in the Arduino-ESP32 libraries and rebuilding
+   the core would break the rule against patching the installed package.
+2. Stage 2 of [../docs/BLE_DIRECT_BACKEND_MIGRATION.ja.md](../docs/BLE_DIRECT_BACKEND_MIGRATION.ja.md)
+   replaces the wrapper connect path with `esp_ble_gattc_open()` and removes the worker
+   task, which deletes the suspect code rather than diagnosing it.
+
+`lifecycle_stress` asserts a bound above the measured loss while this is open, so the
+leak cannot grow unnoticed; the bound comes down to the noise floor when it is fixed.
+
 ## Known intermittent failures
 
 Failures seen once, in a full run, that targeted repetition could not reproduce.

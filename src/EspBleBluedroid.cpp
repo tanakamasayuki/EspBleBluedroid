@@ -3920,6 +3920,15 @@ size_t EspBleScanner::pendingResultCountForTest() const
 }
 #endif
 
+void EspBleScanner::resetBackend()
+{
+  if (impl_ == nullptr) return;
+  // The controller is about to be, or has already been, torn down: nothing that was
+  // observed through it belongs to the next lifecycle.
+  impl_->scanning.store(false, std::memory_order_release);
+  flushPendingResults();
+}
+
 void EspBleScanner::flushPendingResults()
 {
   if (impl_ == nullptr)
@@ -6163,6 +6172,9 @@ void EspBleBluedroid::end()
   BLESecurity::setForceAuthentication(false);
   BLEDevice::deinit(false);
   gattServer_.resetBackend();
+  // Queued scan results, the drop count and the duplicate-address set belong to the
+  // lifecycle that observed them.
+  scanner_.resetBackend();
   // A previous host's subscription, LED state and protocol mode must not survive
   // into the next begin().
   hidKeyboard_.resetBackend();

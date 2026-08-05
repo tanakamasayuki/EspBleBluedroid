@@ -452,6 +452,68 @@ cross-stack試験を指す。
 `hid`は実装済み。残るのは接続系scenarioの逆方向で、Peripheral connection snapshotが
 実装されたので着手できる。
 
+## 既知の不具合
+
+このリポジトリのテストが見つけ、まだ直っていない再現性のある不具合。次の挑戦が同じ場所から
+始められるよう、既に潰した候補も一緒に記録する。
+
+**接続1回あたり数百byteが返らない**（`lifecycle_stress`）。`begin()` → 接続 → GATT →
+`end()` を8周し、全周が正常完了している（`ok=1`、HCI reason `0x16`、task数不変、drop 0）のに
+free heapが単調に減る:
+
+```
+196932 196512 196084 195648 195112 194664 194236 193928   （full round）
+```
+
+接続・切断のみの周で約165〜200 byte、GATT一式を含む周で約440 byte。free heapは**総量**で
+あり、fragmentationでは総量は減らないので、これは配置の問題ではなく保持である。影響を受けるのは
+再接続を繰り返すsketchで、1000回の再接続はこのチップの空きheapを超える。
+
+帰属はこのライブラリで、Arduino BLE wrapperではない。各8周の対照が**すべて0 byte**だった:
+
+| 対照 | 1周あたり |
+|---|---|
+| `BLEDevice::init()` / `deinit()` | 0 |
+| `BLEClient`を再利用した接続・切断 | 0 |
+| wrapperでこの周と同型（`init` → `createClient` → 接続 → 切断 → `deinit`） | 0 |
+| 同上＋`setMTU(247)`（こちらが呼び対照が呼んでいなかった唯一の呼び出し） | 0 |
+| このライブラリの`begin()` / `end()` | 0 |
+| このライブラリの`begin()` / scan / `end()` | 0 |
+| 6144 byteのtaskを生成して自己削除（BLE不使用） | 0 |
+
+排除できた候補と理由:
+
+- **周ごとの`BLEClient`生成**。wrapperの`deinit()`が`m_pClient`をdeleteしており、
+  周ごとにclientを作る対照も0だった。
+- **接続worker task**。task churn単体は0、task数は毎周元に戻る。6144 byteのstackが漏れる
+  なら実測との桁が2つ違う。
+- **MTU交換**。上げた値（`preferredMtu = 23`でも同じだけ減る）も、要求自体（対照へ
+  `setMTU()`を足しても0）も原因ではない。
+- **GATTC app登録**。周ごとに1つ漏れればスロットが尽きて5〜6周目で接続に失敗するが、8周とも
+  成功する。
+- **scannerの重複アドレスset**。`end()`へ`EspBleScanner::resetBackend()`を足しても
+  差分は変わらなかった（この修正自体は独立して正しいので残した。無いと`end()`前に見た
+  アドレスが次の`begin()`後もsetに残り、新しいlifecycleの最初のscanがそのpeerを黙って落とす）。
+- **`new BLESecurity()`** — connection implのデストラクタでdelete済みで、今回の実行では
+  確保もされていない。
+- **sketchが周ごとに登録するcallback** — stackのみの周も同じ8個を登録して0だった。
+
+位置: 周内sampleの`begun`と`disc`の間。`begin()`自身のコストは2周目以降約100,800 byteで
+一定なので、`begin()`も`end()`も増えていない。残るのは、このライブラリの使い方における
+wrapperの`BLEClient`状態とBluedroidのper-connection状態である。
+
+次の手（直接性の高い順）:
+
+1. `heap_trace_init_standalone()`なら確保箇所を直接特定できるが、Arduino-ESP32同梱
+   ライブラリは`CONFIG_HEAP_TRACING_STANDALONE`が無効で、coreを再ビルドすると
+   「installされたpackageへpatchを当てない」規約に反する。
+2. [../docs/BLE_DIRECT_BACKEND_MIGRATION.ja.md](../docs/BLE_DIRECT_BACKEND_MIGRATION.ja.md)の
+   段階2でwrapperの接続経路を`esp_ble_gattc_open()`へ置き換え、worker taskも撤去する。
+   診断ではなく容疑者コードそのものが消える。
+
+この不具合が開いている間、`lifecycle_stress`は実測値より上の閾値でassertする。leakが
+気づかれずに増えることはない。修正後はノイズ水準まで閾値を下げる。
+
 ## 既知の間欠失敗
 
 full runで1度だけ観測され、狙った反復では再現しなかった失敗。次の調査が「何を既に潰したか」から

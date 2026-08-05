@@ -1319,6 +1319,11 @@ private:
   ~EspBleScanner();
   void dispatchPendingResults();
   void flushPendingResults();
+  // Drop everything a finished lifecycle left behind: queued results, the drop
+  // count, the duplicate-address set and the scanning flag. Without it an address
+  // reported before end() is still in the duplicate set after the next begin(), so
+  // the first scan of the new lifecycle silently omits that peer.
+  void resetBackend();
 
   EspBleBluedroid *owner_;
   ResultCallback resultCallback_;
