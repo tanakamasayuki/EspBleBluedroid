@@ -165,6 +165,12 @@ Device Information and Battery values.
 `peer/hid_composite` verifies the five profiles that share one HID service, the
 Report Map they compose, and that each notification arrives on its own report's
 handle.
+`peer/hid_keyboard_host` verifies the HID Host side against this library's own
+keyboard device: discovery that reports what the device turned out to be (its
+keyboard Report ID, the country code from HID Information, whether it has an Output
+Report, the battery level), a keystroke decoded into a usage and the character the
+layout produces, the whole-state and per-edge events, the LED write a host sends,
+and that a disconnect takes the discovered handles with it.
 `peer/hid_boot_protocol` verifies HID over GATT Boot Protocol on an NKRO keyboard:
 the two extra characteristics Boot Protocol adds, the Protocol Mode default and
 switch, the same usages leaving as a 29-byte bitmap or as the fixed 8-byte boot

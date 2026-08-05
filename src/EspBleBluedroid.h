@@ -716,6 +716,124 @@ struct EspBleHidVendorReport : EspBleHidReport
   size_t length = 0;
 };
 
+// ---------------------------------------------------------------------------
+// HID Host: what a device's HID service turned out to be, and the reports it
+// sends, decoded per profile. The structures are EspBle's.
+// ---------------------------------------------------------------------------
+
+struct EspBleHidKeyboardHostDiscovery
+{
+  EspBleConnectionId connectionId = 0;
+  uint8_t reportId = 0;
+  bool hasCountryCode = false;
+  uint8_t countryCode = 0;
+  bool hasOutputReport = false;
+  bool hasBatteryLevel = false;
+  uint8_t batteryLevel = 0;
+  bool success = false;
+  EspBleError error = EspBleError::None;
+  String detail;
+};
+
+struct EspBleHidKeyboardState
+{
+  static constexpr size_t BitmapSize = 32;
+
+  EspBleConnectionId connectionId = 0;
+  uint8_t reportId = 0;
+  // A bitmap, not a usage array: bit (usage & 7) of byte (usage >> 3) is the
+  // state of that usage. The 6KRO EspBleHidKeyboardInputReport::keys[6] holds
+  // usages instead, which is why the two carry different names.
+  uint8_t bitmap[BitmapSize] = {};
+  uint8_t changedBitmap[BitmapSize] = {};
+  uint8_t modifiers = 0;
+  bool numLock = false;
+  bool capsLock = false;
+  bool scrollLock = false;
+  bool compose = false;
+  bool kana = false;
+
+  bool isDown(uint8_t usage) const
+  {
+    return (bitmap[usage >> 3] & static_cast<uint8_t>(1u << (usage & 7))) != 0;
+  }
+  bool wasPressed(uint8_t usage) const
+  {
+    return isDown(usage) &&
+      (changedBitmap[usage >> 3] & static_cast<uint8_t>(1u << (usage & 7))) != 0;
+  }
+  bool wasReleased(uint8_t usage) const
+  {
+    return !isDown(usage) &&
+      (changedBitmap[usage >> 3] & static_cast<uint8_t>(1u << (usage & 7))) != 0;
+  }
+};
+
+struct EspBleHidKeyboardEvent : EspBleHidReport
+{
+  uint8_t usage = 0;
+  // Unicode code point produced by the selected layout (0 when the usage
+  // produces no character). `ascii` is its ISO-8859-1 subset: the low byte
+  // when the code point fits in 8 bits, otherwise 0.
+  uint16_t unicode = 0;
+  uint8_t ascii = 0;
+  uint8_t modifiers = 0;
+  bool pressed = false;
+  bool released = false;
+  bool numLock = false;
+  bool capsLock = false;
+  bool scrollLock = false;
+  bool compose = false;
+  bool kana = false;
+};
+
+struct EspBleHidMouseEvent : EspBleHidReport
+{
+  int16_t x = 0;
+  int16_t y = 0;
+  int16_t wheel = 0;
+  uint8_t buttons = 0;
+  uint8_t previousButtons = 0;
+  bool moved = false;
+  bool buttonsChanged = false;
+};
+
+struct EspBleHidConsumerControlEvent : EspBleHidReport
+{
+  uint16_t usage = 0;
+  bool pressed = false;
+  bool released = false;
+};
+
+struct EspBleHidSystemControlEvent : EspBleHidReport
+{
+  uint8_t usage = 0;
+  bool pressed = false;
+  bool released = false;
+};
+
+struct EspBleHidFieldValue
+{
+  uint8_t reportId = 0;
+  uint16_t usagePage = 0;
+  uint16_t usage = 0;
+  int32_t value = 0;
+  int32_t logicalMin = 0;
+  int32_t logicalMax = 0;
+  uint16_t bitOffset = 0;
+  uint8_t bitSize = 0;
+  uint8_t flags = 0;
+};
+
+struct EspBleHidGamepadEvent : EspBleHidReport
+{
+  const EspBleHidFieldValue *fields = nullptr;
+  size_t fieldCount = 0;
+  bool changed = false;
+};
+
+struct EspBleHidVendorInputEvent : EspBleHidReport {};
+
 struct EspBluedroidCapabilities
 {
   bool ble = true;
@@ -1073,7 +1191,9 @@ class EspBleBluedroid;
 class EspBleHidKeyboard;
 class EspBleHidVendor;
 class EspBleHidCustom;
+class EspBleHidHost;
 struct EspBleHidDeviceManagerImpl;
+struct EspBleHidKeyboardHostImpl;
 struct EspBleScannerImpl;
 struct EspBleConnectionImpl;
 struct EspBleGattServerImpl;
@@ -2085,6 +2205,103 @@ private:
   ReportCallback featureCallback_;
 };
 
+// HID Host: the other side of HOGP. It discovers a peer device's HID service,
+// reads the Report Map, pairs each Report characteristic with the report its
+// Report Reference declares, subscribes to every Input Report, and turns the
+// notifications into per-profile events using the descriptor the device published
+// rather than an assumed layout.
+//
+// The report map parser is shared with the device side (`EspBleHidReportMap.h`,
+// pinned by `tests/unit/report_map`), so what a host decodes is what a device
+// declares.
+class EspBleHidHost
+{
+public:
+  static constexpr size_t MaxListenersPerEvent = 4;
+  using DiscoveryCallback =
+    std::function<void(const EspBleHidKeyboardHostDiscovery &result)>;
+  using StateCallback = std::function<void(const EspBleHidKeyboardState &state)>;
+  using KeyboardCallback = std::function<void(const EspBleHidKeyboardEvent &event)>;
+  using MouseCallback = std::function<void(const EspBleHidMouseEvent &event)>;
+  using ConsumerControlCallback =
+    std::function<void(const EspBleHidConsumerControlEvent &event)>;
+  using SystemControlCallback =
+    std::function<void(const EspBleHidSystemControlEvent &event)>;
+  using GamepadCallback = std::function<void(const EspBleHidGamepadEvent &event)>;
+  using VendorInputCallback =
+    std::function<void(const EspBleHidVendorInputEvent &event)>;
+
+  // Start discovery of the peer's HID service on an established connection. The
+  // result arrives through onDiscovered(); the many GATT operations it needs are
+  // issued one at a time, because this backend allows one central GATT operation
+  // per link (see examples/DIFFERENCES_FROM_ESPBLE.md).
+  bool discover(EspBleConnectionId connectionId);
+  bool setKeyboardLeds(
+    EspBleConnectionId connectionId,
+    bool numLock,
+    bool capsLock,
+    bool scrollLock,
+    bool compose = false,
+    bool kana = false);
+  bool sendVendorOutput(
+    EspBleConnectionId connectionId, const uint8_t *data, size_t length);
+  bool sendVendorFeature(
+    EspBleConnectionId connectionId, const uint8_t *data, size_t length);
+  void onDiscovered(DiscoveryCallback callback);
+  void onKeyboardState(StateCallback callback);
+  void onKeyboard(KeyboardCallback callback);
+  void onMouse(MouseCallback callback);
+  void onConsumerControl(ConsumerControlCallback callback);
+  void onSystemControl(SystemControlCallback callback);
+  void onGamepad(GamepadCallback callback);
+  void onVendorInput(VendorInputCallback callback);
+  EspBleListenerId addDiscoveredListener(DiscoveryCallback callback);
+  EspBleListenerId addKeyboardStateListener(StateCallback callback);
+  EspBleListenerId addKeyboardListener(KeyboardCallback callback);
+  EspBleListenerId addMouseListener(MouseCallback callback);
+  EspBleListenerId addConsumerControlListener(ConsumerControlCallback callback);
+  EspBleListenerId addSystemControlListener(SystemControlCallback callback);
+  EspBleListenerId addGamepadListener(GamepadCallback callback);
+  EspBleListenerId addVendorInputListener(VendorInputCallback callback);
+  bool removeListener(EspBleListenerId listenerId);
+  void setKeyboardLayout(EspBleKeyboardLayout layout);
+  EspBleKeyboardLayout keyboardLayout() const;
+  // Discovery finished and this link's Input Reports are subscribed, so reports
+  // can arrive right now.
+  bool ready(EspBleConnectionId connectionId) const;
+  size_t droppedEventCount() const;
+  size_t invalidInputReportCount() const;
+  // Opt-in: after a HID peer that was discovered once reconnects and re-encrypts,
+  // re-run discover() automatically (the HID Host does not use the generic
+  // subscription registry, so it is not covered by persistentSubscriptions). Off
+  // by default. Composes with a manual discover(): if the app still calls
+  // discover() from onSecurityChanged, the automatic one is skipped for that
+  // connection (no double discovery).
+  void setAutoRediscover(bool enable);
+  bool autoRediscover() const;
+
+private:
+  friend class EspBleBluedroid;
+  friend struct EspBleHidKeyboardHostImpl;
+
+  static constexpr size_t MaxRediscoverPeers = 4;
+
+  explicit EspBleHidHost(EspBleBluedroid *owner);
+  ~EspBleHidHost();
+  void resetBackend();
+  void handleDisconnected(EspBleConnectionId connectionId);
+  void handleSecurityEstablished(const EspBleSecurityChanged &event);
+  // Remember a peer this host discovered, so setAutoRediscover() only re-runs
+  // discovery for a device it has seen before.
+  void rememberRediscoverPeer(const String &address);
+  EspBleHidKeyboardHostImpl *ensureImpl();
+
+  EspBleBluedroid *owner_;
+  EspBleHidKeyboardHostImpl *impl_ = nullptr;
+  EspBleKeyboardLayout layout_ = EspBleKeyboardLayout::EnUs;
+  bool autoRediscover_ = false;
+};
+
 class EspBleBluedroid
 {
 public:
@@ -2147,6 +2364,7 @@ public:
   EspBleHidGamepad &hidGamepad();
   EspBleHidVendor &hidVendor();
   EspBleHidCustom &hidCustom();
+  EspBleHidHost &hidHost();
   EspBluedroidClassic &classic();
 #ifdef ESP_BLE_BLUEDROID_TESTING
   bool setSecurityResponseTimeoutForTest(uint32_t timeoutMilliseconds);
@@ -2393,7 +2611,9 @@ private:
   friend class EspBleHidGamepad;
   friend class EspBleHidVendor;
   friend class EspBleHidCustom;
+  friend class EspBleHidHost;
   friend struct EspBleHidDeviceManagerImpl;
+  friend struct EspBleHidKeyboardHostImpl;
   friend class EspBluedroidClassic;
   friend class EspBluedroidClassicInquiry;
   friend class EspBluedroidSpp;
@@ -2476,6 +2696,7 @@ private:
   EspBleHidGamepad hidGamepad_;
   EspBleHidVendor hidVendor_;
   EspBleHidCustom hidCustom_;
+  EspBleHidHost hidHost_;
   EspBluedroidClassic classic_;
   EspBleConnectionImpl *connectionImpl_ = nullptr;
   // One list per event: the primary callback set by on*() plus the listeners.

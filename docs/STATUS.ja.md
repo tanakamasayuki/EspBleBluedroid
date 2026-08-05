@@ -174,7 +174,12 @@ CCCD購読、notificationまで確認している。
   Input/Output 0x2a22/0x2a32を追加し、Boot Protocol Mode中はNKRO bitmapを固定8 byteへ
   変換して送る（6キー超はHIDのrolloverコード0x01）。`ready()`は選択中modeが使うreportの
   CCCDに従う（`tests/peer/hid_boot_protocol`）。
-  HID Hostは未実装。
+  HID Hostは`bluetooth.hidHost()`で利用できる。`discover()`がpeerのReport Mapと
+  Report Referenceを読んで各0x2A4Dの正体を確定し、Input Reportを購読してから
+  `onDiscovered()`を配送する。decodeは読み取ったdescriptor基準（keyboardのmodifier位置や
+  NKRO bitmapの開始usage、mouseのfieldはusage pageで選ぶ）で、parserはDevice側と共有する。
+  discoveryは状態機械。本backendが1 linkあたりCentral GATT操作を同時1件しか許さないため
+  （`tests/peer/hid_keyboard_host`）。
   BLE MIDIのprofile helperは`EspBleMidiProfile.h`として利用できる。
   `EspBleMidiDevice` / `EspBleMidiHost`はEspBleのファイルのライブラリ参照の型だけを
   差し替えたもので、必要なeventは`add*Listener()`で購読するためsketch側の`on*()`を

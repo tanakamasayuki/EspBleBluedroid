@@ -73,6 +73,17 @@ consumer control、system control、gamepad）を検証します。composite機�
 届くこと。属性の並び順（configure順）とReport Map内のdescriptor順（profile順）は意図的に
 異なります。hostが使うのはどちらでもなくReport Referenceだからです。
 
+`hid_keyboard_host`はHOGPの反対側——本ライブラリをHostとして——を検証します。Hostは
+レイアウトを仮定できないので、`discover()`はpeerのReport Mapを読み、各Report Referenceを読んで
+どの0x2A4Dがどのreportかを知り、購読します。本backendは1 linkあたりCentral GATT操作を同時1件しか
+許さないため、これは直線的な手順ではなく状態機械です。peerは本ライブラリ自身のkeyboard deviceで、
+意図的に既定値でない値（country code 33、battery 73）を設定してあります。discoveryが報告する内容が
+仮定ではなく「読み取った結果」でなければ通りません。キー入力については、notificationに入っていない
+ものを確認します: usage 0x04＋shift modifierがlayoutを通って文字`'A'`になること、状態がキーだけでなく
+modifier usage 0xE1も保持すること、eventになるのは変化したusageだけであること（2つ目のキーを押しても
+1つ目は再報告されない）。LED writeはkeyboard Hostが送る唯一のreportです。切断はdiscovery済みhandleを
+道連れにするので、`ready()`は残りません。
+
 `hid_boot_protocol`はHID over GATT Boot Protocol——Report Descriptorを解釈できない
 Hostが使う固定8 byteのkeyboard report——を検証します。keyboardをNKROにしているので両modeの
 差は最大で、変換そのものが主題です。同じ`sendReport()`が、Report Protocol ModeではReport Mapが

@@ -5837,7 +5837,7 @@ EspBleBluedroid::EspBleBluedroid()
     : advertising_(this), scanner_(this), gattServer_(this),
     hidKeyboard_(this), hidMouse_(this), hidConsumerControl_(this),
     hidSystemControl_(this), hidGamepad_(this), hidVendor_(this),
-    hidCustom_(this), classic_(this)
+    hidCustom_(this), hidHost_(this), classic_(this)
 {
 }
 
@@ -6188,6 +6188,8 @@ void EspBleBluedroid::end()
   // A previous host's subscription, LED state and protocol mode must not survive
   // into the next begin().
   hidKeyboard_.resetBackend();
+  // The same for the host side: discovered handles belong to a link that is gone.
+  hidHost_.resetBackend();
   BLEDevice::setCustomGattcHandler(nullptr);
   BLEDevice::setCustomGapHandler(nullptr);
   EspBleConnectionImpl::customGattcOwner = nullptr;
@@ -6335,6 +6337,8 @@ EspBleHidGamepad &EspBleBluedroid::hidGamepad() { return hidGamepad_; }
 EspBleHidVendor &EspBleBluedroid::hidVendor() { return hidVendor_; }
 
 EspBleHidCustom &EspBleBluedroid::hidCustom() { return hidCustom_; }
+
+EspBleHidHost &EspBleBluedroid::hidHost() { return hidHost_; }
 
 
 

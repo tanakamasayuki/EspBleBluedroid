@@ -36,7 +36,6 @@ Arduino-ESP32同梱のBluedroid backend経由で対象にします。
 | Central | 同時2接続以上、`disconnect(id, reason)` | 直接GATTC移行中で、peer testが固定しているのは1 link。wrapperがlocal reasonをlink終了へ渡さない | [Gap/Connect](Gap/Connect/) |
 | Peripheral | **着信**linkに対する`onConnected()`／`onDisconnected()`／`bluetooth.connection()`、およびPeripheral単体機器でのBLE security event | Peripheral connection snapshotをまだ公開していない（[docs/STATUS.ja.md](../docs/STATUS.ja.md)参照） | [Gap/AcceptList](Gap/AcceptList/)、[Gap/DirectedAdvertising](Gap/DirectedAdvertising/)、[Gap/PrivateAddress](Gap/PrivateAddress/)、[Gatt/Device/BondManagementServer](Gatt/Device/BondManagementServer/)、[Security/](Security/) |
 | GATT Client | `setAutoReconnect()`、`EspBleConfig::persistentSubscriptions`、`setAutoRediscover()` | linkを跨ぐhandle単位の状態をpeer testで固定できていない | [Gatt/Basics/AutoReconnectClient](Gatt/Basics/AutoReconnectClient/) |
-| Profile | HID **Host**側（`hidHost()`） | Device側のみ実装。Report Map parserは移植済みなので次はHost（[docs/STATUS.ja.md](../docs/STATUS.ja.md)参照） | EspBleの`Hid/KeyboardHost`・`Hid/VendorHost`・`Hid/CustomClient`に対応するexampleは無い。HID **Device**の全profileとBLE MIDIはある: [Hid/](Hid/)、[Midi/](Midi/) |
 | プラットフォーム | ESP-HostedのSDIO pin指定 | 無印ESP32は自前の無線を持ち、ESP-Hostedのhostになることがない | EspBleの`Hosted/CustomPins`に対応するexampleは無い |
 
 ### Serverを組む前に知っておきたい帰結

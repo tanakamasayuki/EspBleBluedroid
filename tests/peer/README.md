@@ -73,6 +73,20 @@ attribute order (configuration order) and the descriptor order inside the Report
 Map (profile order) deliberately differ, because a host uses neither — it uses the
 Report Reference.
 
+`hid_keyboard_host` verifies the other side of HOGP: this library as the host. A
+host cannot assume a layout, so `discover()` reads the peer's Report Map, reads each
+Report Reference to learn which 0x2A4D attribute carries which report, and
+subscribes — and because this backend allows one central GATT operation per link at
+a time, all of that is a state machine rather than a straight-line sequence. The
+peer is this library's own keyboard device, configured with deliberately
+non-default values (country code 33, battery 73), so what discovery reports has to
+have been *read* rather than assumed. A keystroke is checked for what is not in the
+notification: usage 0x04 with the shift modifier becomes the character 'A' through
+the layout, the state carries the modifier usage 0xE1 as well as the key, and only
+the usage that changed is an event — a second key press does not re-report the first.
+The LED write is the one report a keyboard host sends, and a disconnect has to take
+the discovered handles with it, so `ready()` does not survive it.
+
 `hid_boot_protocol` verifies HID over GATT Boot Protocol — the fixed 8-byte keyboard
 report a host uses before it can parse a Report Descriptor. The keyboard is NKRO, so
 the two modes are as far apart as they get and the conversion is the subject: the

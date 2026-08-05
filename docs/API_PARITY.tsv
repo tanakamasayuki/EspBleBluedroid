@@ -18,7 +18,6 @@ espble_only	EspBle::addPhyUpdatedListener/1	backend	Bluetooth 4.2 LE radio: no L
 espble_only	EspBle::autoReconnect/0	planned	library-level feature, not a backend limit; examples/Gatt/Basics/AutoReconnectClient shows the manual pattern
 espble_only	EspBle::disconnect/2	backend	Bluedroid closes a link through esp_ble_gattc_close(), which sends no application-chosen HCI reason code; disconnect(id) is the whole API here
 espble_only	EspBle::droppedPersistentSubscriptionCount/0	planned	library-level feature, not a backend limit; examples/Gatt/Basics/AutoReconnectClient shows the manual pattern
-espble_only	EspBle::hidHost/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
 espble_only	EspBle::notifyServicesChanged/2	backend	Bluedroid owns Service Changed: Arduino-ESP32 builds it with CONFIG_BT_GATTS_SEND_SERVICE_CHANGE_AUTO=y and publishes Generic Attribute 0x1801 itself, so the application has nothing to announce (tests/peer/service_changed)
 espble_only	EspBle::onPhyUpdated/1	backend	Bluetooth 4.2 LE radio: no LE 2M or Coded PHY to select or report
 espble_only	EspBle::setAutoReconnect/1	planned	library-level feature, not a backend limit; examples/Gatt/Basics/AutoReconnectClient shows the manual pattern
@@ -26,112 +25,6 @@ espble_only	EspBle::updatePhy/3	backend	Bluetooth 4.2 LE radio: no LE 2M or Code
 espble_only	EspBleConfig::persistentSubscriptions	planned	library-level feature, not a backend limit; examples/Gatt/Basics/AutoReconnectClient shows the manual pattern
 espble_only	EspBleConnection::rxPhy	backend	Bluetooth 4.2 LE radio: no LE 2M or Coded PHY to select or report
 espble_only	EspBleConnection::txPhy	backend	Bluetooth 4.2 LE radio: no LE 2M or Coded PHY to select or report
-espble_only	EspBleHidConsumerControlEvent	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidConsumerControlEvent::pressed	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidConsumerControlEvent::released	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidConsumerControlEvent::usage	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidFieldValue	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidFieldValue::bitOffset	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidFieldValue::bitSize	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidFieldValue::flags	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidFieldValue::logicalMax	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidFieldValue::logicalMin	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidFieldValue::reportId	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidFieldValue::usage	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidFieldValue::usagePage	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidFieldValue::value	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidGamepadEvent	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidGamepadEvent::changed	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidGamepadEvent::fieldCount	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidGamepadEvent::fields	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::ConsumerControlCallback	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::DiscoveryCallback	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::GamepadCallback	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::KeyboardCallback	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::MaxListenersPerEvent	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::MouseCallback	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::StateCallback	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::SystemControlCallback	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::VendorInputCallback	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::addConsumerControlListener/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::addDiscoveredListener/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::addGamepadListener/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::addKeyboardListener/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::addKeyboardStateListener/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::addMouseListener/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::addSystemControlListener/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::addVendorInputListener/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::autoRediscover/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::discover/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::droppedEventCount/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::invalidInputReportCount/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::keyboardLayout/0	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::onConsumerControl/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::onDiscovered/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::onGamepad/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::onKeyboard/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::onKeyboardState/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::onMouse/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::onSystemControl/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::onVendorInput/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::ready/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::removeListener/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::sendVendorFeature/3	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::sendVendorOutput/3	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::setAutoRediscover/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::setKeyboardLayout/1	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::setKeyboardLeds/4	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::setKeyboardLeds/5	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidHost::setKeyboardLeds/6	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardEvent	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardEvent::ascii	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardEvent::capsLock	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardEvent::compose	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardEvent::kana	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardEvent::modifiers	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardEvent::numLock	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardEvent::pressed	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardEvent::released	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardEvent::scrollLock	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardEvent::unicode	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardEvent::usage	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardHostDiscovery	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardHostDiscovery::batteryLevel	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardHostDiscovery::connectionId	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardHostDiscovery::countryCode	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardHostDiscovery::detail	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardHostDiscovery::error	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardHostDiscovery::hasBatteryLevel	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardHostDiscovery::hasCountryCode	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardHostDiscovery::hasOutputReport	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardHostDiscovery::reportId	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardHostDiscovery::success	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardState	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardState::BitmapSize	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardState::bitmap	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardState::capsLock	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardState::changedBitmap	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardState::compose	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardState::connectionId	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardState::kana	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardState::modifiers	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardState::numLock	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardState::reportId	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidKeyboardState::scrollLock	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidMouseEvent	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidMouseEvent::buttons	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidMouseEvent::buttonsChanged	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidMouseEvent::moved	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidMouseEvent::previousButtons	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidMouseEvent::wheel	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidMouseEvent::x	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidMouseEvent::y	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidSystemControlEvent	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidSystemControlEvent::pressed	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidSystemControlEvent::released	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidSystemControlEvent::usage	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
-espble_only	EspBleHidVendorInputEvent	planned	HID over GATT / BLE MIDI; docs/PROFILE_BRIDGE_ROADMAP.ja.md Phase 1
 bluedroid_only	EspBle::capabilities/0	classic	compile-time snapshot of which Bluetooth Classic features this build has
 bluedroid_only	EspBle::classic/0	classic	entry point for every Bluetooth Classic profile; EspBle is BLE only
 bluedroid_only	EspBleConfig::classicSecurity	classic	Secure Simple Pairing configuration for Classic, a separate bond store from the BLE one in EspBleConfig::security
