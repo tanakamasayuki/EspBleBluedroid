@@ -162,6 +162,9 @@ central standing in for a host OS: the descriptor that reaches the air, the two
 0x2A4D Report characteristics told apart by their Report Reference descriptors, the
 input report notification, the LED output write, the Protocol Mode write, and the
 Device Information and Battery values.
+`peer/hid_composite` verifies the five profiles that share one HID service, the
+Report Map they compose, and that each notification arrives on its own report's
+handle.
 `peer/duplicate_uuid_server` verifies the other side of that: two same-UUID
 characteristics published by this library are two real attributes on the air, read
 back from a raw peer with their own values, their own Report-Reference-style

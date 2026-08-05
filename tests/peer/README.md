@@ -61,3 +61,14 @@ Protocol Mode write is reported, and the Device Information and Battery values a
 the ones `configure()` was given. It also pins the two refusals a caller has to be
 able to tell apart — `no connected HID Host` and `no subscribed HID Host` — and
 that a disconnected host leaves neither `ready()` nor an LED state behind.
+`hid_composite` verifies the five device profiles that share one HID service —
+keyboard, mouse, consumer control, system control and gamepad. What only a
+composite device can get wrong is checked: the published Report Map is the five
+descriptors concatenated in profile order with the mouse button count patched in
+(the expected value is built from the same snapshot `unit/hid_report_maps` uses, so
+the composition rule itself is the assertion), five Input Report characteristics
+share UUID 0x2A4D with a Report Reference each, and every notification arrives on
+the handle belonging to the profile that sent it, with the exact wire bytes. The
+attribute order (configuration order) and the descriptor order inside the Report
+Map (profile order) deliberately differ, because a host uses neither — it uses the
+Report Reference.

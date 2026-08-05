@@ -6331,15 +6331,7 @@ EspBleHidSystemControl &EspBleBluedroid::hidSystemControl()
 
 EspBleHidGamepad &EspBleBluedroid::hidGamepad() { return hidGamepad_; }
 
-namespace
-{
-// Keeps the accessor definitions above from being mistaken for the keyboard's.
-}
 
-EspBleHidKeyboard &espBleBluedroidUnusedKeyboardAccessor(EspBleBluedroid &owner)
-{
-  return owner.hidKeyboard();
-}
 
 EspBluedroidClassic &EspBleBluedroid::classic()
 {

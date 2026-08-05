@@ -2253,6 +2253,10 @@ private:
   friend class EspBleScanner;
   friend class EspBleGattServer;
   friend class EspBleHidKeyboard;
+  friend class EspBleHidMouse;
+  friend class EspBleHidConsumerControl;
+  friend class EspBleHidSystemControl;
+  friend class EspBleHidGamepad;
   friend struct EspBleHidDeviceManagerImpl;
   friend class EspBluedroidClassic;
   friend class EspBluedroidClassicInquiry;

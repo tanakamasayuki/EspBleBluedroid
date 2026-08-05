@@ -64,3 +64,11 @@ HostのLED writeが`onOutputReport()`と`ledState()`に返ること、Protocol M
 報告されること、Device InformationとBatteryが`configure()`に渡した値であることを確認します。
 呼び出し側が区別する必要のある2つの拒否理由（`no connected HID Host`と
 `no subscribed HID Host`）、および切断後に`ready()`もLED状態も残らないことも固定します。
+`hid_composite`は、1つのHID serviceを共有する5つのDevice profile（keyboard、mouse、
+consumer control、system control、gamepad）を検証します。composite機器でしか壊れない点を
+確認します。公開されるReport Mapが5つのdescriptorをprofile順に連結し、マウスのボタン数を
+埋め込んだものであること（期待値は`unit/hid_report_maps`と同じsnapshotから組み立てるので、
+合成規則そのものがassertionになります）、5本のInput Report characteristicがUUID 0x2A4Dを
+共有しReport Referenceを各々持つこと、各Notificationが送信元profileのhandleへ正しいバイト列で
+届くこと。属性の並び順（configure順）とReport Map内のdescriptor順（profile順）は意図的に
+異なります。hostが使うのはどちらでもなくReport Referenceだからです。
