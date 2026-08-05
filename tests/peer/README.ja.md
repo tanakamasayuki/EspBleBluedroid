@@ -43,6 +43,16 @@ GATT Client系・GATT Server系eventの`add*Listener()`が登録順に配送さ�
 lifecycleを検証します。接続event、こちらが観測するだけのMTU交換、パラメータを含む
 `connection()` snapshot、その役割でのpairing、HCI切断理由、GATT Server eventが持つ
 connection IDの一致を確認します。
+`lifecycle_stress`は繰り返しの代償を検証します。他のsuiteはstackを一度立ち上げたままに
+しますが、これは`begin()` → scan → 接続 → discover → read → 購読 → write → notification
+→ 切断 → `end()`を8周し、各周のあとにfree heap、最小free heap、FreeRTOSのtask数を報告
+します。assertするのは絶対値ではなく**2周目と最終周の差分**です。1周目は返却されない
+一度限りの確保を払うので、基準にはできません。ここで捕まえるのは「一度だけ接続するsuiteでは
+見えない失敗」——接続あたり数百byteやtask 1本のleakで、ここでは無害でも再接続を繰り返す
+sketchでは致命的になります。計測器は全周を通して立ち上がったままで、切断のたびにadvertising
+を再開し、書き込まれた値をそのままnotifyします。1周の中にserialの往復が入らず、peer自身の
+状態も周ごとにずれません。
+
 `midi_device`と`midi_host`は、BLE MIDI profile helper（`EspBleMidiProfile.h`）を
 Device・Host両方の役割で検証します。相手はraw Arduino-ESP32で、BLE MIDIのヘッダを
 自前の演算で組み立て・デコードします。したがって同じcodecを両端で突き合わせるのではなく、

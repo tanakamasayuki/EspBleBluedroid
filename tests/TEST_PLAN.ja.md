@@ -245,7 +245,7 @@ cross-stack試験を指す。
 | 実行時Passkey Entry | | ✅ | ✅ `runtime_passkey` | 予定 `security` |
 | Numeric Comparison（確認 / 拒否 / timeout） | | ✅ | ✅ `numeric_comparison` | ✅ `security`内（確認 / 拒否） |
 | Peripheral connection snapshot / security event | | ✅ | ✅ `peripheral_connection` | |
-| lifecycle反復 / heap / task / event leak | | ✅ | **未** → `lifecycle_stress` | |
+| lifecycle反復 / heap / task / event leak | | ✅ | ✅ `lifecycle_stress`（`begin()` → 接続 → GATT → `end()`を8周。絶対値ではなく2周目と最終周の差分でheapとtask数を見る） | |
 | Wi-Fi / BLE共存（無印ESP32の内蔵radio共有） | | ✅ | **未** → `wifi_ble_coexistence` | |
 | PHY更新 | — | — | **対象外**（Bluetooth 4.2 LE、2M/Coded PHYなし） | |
 | persistent subscription / auto-reconnect | — | — | **対象外**（API非提供、EspBleとの差分として文書化済み） | |
@@ -411,7 +411,7 @@ cross-stack試験を指す。
 **P2: 既存実装の穴**
 
 - 標準GATT profile peer test 24件（examplesと1対1、wire期待値はEspBleと共有）
-- `lifecycle_stress`
+- ✅ `lifecycle_stress`
 - `wifi_ble_coexistence`（無印ESP32の内蔵radio共有）
 - `a2dp_soak`、`profile_resource_conflict`
 
@@ -444,12 +444,13 @@ cross-stack試験を指す。
   本backendは1 linkあたりCentral GATT操作を同時1件しか許さないため。
   ✅ `interop/hid`が双方向で完了——EspBleのdeviceに対する本実装のhostと、その逆。
   descriptorのバイト列ではなく「その意味」について別実装と一致することを確認した最初の
-  テストである。残りはsecurityのscenario
+  テストである。✅ `hid_security`で最後の1つも完了——deviceは接続時にPairingを要求し、
+  拒否したHostは何も読めない
 
 **interop**: 各層でAPIとwire動作が固まった順に`interop/`へ写す。`gatt_basic`、
-`advertise_scan`、`long_value`、`duplicate_uuid`、`security`、`profile_wire`は実装済み。
-残るのは接続系scenarioの逆方向（Peripheral connection snapshotが実装されたので着手可能）と
-HID/MIDI。
+`advertise_scan`、`long_value`、`duplicate_uuid`、`security`、`profile_wire`、`midi`、
+`hid`は実装済み。残るのは接続系scenarioの逆方向で、Peripheral connection snapshotが
+実装されたので着手できる。
 
 ## 既知の間欠失敗
 

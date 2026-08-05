@@ -34,6 +34,18 @@ against a raw Arduino-ESP32 BLE client: the connect event, the MTU exchange this
 side only observes, the `connection()` snapshot with its parameters, pairing in
 that role, the HCI disconnection reason, and the connection ID a GATT Server event
 carries.
+`lifecycle_stress` verifies what repetition costs. Every other suite brings the
+stack up once and leaves it up; this one runs `begin()` → scan → connect → discover
+→ read → subscribe → write → notification → disconnect → `end()` eight times over
+and reports free heap, minimum free heap and the FreeRTOS task count after each
+round. The assertion is the **drift** between the second round and the last, not an
+absolute number: the first round pays for one-time allocations that are never
+returned, so it can never be the baseline. What this catches is the failure a
+connect-once suite cannot — a few hundred bytes or one task per connection, harmless
+here and fatal in a sketch that reconnects all day. The instrument stays up for the
+whole run, re-advertises after every disconnect and notifies whatever is written to
+it, so a round needs no serial round trip and the peer's own state cannot drift.
+
 `midi_device` and `midi_host` verify the BLE MIDI profile helpers
 (`EspBleMidiProfile.h`) in both roles against a raw Arduino-ESP32 peer that
 encodes and decodes the BLE MIDI header with its own arithmetic, so the wire

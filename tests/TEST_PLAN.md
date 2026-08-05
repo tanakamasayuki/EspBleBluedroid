@@ -286,7 +286,7 @@ is the cross-stack suite against EspBle.
 | Runtime Passkey Entry | | ✅ | ✅ `runtime_passkey` | planned `security` |
 | Numeric Comparison (confirm / reject / timeout) | | ✅ | ✅ `numeric_comparison` | ✅ inside `security` (confirm / reject) |
 | Peripheral connection snapshot / security events | | ✅ | ✅ `peripheral_connection` | |
-| Lifecycle repetition / heap / task / event leaks | | ✅ | **missing** → `lifecycle_stress` | |
+| Lifecycle repetition / heap / task / event leaks | | ✅ | ✅ `lifecycle_stress` (eight full `begin()` → connect → GATT → `end()` rounds; drift in free heap and task count between the second round and the last, not an absolute number) | |
 | Wi-Fi / BLE coexistence (shared on-chip radio) | | ✅ | **missing** → `wifi_ble_coexistence` | |
 | PHY update | — | — | **out of scope** (Bluetooth 4.2 LE; no 2M/Coded PHY) | |
 | Persistent subscriptions / auto-reconnect | — | — | **out of scope** (API not offered; documented as an EspBle difference) | |
@@ -461,7 +461,7 @@ Start with the gaps that need no implementation work.
 
 - 24 standard GATT profile peer tests (one-to-one with the examples, sharing
   EspBle's wire expectations)
-- `lifecycle_stress`
+- ✅ `lifecycle_stress`
 - `wifi_ble_coexistence` (the original ESP32 shares one radio)
 - `a2dp_soak`, `profile_resource_conflict`
 
@@ -499,13 +499,15 @@ Start with the gaps that need no implementation work.
   per link at a time. ✅ `interop/hid` closes it in both
   directions: EspBle's device against this library's host and the reverse, which is
   the first check that a different implementation agrees on what those descriptors
-  mean rather than only on their bytes. What remains is the security scenario
+  mean rather than only on their bytes. ✅ `hid_security` closes the last of it: the
+  device asks the host to pair as soon as it connects, and a host that refuses reads
+  nothing
 
 **interop**: each layer moves into `interop/` once its API and wire behaviour
 settle. `gatt_basic`, `advertise_scan`, `long_value`, `duplicate_uuid`,
-`security` and `profile_wire` are done. What remains is the reverse direction of
-the connection-oriented scenarios (waiting for the peripheral connection
-snapshot) and the HID/MIDI pair.
+`security`, `profile_wire`, `midi` and `hid` are done. What remains is the reverse
+direction of the connection-oriented scenarios, which the peripheral connection
+snapshot has now unblocked.
 
 ## Known intermittent failures
 
