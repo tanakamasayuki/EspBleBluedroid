@@ -170,6 +170,10 @@ CCCD購読、notificationまで確認している。
   （`tests/peer/hid_composite`）。`hidVendor()`と`hidCustom()`も利用できる。この2つだけが
   Output・Feature Reportを持ちHostから書き込まれる側で、`hidCustom()`のdescriptorは
   合成されたdescriptorのあとに連結される（`tests/peer/hid_vendor_custom`）。
+  Boot Protocol（`bootProtocol = true`）はProtocol Mode 0x2a4eとBoot Keyboard
+  Input/Output 0x2a22/0x2a32を追加し、Boot Protocol Mode中はNKRO bitmapを固定8 byteへ
+  変換して送る（6キー超はHIDのrolloverコード0x01）。`ready()`は選択中modeが使うreportの
+  CCCDに従う（`tests/peer/hid_boot_protocol`）。
   HID Hostは未実装。
   BLE MIDIのprofile helperは`EspBleMidiProfile.h`として利用できる。
   `EspBleMidiDevice` / `EspBleMidiHost`はEspBleのファイルのライブラリ参照の型だけを

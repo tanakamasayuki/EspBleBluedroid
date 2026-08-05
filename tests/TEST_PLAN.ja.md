@@ -121,7 +121,7 @@ SSSSNNNN-b1dd-4d00-9e5a-627564726f69
 | `0007` | `peripheral_connection` |
 | `0008` | `multi_listener` |
 | `000b` | `duplicate_uuid_server` |
-| `000c` / `000d` / `000e` | `hid_keyboard_device` / `hid_composite` / `hid_vendor_custom` — tagのみ。HID over GATTのUUIDは仕様で固定されているため、デバイス名（`Bluedroid HID 000c` / `000d` / `000e`）で隔離する |
+| `000c`〜`000f` | `hid_keyboard_device` / `hid_composite` / `hid_vendor_custom` / `hid_boot_protocol` — tagのみ。HID over GATTのUUIDは仕様で固定されているため、デバイス名（`Bluedroid HID 000c`〜`000f`）で隔離する |
 | `0009` / `000a` | `midi_device` / `midi_host` — **tagのみでUUIDではない**。BLE MIDIのServiceとCharacteristic UUIDは仕様で固定されているため、このsuiteは未使用UUIDを選べない。代わりにデバイス名で隔離する（`Bluedroid MIDI 0009`、`Bluedroid MIDI Peer 000a`）。両側とも名前とService UUIDの両方が一致することを要求する |
 | `01xx` | interop scenario専用の範囲（`0100` = `interop/gatt_basic`、`0101` = `interop/advertise_scan`、`0102` = `interop/long_value`、`0103` = `interop/duplicate_uuid`、`0104` = `interop/security`、`0105` = `interop/profile_wire`、`0106` = `interop/midi`はtagのみ — BLE MIDIのUUIDは仕様固定なので、このscenarioは役割を含むデバイス名（`EspBle MIDI Device 0106` / `Bluedroid MIDI Device 0106`）で隔離する） |
 
@@ -292,7 +292,9 @@ cross-stack試験を指す。
 | HID Device — keyboard | ✅ 上記descriptor | ✅ | ✅ `hid_keyboard_device` | 予定 `interop/hid` |
 | HID Device — mouse / consumer control / system control / gamepad | ✅ 上記descriptor | ✅ | ✅ `hid_composite` | 予定 `interop/hid` |
 | HID Device — vendor / `hidCustom()` | ✅ 上記descriptor | ✅ | ✅ `hid_vendor_custom`（双方向、Output・Feature Report） | 予定 `interop/hid` |
-| HID Device — boot protocol・security tier・robustness | | 予定 | 予定 `hid_boot_protocol`、`hid_security`、`hid_robustness` | |
+| HID Device — boot protocol | ✅ 上記descriptor | ✅ | ✅ `hid_boot_protocol`（NKRO ⇄ boot変換、rollover、mode別の`ready()`） | |
+| HID Device — security tier | | 予定 | 予定 `hid_security` | |
+| HID Device — robustness | | | 大半は他suiteでカバー済み: 2種類の送信拒否と切断時リセットは`hid_keyboard_device`、rolloverは`hid_boot_protocol`、長さ不一致と未宣言reportの拒否は`hid_vendor_custom`。残りはHID固有ではない（`lifecycle_stress`） | |
 | HID Host | 上記parser | 予定 | 予定 `hid_keyboard_host`、`hid_boot_keyboard`、`hid_keyboard_nkro` | 予定 `interop/hid` |
 
 ### Bluetooth Classic / dual mode（このライブラリ固有）
@@ -430,8 +432,9 @@ cross-stack試験を指す。
   `docs/API_PARITY.tsv`から81行が消え、mouse・consumer control・system control・
   gamepadを共有manager経由で実装（`hid_composite`）して差分は715行から547行へ。続いて
   `hidVendor()`と`hidCustom()`（`hid_vendor_custom`）——ライブラリが中身を解釈しない2つの
-  profileで、Hostから書き込まれる唯一のprofileでもある——で547行から502行へ。
-  残りはboot protocolとsecurityのscenario、その後HID Host
+  profileで、Hostから書き込まれる唯一のprofileでもある——で547行から502行へ。さらに
+  Boot Protocol（`hid_boot_protocol`）——NKRO keyboardがboot Hostへ固定8 byteのreportで
+  答える経路。残りはsecurityのscenario、その後HID Host
 
 **interop**: 各層でAPIとwire動作が固まった順に`interop/`へ写す。`gatt_basic`、
 `advertise_scan`、`long_value`、`duplicate_uuid`、`security`、`profile_wire`は実装済み。

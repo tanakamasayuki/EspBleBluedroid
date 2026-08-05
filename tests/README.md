@@ -165,6 +165,12 @@ Device Information and Battery values.
 `peer/hid_composite` verifies the five profiles that share one HID service, the
 Report Map they compose, and that each notification arrives on its own report's
 handle.
+`peer/hid_boot_protocol` verifies HID over GATT Boot Protocol on an NKRO keyboard:
+the two extra characteristics Boot Protocol adds, the Protocol Mode default and
+switch, the same usages leaving as a 29-byte bitmap or as the fixed 8-byte boot
+report depending on the mode, the HID rollover code when more than six keys are
+held, the boot LED write, and `ready()` following the CCCD of whichever report the
+selected mode uses.
 `peer/hid_vendor_custom` verifies the two profiles whose payload the library does
 not interpret — `hidVendor()` and `hidCustom()` — and the direction only they have:
 a Report Map that is the composed descriptor followed by the sketch's own, a report

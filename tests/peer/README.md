@@ -73,6 +73,21 @@ attribute order (configuration order) and the descriptor order inside the Report
 Map (profile order) deliberately differ, because a host uses neither — it uses the
 Report Reference.
 
+`hid_boot_protocol` verifies HID over GATT Boot Protocol — the fixed 8-byte keyboard
+report a host uses before it can parse a Report Descriptor. The keyboard is NKRO, so
+the two modes are as far apart as they get and the conversion is the subject: the
+same `sendReport()` leaves as the 29-byte bitmap the Report Map declares in Report
+Protocol Mode and as `[modifiers, reserved, keycode1..6]` in Boot Protocol Mode, on a
+different handle. The expected bytes are built in the test from the usages, in both
+layouts, rather than compared against the same conversion twice. More than six held
+keys become the HID rollover code 0x01 in every slot, because a boot host has to be
+told "too many" rather than handed an arbitrary subset. The host subscribes to *both*
+Input Reports, so which one carries a keystroke is the device's decision; the LED
+write goes to the Boot Keyboard Output Report and has to reach the same
+`onOutputReport()`; and `ready()` follows the CCCD of the live report — with the Boot
+Keyboard CCCD off in Boot Protocol Mode it is false and the send fails with
+`InvalidState`, even though the Report-protocol subscription is still there.
+
 `hid_vendor_custom` verifies the two profiles whose payload the library does not
 interpret: `hidVendor()`, whose descriptor is fixed but whose report size is the
 caller's, and `hidCustom()`, whose descriptor is the caller's entirely. They are

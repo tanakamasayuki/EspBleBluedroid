@@ -73,6 +73,18 @@ consumer control、system control、gamepad）を検証します。composite機�
 届くこと。属性の並び順（configure順）とReport Map内のdescriptor順（profile順）は意図的に
 異なります。hostが使うのはどちらでもなくReport Referenceだからです。
 
+`hid_boot_protocol`はHID over GATT Boot Protocol——Report Descriptorを解釈できない
+Hostが使う固定8 byteのkeyboard report——を検証します。keyboardをNKROにしているので両modeの
+差は最大で、変換そのものが主題です。同じ`sendReport()`が、Report Protocol ModeではReport Mapが
+宣言する29 byteのbitmapとして、Boot Protocol Modeでは`[modifiers, reserved, keycode1..6]`として、
+別のhandleへ出ます。期待値はtest側がusageから両形式で組み立てるので、同じ変換を2回突き合わせて
+いません。6キーを超える保持はHIDのrolloverコード0x01が全slotに入ります。boot Hostには任意の
+部分集合ではなく「多すぎる」と伝える必要があるためです。Hostは**両方**のInput Reportを購読するので、
+どちらがキー入力を運ぶかはデバイスの判断です。LED writeはBoot Keyboard Output Reportへ行き、
+同じ`onOutputReport()`に届く必要があります。そして`ready()`は生きているreportのCCCDに従います。
+Boot Protocol Modeでboot CCCDを切ると、Report-protocol側の購読が残っていても`ready()`はfalseで
+送信は`InvalidState`で失敗します。
+
 `hid_vendor_custom`は、ライブラリが中身を解釈しない2つのprofileを検証します。descriptorは
 固定でReportサイズだけが利用者指定の`hidVendor()`と、descriptor自体が利用者のものである
 `hidCustom()`です。Hostから書き込まれる唯一のprofileなので、`hid_composite`では扱えない

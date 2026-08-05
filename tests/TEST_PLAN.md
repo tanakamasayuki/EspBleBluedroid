@@ -144,7 +144,7 @@ Add a row here before using a new tag.
 | `0007` | `peripheral_connection` |
 | `0008` | `multi_listener` |
 | `000b` | `duplicate_uuid_server` |
-| `000c` / `000d` / `000e` | `hid_keyboard_device` / `hid_composite` / `hid_vendor_custom` — a tag only: the HID over GATT UUIDs are fixed by the specification, so these suites are isolated by device name (`Bluedroid HID 000c` / `000d` / `000e`) |
+| `000c` – `000f` | `hid_keyboard_device` / `hid_composite` / `hid_vendor_custom` / `hid_boot_protocol` — a tag only: the HID over GATT UUIDs are fixed by the specification, so these suites are isolated by device name (`Bluedroid HID 000c` … `000f`) |
 | `0009` / `000a` | `midi_device` / `midi_host` — **tags only, not UUIDs**: the BLE MIDI service and characteristic UUIDs are fixed by the specification, so these suites cannot pick unused ones. Isolation is by device name instead (`Bluedroid MIDI 0009`, `Bluedroid MIDI Peer 000a`), and each side requires both the name and the service UUID to match |
 | `01xx` | reserved for interop scenarios (`0100` = `interop/gatt_basic`, `0101` = `interop/advertise_scan`, `0102` = `interop/long_value`, `0103` = `interop/duplicate_uuid`, `0104` = `interop/security`, `0105` = `interop/profile_wire`; `0106` = `interop/midi`, a tag only — the BLE MIDI UUIDs are fixed by the specification, so that scenario is isolated by device name (`EspBle MIDI Device 0106` / `Bluedroid MIDI Device 0106`) with the role in the name) |
 
@@ -333,7 +333,9 @@ once its prerequisites are met.
 | HID device — keyboard | ✅ descriptors above | ✅ | ✅ `hid_keyboard_device` | planned `interop/hid` |
 | HID device — mouse / consumer control / system control / gamepad | ✅ descriptors above | ✅ | ✅ `hid_composite` | planned `interop/hid` |
 | HID device — vendor / `hidCustom()` | ✅ descriptors above | ✅ | ✅ `hid_vendor_custom` (both directions, output and feature reports) | planned `interop/hid` |
-| HID device — boot protocol, security tiers, robustness | | planned | planned `hid_boot_protocol`, `hid_security`, `hid_robustness` | |
+| HID device — boot protocol | ✅ descriptors above | ✅ | ✅ `hid_boot_protocol` (NKRO ⇄ boot conversion, rollover, `ready()` per mode) | |
+| HID device — security tiers | | planned | planned `hid_security` | |
+| HID device — robustness | | | mostly covered elsewhere: the two send refusals and the disconnect reset in `hid_keyboard_device`, the rollover in `hid_boot_protocol`, the length and unknown-report refusals in `hid_vendor_custom`; what is left is not HID-specific (`lifecycle_stress`) | |
 | HID host | parser above | planned | planned `hid_keyboard_host`, `hid_boot_keyboard`, `hid_keyboard_nkro` | planned `interop/hid` |
 
 ### Bluetooth Classic / dual mode (specific to this library)
@@ -481,8 +483,10 @@ Start with the gaps that need no implementation work.
   left `docs/API_PARITY.tsv`; mouse, consumer control, system control and gamepad
   through the shared manager (`hid_composite`) — 715 differences to 547; then
   `hidVendor()` and `hidCustom()` (`hid_vendor_custom`), the two profiles the
-  library does not decode and the only ones a host writes to — 547 to 502. What
-  remains is the boot-protocol and security scenarios, then HID host
+  library does not decode and the only ones a host writes to — 547 to 502; and
+  Boot Protocol (`hid_boot_protocol`), where an NKRO keyboard has to answer a
+  boot host with the fixed 8-byte report. What remains is the security scenario,
+  then HID host
 
 **interop**: each layer moves into `interop/` once its API and wire behaviour
 settle. `gatt_basic`, `advertise_scan`, `long_value`, `duplicate_uuid`,
