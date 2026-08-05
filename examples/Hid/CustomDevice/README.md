@@ -9,7 +9,7 @@ A HID device with an **arbitrary** Report Descriptor, via `bluetooth.hidCustom()
 ## Hardware
 
 - 1 × original ESP32 running this sketch (HID device / peripheral)
-- 1 × HID host that speaks this descriptor: a host application, or a second board acting as a generic GATT client — `tests/peer/hid_vendor_custom` drives a device of exactly this shape
+- 1 × HID host that speaks this descriptor: a second board running [CustomClient](../CustomClient/), or a host application — `tests/peer/hid_vendor_custom` drives a device of exactly this shape
 
 ## What it does
 

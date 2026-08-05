@@ -9,7 +9,7 @@ A vendor-defined HID device: an Input, an Output and a Feature report of a calle
 ## Hardware
 
 - 1 × original ESP32 running this sketch (HID device / peripheral)
-- 1 × HID host that can write a vendor report: a host application, or a second board — `tests/peer/hid_vendor_custom` drives exactly this sketch's shape
+- 1 × HID host that can write a vendor report: a second board running [VendorHost](../VendorHost/), or a host application — `tests/peer/hid_vendor_custom` drives exactly this sketch's shape
 
 ## What it does
 

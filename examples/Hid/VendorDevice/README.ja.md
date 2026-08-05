@@ -9,7 +9,7 @@ vendor定義のHIDデバイスです。任意サイズのInput・Output・Featur
 ## 必要なもの
 
 - このsketchを動かす無印ESP32 × 1（HIDデバイス / Peripheral）
-- vendor Reportを書き込めるHID Host × 1: Hostアプリ、または2枚目のボード。`tests/peer/hid_vendor_custom`がまさにこの形を駆動しています
+- vendor Reportを書き込めるHID Host × 1: [VendorHost](../VendorHost/)を動かす2枚目のボード、またはHostアプリ。`tests/peer/hid_vendor_custom`がまさにこの形を駆動しています
 
 ## 動作
 

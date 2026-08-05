@@ -9,7 +9,7 @@
 ## 必要なもの
 
 - このsketchを動かす無印ESP32 × 1（HIDデバイス / Peripheral）
-- このdescriptorを解釈するHID Host × 1: Hostアプリ、または汎用GATT Clientとして振る舞う2枚目のボード。`tests/peer/hid_vendor_custom`がまさにこの形のデバイスを駆動しています
+- このdescriptorを解釈するHID Host × 1: [CustomClient](../CustomClient/)を動かす2枚目のボード、またはHostアプリ。`tests/peer/hid_vendor_custom`がまさにこの形のデバイスを駆動しています
 
 ## 動作
 
