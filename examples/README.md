@@ -3,7 +3,7 @@
 > 日本語版: [README.ja.md](README.ja.md)
 > Differences from EspBle: [DIFFERENCES_FROM_ESPBLE.md](DIFFERENCES_FROM_ESPBLE.md)
 
-94 examples for the **original ESP32** — the ESP32 SoC with Bluetooth Classic —
+100 examples for the **original ESP32** — the ESP32 SoC with Bluetooth Classic —
 built on the Bluedroid backend bundled with Arduino-ESP32.
 
 The BLE examples are ported from the sibling library
@@ -168,6 +168,12 @@ exclusively — it is the only ESP32 family member with Bluetooth Classic.
 | Example | Role | Description |
 |---|---|---|
 | [Hid/KeyboardDevice](Hid/KeyboardDevice/) | Peripheral | BLE HID keyboard: reports, the host's LED output report, Protocol Mode, battery |
+| [Hid/KeyboardNkro](Hid/KeyboardNkro/) | Peripheral | N-key rollover: the whole keyboard state as one 29-byte report |
+| [Hid/Mouse](Hid/Mouse/) | Peripheral | Relative pointer with buttons and a wheel; drag as a move with the button held |
+| [Hid/ConsumerControl](Hid/ConsumerControl/) | Peripheral | Media keys: one 16-bit Consumer page usage per report |
+| [Hid/CompositeKeyboardMouse](Hid/CompositeKeyboardMouse/) | Peripheral | Keyboard and mouse in one HID service, told apart by Report ID |
+| [Hid/VendorDevice](Hid/VendorDevice/) | Peripheral | Vendor-defined Input, Output and Feature reports of a chosen size |
+| [Hid/CustomDevice](Hid/CustomDevice/) | Peripheral | An arbitrary Report Descriptor with caller-declared reports |
 
 ### BLE MIDI
 
@@ -217,7 +223,7 @@ exclusively — it is the only ESP32 family member with Bluetooth Classic.
 - Security/JustWorksServer ↔ Security/JustWorksClient
 - Security/StaticPasskeyServer ↔ Security/StaticPasskeyClient
 - Security/RuntimePasskeyClient and NumericComparisonClient ↔ a phone, an EspBle board, or a raw ESP-IDF peer ([Security/README.md](Security/README.md))
-- Hid/KeyboardDevice ↔ a PC, phone or tablet (pair from the OS Bluetooth settings)
+- Each `Hid/*` device ↔ a PC, phone or tablet (pair from the OS Bluetooth settings); Hid/VendorDevice and Hid/CustomDevice need a host that writes their reports
 - Midi/MidiDevice ↔ Midi/MidiHost (or a phone/tablet DAW, or a commercial BLE MIDI instrument)
 - Classic/SppServer ↔ Classic/SppClient, Classic/SppSerialServer ↔ Classic/SppSerialClient
 - Classic/A2dpSource ↔ Classic/A2dpSink, Classic/HfpAudioGateway ↔ Classic/HfpHandsFree

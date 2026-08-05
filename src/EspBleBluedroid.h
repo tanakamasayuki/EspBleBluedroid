@@ -528,6 +528,20 @@ static constexpr uint8_t ESP_BLE_HID_GAMEPAD_HAT_DOWN_LEFT = 0x06;
 static constexpr uint8_t ESP_BLE_HID_GAMEPAD_HAT_LEFT = 0x07;
 static constexpr uint8_t ESP_BLE_HID_GAMEPAD_HAT_UP_LEFT = 0x08;
 
+// The Consumer page usages the consumer control descriptor covers, and the three
+// System Control usages its descriptor declares. Both are HID usage-table values,
+// so a sketch may pass any usage the descriptor's range allows.
+static constexpr uint16_t ESP_BLE_HID_CONSUMER_CONTROL_NEXT_TRACK = 0x00b5;
+static constexpr uint16_t ESP_BLE_HID_CONSUMER_CONTROL_PREVIOUS_TRACK = 0x00b6;
+static constexpr uint16_t ESP_BLE_HID_CONSUMER_CONTROL_PLAY_PAUSE = 0x00cd;
+static constexpr uint16_t ESP_BLE_HID_CONSUMER_CONTROL_MUTE = 0x00e2;
+static constexpr uint16_t ESP_BLE_HID_CONSUMER_CONTROL_VOLUME_UP = 0x00e9;
+static constexpr uint16_t ESP_BLE_HID_CONSUMER_CONTROL_VOLUME_DOWN = 0x00ea;
+
+static constexpr uint8_t ESP_BLE_HID_SYSTEM_CONTROL_POWER_OFF = 0x01;
+static constexpr uint8_t ESP_BLE_HID_SYSTEM_CONTROL_STANDBY = 0x02;
+static constexpr uint8_t ESP_BLE_HID_SYSTEM_CONTROL_WAKE_HOST = 0x03;
+
 struct EspBleHidDeviceConfig
 {
   const char *manufacturer = "EspBle";
@@ -556,6 +570,11 @@ struct EspBleHidMouseConfig : EspBleHidDeviceConfig
 struct EspBleHidConsumerControlConfig : EspBleHidDeviceConfig {};
 struct EspBleHidSystemControlConfig : EspBleHidDeviceConfig {};
 struct EspBleHidGamepadConfig : EspBleHidDeviceConfig {};
+
+struct EspBleHidVendorConfig : EspBleHidDeviceConfig
+{
+  uint8_t reportSize = 63;
+};
 
 struct EspBleHidKeyboardInputReport
 {
@@ -673,6 +692,28 @@ struct EspBleHidKeyboardOutputReport
     compose = (value & 0x08) != 0;
     kana = (value & 0x10) != 0;
   }
+};
+
+// What every report a peer sent carries: which link it came from, which report it
+// was, and the bytes as they arrived. The decoded views (below, and the HID Host's
+// events) add their interpretation on top without hiding the raw report.
+struct EspBleHidReport
+{
+  EspBleConnectionId connectionId = 0;
+  uint8_t reportId = 0;
+  const uint8_t *rawData = nullptr;
+  size_t rawLength = 0;
+};
+
+// An Output or Feature report a HID Host wrote, for the profiles whose payload the
+// library does not interpret: hidVendor() and hidCustom(). `data` / `length` are
+// the same bytes as `rawData` / `rawLength` — both spellings exist because the
+// decoded profiles use the first pair for their interpretation.
+struct EspBleHidVendorReport : EspBleHidReport
+{
+  uint8_t reportType = 0;
+  const uint8_t *data = nullptr;
+  size_t length = 0;
 };
 
 struct EspBluedroidCapabilities
@@ -1030,6 +1071,8 @@ struct EspBluedroidSppConnectionFailure
 
 class EspBleBluedroid;
 class EspBleHidKeyboard;
+class EspBleHidVendor;
+class EspBleHidCustom;
 struct EspBleHidDeviceManagerImpl;
 struct EspBleScannerImpl;
 struct EspBleConnectionImpl;
@@ -1248,6 +1291,8 @@ private:
   friend class EspBleHidConsumerControl;
   friend class EspBleHidSystemControl;
   friend class EspBleHidGamepad;
+  friend class EspBleHidVendor;
+  friend class EspBleHidCustom;
   friend struct EspBleHidDeviceManagerImpl;
   explicit EspBleGattServer(EspBleBluedroid *owner);
   // Raise an already-registered Characteristic's read/write permission tiers.
@@ -1825,6 +1870,8 @@ private:
   friend class EspBleHidConsumerControl;
   friend class EspBleHidSystemControl;
   friend class EspBleHidGamepad;
+  friend class EspBleHidVendor;
+  friend class EspBleHidCustom;
   friend struct EspBleHidDeviceManagerImpl;
 
   explicit EspBleHidKeyboard(EspBleBluedroid *owner);
@@ -1832,6 +1879,25 @@ private:
   // keyboard owns the manager because it is the profile that carries the output
   // report and the protocol mode, so every other profile configures through here.
   bool configureProfile(uint8_t reportId, const EspBleHidDeviceConfig &config);
+  // Bring up the attributes every HID device has whatever profiles it carries.
+  // Called by whichever profile is configured first — including hidCustom(),
+  // which adds no fixed profile at all — so the shared part exists once.
+  bool configureCommon(const EspBleHidDeviceConfig &config);
+  // The vendor profile is the only fixed one with an Output and a Feature report
+  // of its own, so it registers two more 0x2A4D characteristics on top of the
+  // Input Report configureProfile() added.
+  bool configureVendorReports();
+  // hidCustom() brings up the HID service without adding any fixed profile: its
+  // reports are whatever the caller declared, so there is no descriptor to
+  // compose and no report ID to reserve.
+  bool configureCustom(const EspBleHidDeviceConfig &config);
+  // Register one caller-declared report as its own 0x2A4D characteristic. Input
+  // reports become notifiable, Output reports writable with or without a
+  // response, Feature reports writable with a response only.
+  bool registerCustomReport(size_t slot);
+  int customInputSlot(uint8_t reportId) const;
+  bool readyForCustom(uint8_t reportId) const;
+  bool sendCustomInput(uint8_t reportId, const uint8_t *data, size_t length);
   ~EspBleHidKeyboard();
   // Called from begin(), when whether security is enabled is finally known: HOGP
   // requires encryption on the HID attributes, and the insufficient-encryption
@@ -1953,6 +2019,72 @@ private:
   bool configured_ = false;
 };
 
+// A vendor-defined profile: one Input, one Output and one Feature report of a
+// caller-chosen size, with bytes the library does not interpret. Unlike the
+// profiles above it is bidirectional, so a host can write to the device.
+class EspBleHidVendor
+{
+public:
+  using ReportCallback = std::function<void(const EspBleHidVendorReport &report)>;
+
+  bool configure(const EspBleHidVendorConfig &config = EspBleHidVendorConfig());
+  bool configured() const;
+  bool sendInput(const void *data, size_t length);
+  // See EspBleHidKeyboard::ready(): a subscribed HID Host can receive this
+  // profile's reports right now.
+  bool ready() const;
+  void onOutputReport(ReportCallback callback);
+  void onFeatureReport(ReportCallback callback);
+
+private:
+  friend class EspBleBluedroid;
+  friend class EspBleHidKeyboard;
+  friend struct EspBleHidDeviceManagerImpl;
+  explicit EspBleHidVendor(EspBleBluedroid *owner) : owner_(owner) {}
+
+  EspBleBluedroid *owner_;
+  bool configured_ = false;
+  ReportCallback outputCallback_;
+  ReportCallback featureCallback_;
+};
+
+// Custom HID with an arbitrary Report Descriptor. Reports are composed into the
+// same HID service as the fixed profiles (keyboard/mouse/...), so a custom
+// report can coexist with them. Report IDs must be unique and, when a fixed
+// profile is also enabled, must not use its reserved report ID (1..6).
+class EspBleHidCustom
+{
+public:
+  static constexpr size_t MaxReports = 4;
+  using ReportCallback = std::function<void(const EspBleHidVendorReport &report)>;
+
+  bool configure(const EspBleHidDeviceConfig &config = EspBleHidDeviceConfig());
+  // Set the raw HID Report Descriptor bytes exposed as the Report Map (0x2A4B).
+  bool setReportMap(const uint8_t *descriptor, size_t length);
+  bool addInputReport(uint8_t reportId, uint16_t sizeBytes);
+  bool addOutputReport(uint8_t reportId, uint16_t sizeBytes);
+  bool addFeatureReport(uint8_t reportId, uint16_t sizeBytes);
+  bool configured() const;
+  bool sendInput(uint8_t reportId, const uint8_t *data, size_t length);
+  // See EspBleHidKeyboard::ready(), per declared Input Report: a subscribed HID
+  // Host can receive this report right now. False for an unknown report ID.
+  bool ready(uint8_t reportId) const;
+  void onOutputReport(ReportCallback callback);
+  void onFeatureReport(ReportCallback callback);
+
+private:
+  friend class EspBleBluedroid;
+  friend class EspBleHidKeyboard;
+  friend struct EspBleHidDeviceManagerImpl;
+  explicit EspBleHidCustom(EspBleBluedroid *owner) : owner_(owner) {}
+  bool addReport(uint8_t reportId, uint8_t reportType, uint16_t sizeBytes);
+
+  EspBleBluedroid *owner_;
+  bool configured_ = false;
+  ReportCallback outputCallback_;
+  ReportCallback featureCallback_;
+};
+
 class EspBleBluedroid
 {
 public:
@@ -2013,6 +2145,8 @@ public:
   EspBleHidConsumerControl &hidConsumerControl();
   EspBleHidSystemControl &hidSystemControl();
   EspBleHidGamepad &hidGamepad();
+  EspBleHidVendor &hidVendor();
+  EspBleHidCustom &hidCustom();
   EspBluedroidClassic &classic();
 #ifdef ESP_BLE_BLUEDROID_TESTING
   bool setSecurityResponseTimeoutForTest(uint32_t timeoutMilliseconds);
@@ -2257,6 +2391,8 @@ private:
   friend class EspBleHidConsumerControl;
   friend class EspBleHidSystemControl;
   friend class EspBleHidGamepad;
+  friend class EspBleHidVendor;
+  friend class EspBleHidCustom;
   friend struct EspBleHidDeviceManagerImpl;
   friend class EspBluedroidClassic;
   friend class EspBluedroidClassicInquiry;
@@ -2338,6 +2474,8 @@ private:
   EspBleHidConsumerControl hidConsumerControl_;
   EspBleHidSystemControl hidSystemControl_;
   EspBleHidGamepad hidGamepad_;
+  EspBleHidVendor hidVendor_;
+  EspBleHidCustom hidCustom_;
   EspBluedroidClassic classic_;
   EspBleConnectionImpl *connectionImpl_ = nullptr;
   // One list per event: the primary callback set by on*() plus the listeners.

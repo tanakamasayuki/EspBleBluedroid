@@ -46,7 +46,7 @@ HOGP puts the input and the output report in two characteristics that **share UU
 | Class, method and callback names | `ble.hidKeyboard()` | identical |
 | Report descriptors | built from its own tables | the same bytes (`tests/unit/hid_report_maps` compares them) |
 | `onOutputReport()` and `ledState()` | the state is updated when the host writes, the callback can arrive an `update()` later | both happen in the same `update()`, because the GATT Server already dispatches writes from there |
-| Profiles available | keyboard, mouse, consumer, system, gamepad, vendor, custom, host | keyboard so far — the rest are listed in `docs/API_PARITY.tsv` as `planned` |
+| Profiles available | keyboard, mouse, consumer, system, gamepad, vendor, custom, host | every device profile; the HID **host** side is listed in `docs/API_PARITY.tsv` as `planned` |
 
 **How to port:** change the declaration of the library object. A keyboard sketch needs no other change.
 

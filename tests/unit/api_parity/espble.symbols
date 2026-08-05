@@ -2,7 +2,7 @@
 # Regenerate with tools/gen_api_parity.py; never edit by hand.
 # espble_version	1.1.0
 # espble_header	EspBle.h
-# sha256	05c561272dccb9ac2f0f5a7691967f2b73945d4e4df6b81f86607474b2366a70
+# sha256	adc416723024a570b9d62fee09bf8089ac8cf91ad3c55e6a09f2aba5ef7a1376
 ESP_BLE_HID_CONSUMER_CONTROL_MUTE
 ESP_BLE_HID_CONSUMER_CONTROL_NEXT_TRACK
 ESP_BLE_HID_CONSUMER_CONTROL_PLAY_PAUSE

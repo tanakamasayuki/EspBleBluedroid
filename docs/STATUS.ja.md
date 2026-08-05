@@ -167,7 +167,10 @@ CCCD購読、notificationまで確認している。
   暗号化も）まで真にならず、送信失敗のdetailは「未接続」と「未購読」を区別する。
   mouse・consumer control・system control・gamepadも同じHID serviceを共有する形で利用でき、
   Report Mapは登録済みprofileのdescriptorをprofile順に連結して構成する
-  （`tests/peer/hid_composite`）。`hidVendor()` / `hidCustom()`とHID Hostは未実装。
+  （`tests/peer/hid_composite`）。`hidVendor()`と`hidCustom()`も利用できる。この2つだけが
+  Output・Feature Reportを持ちHostから書き込まれる側で、`hidCustom()`のdescriptorは
+  合成されたdescriptorのあとに連結される（`tests/peer/hid_vendor_custom`）。
+  HID Hostは未実装。
   BLE MIDIのprofile helperは`EspBleMidiProfile.h`として利用できる。
   `EspBleMidiDevice` / `EspBleMidiHost`はEspBleのファイルのライブラリ参照の型だけを
   差し替えたもので、必要なeventは`add*Listener()`で購読するためsketch側の`on*()`を

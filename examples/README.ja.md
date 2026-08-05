@@ -3,7 +3,7 @@
 > English: [README.md](README.md)
 > EspBleとの違い: [DIFFERENCES_FROM_ESPBLE.ja.md](DIFFERENCES_FROM_ESPBLE.ja.md)
 
-**無印ESP32**（Bluetooth Classicを持つESP32 SoC）向けの94個のexampleです。
+**無印ESP32**（Bluetooth Classicを持つESP32 SoC）向けの100個のexampleです。
 Arduino-ESP32同梱のBluedroid backendを使います。
 
 BLE側のexampleは兄弟ライブラリ
@@ -168,6 +168,12 @@ Bluetooth Classicを持つのは無印ESP32だけだからです。
 | Example | 役割 | 説明 |
 |---|---|---|
 | [Hid/KeyboardDevice](Hid/KeyboardDevice/) | Peripheral | BLE HID keyboard。Report送信、HostのLED Output Report、Protocol Mode、battery |
+| [Hid/KeyboardNkro](Hid/KeyboardNkro/) | Peripheral | N-key rollover。キーボード全体の状態を29 byteの1 Reportで送る |
+| [Hid/Mouse](Hid/Mouse/) | Peripheral | ボタンとホイールを備えた相対ポインタ。ドラッグは「押したままの移動」 |
+| [Hid/ConsumerControl](Hid/ConsumerControl/) | Peripheral | メディアキー。1 ReportにConsumer pageのusageを1つ（16 bit） |
+| [Hid/CompositeKeyboardMouse](Hid/CompositeKeyboardMouse/) | Peripheral | keyboardとmouseを1つのHID Serviceに載せ、Report IDで区別 |
+| [Hid/VendorDevice](Hid/VendorDevice/) | Peripheral | 任意サイズのvendor定義Input・Output・Feature Report |
+| [Hid/CustomDevice](Hid/CustomDevice/) | Peripheral | 任意のReport Descriptorと利用者が宣言するReport |
 
 ### BLE MIDI
 
@@ -217,7 +223,7 @@ Bluetooth Classicを持つのは無印ESP32だけだからです。
 - Security/JustWorksServer ↔ Security/JustWorksClient
 - Security/StaticPasskeyServer ↔ Security/StaticPasskeyClient
 - Security/RuntimePasskeyClientとNumericComparisonClient ↔ スマートフォン、EspBleのボード、raw ESP-IDFのpeer（[Security/README.ja.md](Security/README.ja.md)）
-- Hid/KeyboardDevice ↔ PC・スマホ・タブレット（OSのBluetooth設定からPairing）
+- `Hid/*`の各デバイス ↔ PC・スマホ・タブレット（OSのBluetooth設定からPairing）。Hid/VendorDeviceとHid/CustomDeviceはReportを書き込めるHostが必要
 - Midi/MidiDevice ↔ Midi/MidiHost（スマホ/タブレットのDAWや市販BLE MIDI楽器でも可）
 - Classic/SppServer ↔ Classic/SppClient、Classic/SppSerialServer ↔ Classic/SppSerialClient
 - Classic/A2dpSource ↔ Classic/A2dpSink、Classic/HfpAudioGateway ↔ Classic/HfpHandsFree

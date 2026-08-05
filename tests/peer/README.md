@@ -72,3 +72,21 @@ the handle belonging to the profile that sent it, with the exact wire bytes. The
 attribute order (configuration order) and the descriptor order inside the Report
 Map (profile order) deliberately differ, because a host uses neither — it uses the
 Report Reference.
+
+`hid_vendor_custom` verifies the two profiles whose payload the library does not
+interpret: `hidVendor()`, whose descriptor is fixed but whose report size is the
+caller's, and `hidCustom()`, whose descriptor is the caller's entirely. They are
+the only profiles a host writes to, so this suite covers the direction
+`hid_composite` cannot: the Report Map is the composed built-in descriptor followed
+by the sketch's own (built here from the same snapshot, with the vendor size patched
+at a non-default value so the patch is visible on the air); a report ID an enabled
+built-in profile owns is refused to `hidCustom()`; six Report characteristics share
+UUID 0x2A4D and their write properties match the type each Report Reference declares
+— an Input report notifies, an Output report also takes Write Without Response, and
+a Feature report is configuration, so it is always acknowledged; and the Output and
+Feature reports the host writes reach the callbacks byte for byte, from the caller's
+`update()`. The reports are 40 bytes, which does not fit an ATT payload at the
+default MTU, so the device's own view of the negotiated MTU is asserted before the
+bytes are — a truncation and a wrong report would otherwise look alike. The refusals
+are pinned too: a length other than the declared one is `InvalidArgument`, and an
+undeclared report ID is `NotFound` rather than a silently invented characteristic.

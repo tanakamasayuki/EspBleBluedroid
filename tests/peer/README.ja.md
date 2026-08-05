@@ -72,3 +72,18 @@ consumer control、system control、gamepad）を検証します。composite機�
 共有しReport Referenceを各々持つこと、各Notificationが送信元profileのhandleへ正しいバイト列で
 届くこと。属性の並び順（configure順）とReport Map内のdescriptor順（profile順）は意図的に
 異なります。hostが使うのはどちらでもなくReport Referenceだからです。
+
+`hid_vendor_custom`は、ライブラリが中身を解釈しない2つのprofileを検証します。descriptorは
+固定でReportサイズだけが利用者指定の`hidVendor()`と、descriptor自体が利用者のものである
+`hidCustom()`です。Hostから書き込まれる唯一のprofileなので、`hid_composite`では扱えない
+方向を確認します。Report Mapが「合成された内蔵descriptor＋sketch自身のdescriptor」で
+あること（期待値はここでも同じsnapshotから組み立て、vendorのサイズは既定値以外にして
+埋め込みが電波上に現れるようにしています）、有効な内蔵profileが占めるreport IDが
+`hidCustom()`に対して拒否されること、6件のReport characteristicがUUID 0x2A4Dを共有し
+そのwrite属性がReport Referenceのtypeと一致すること（Inputはnotify、Outputはwrite without
+responseも可、Featureは設定情報なので常に応答つき）、HostのOutput・Feature Reportが
+呼び出し側の`update()`からバイト単位でcallbackへ届くこと。Reportは40 byteで既定MTUの
+ATT payloadには収まらないため、バイト列を確認する前にデバイス自身が見た交渉後MTUを
+assertします。そうしないと切り詰めと誤ったReportが見分けられません。拒否理由も固定します:
+宣言と異なる長さは`InvalidArgument`、宣言していないreport IDはcharacteristicを勝手に作らず
+`NotFound`です。

@@ -165,6 +165,12 @@ Device Information and Battery values.
 `peer/hid_composite` verifies the five profiles that share one HID service, the
 Report Map they compose, and that each notification arrives on its own report's
 handle.
+`peer/hid_vendor_custom` verifies the two profiles whose payload the library does
+not interpret — `hidVendor()` and `hidCustom()` — and the direction only they have:
+a Report Map that is the composed descriptor followed by the sketch's own, a report
+ID a built-in profile owns being refused, six 0x2A4D reports whose write properties
+match the type each Report Reference declares, and Output and Feature reports the
+host writes arriving byte for byte.
 `peer/duplicate_uuid_server` verifies the other side of that: two same-UUID
 characteristics published by this library are two real attributes on the air, read
 back from a raw peer with their own values, their own Report-Reference-style

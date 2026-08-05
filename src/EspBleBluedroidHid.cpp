@@ -79,7 +79,12 @@ constexpr uint16_t HidKeyboardAppearance = 0x03c1;
 struct EspBleHidDeviceManagerImpl
 {
   static constexpr size_t MaxSubscribers = 4;
-  static constexpr size_t MaxInputReportLength = 29;  // the NKRO report
+  // The vendor profile's report is sized by the caller, and it is the longest any
+  // profile sends; the longest fixed one is the 29-byte NKRO keyboard report.
+  static constexpr size_t MaxVendorReportSize = 64;
+  static constexpr size_t MaxInputReportLength = MaxVendorReportSize;
+  static constexpr size_t MaxCustomReports = EspBleHidCustom::MaxReports;
+  static constexpr size_t CustomReportMapCapacity = hid::CustomReportMapCapacity;
 
   struct SubscriptionSlot
   {
@@ -88,8 +93,21 @@ struct EspBleHidDeviceManagerImpl
     // One bit per profile, by report ID: a host subscribes to each Input Report
     // separately, so "is anyone listening" is a per-profile question.
     uint8_t inputNotifications = 0;
+    // The same, one bit per declared hidCustom() report slot.
+    uint8_t customNotifications = 0;
     bool bootKeyboardNotifications = false;
     bool batteryNotifications = false;
+  };
+
+  // One caller-declared report of hidCustom(): its own 0x2A4D characteristic with
+  // a Report Reference naming the ID and the type the caller gave it.
+  struct CustomReport
+  {
+    uint8_t reportId = 0;
+    uint8_t reportType = 0;
+    uint16_t size = 0;
+    EspBleGattCharacteristic characteristic;
+    EspBleGattDescriptor reference;
   };
 
   explicit EspBleHidDeviceManagerImpl(EspBleBluedroid *owner) : owner(owner) {}
@@ -116,6 +134,12 @@ struct EspBleHidDeviceManagerImpl
   EspBleGattDescriptor inputReferences[hid::ProfileCount];
   EspBleGattCharacteristic keyboardOutput;
   EspBleGattDescriptor keyboardOutputReference;
+  // The vendor profile's own Output and Feature reports, the only fixed profile
+  // that has any: everything else is notify-only.
+  EspBleGattCharacteristic vendorOutput;
+  EspBleGattDescriptor vendorOutputReference;
+  EspBleGattCharacteristic vendorFeature;
+  EspBleGattDescriptor vendorFeatureReference;
   EspBleGattCharacteristic bootKeyboardInput;
   EspBleGattCharacteristic bootKeyboardOutput;
   EspBleGattCharacteristic batteryLevelCharacteristic;
@@ -127,6 +151,14 @@ struct EspBleHidDeviceManagerImpl
   uint8_t mouseButtonCount = 5;
   uint8_t vendorReportSize = 63;
   EspBleHidKeyboardOutputReport ledState;
+
+  bool customConfigured = false;
+  CustomReport customReports[MaxCustomReports];
+  size_t customReportCount = 0;
+  // The caller's Report Descriptor, appended to the composed one so a custom
+  // report can share the HID service with the fixed profiles.
+  uint8_t customReportMap[CustomReportMapCapacity] = {};
+  size_t customReportMapLength = 0;
 
   SubscriptionSlot subscribers[MaxSubscribers];
 
@@ -183,10 +215,27 @@ struct EspBleHidDeviceManagerImpl
   // service carries every profile of the device.
   bool recomposeReportMap()
   {
-    uint8_t buffer[hid::ReportMapCapacity];
-    const size_t length = hid::compose(buffer, sizeof(buffer), profileMask,
-      keyboardNkro, mouseButtonCount, vendorReportSize);
-    if (length == 0) return false;
+    uint8_t buffer[hid::ReportMapCapacity + CustomReportMapCapacity];
+    size_t length = 0;
+    if (profileMask != 0)
+    {
+      length = hid::compose(buffer, hid::ReportMapCapacity, profileMask,
+        keyboardNkro, mouseButtonCount, vendorReportSize);
+      if (length == 0) return false;
+    }
+    // The caller's descriptor follows the composed one, so both sets of reports
+    // are declared in the single Report Map HOGP allows.
+    if (customReportMapLength > 0)
+    {
+      memcpy(buffer + length, customReportMap, customReportMapLength);
+      length += customReportMapLength;
+    }
+    if (length == 0)
+    {
+      // hidCustom() before setReportMap(): nothing to publish yet, and the value
+      // is set again from setReportMap().
+      return true;
+    }
     return owner->gattServer().setValue(reportMap, buffer, length);
   }
 };
@@ -218,12 +267,18 @@ bool EspBleHidKeyboard::configured() const
   return impl_ != nullptr && impl_->configured;
 }
 
-bool EspBleHidKeyboard::configure(const EspBleHidKeyboardConfig &config)
+bool EspBleHidKeyboard::configureCommon(const EspBleHidDeviceConfig &config)
 {
   if (owner_->initialized())
   {
     owner_->setError(EspBleError::InvalidState,
       "configure HID profiles before begin()");
+    return false;
+  }
+  if (config.initialBatteryLevel > 100)
+  {
+    owner_->setError(EspBleError::InvalidArgument,
+      "HID battery level must be at most 100");
     return false;
   }
   if (impl_ == nullptr)
@@ -240,19 +295,10 @@ bool EspBleHidKeyboard::configure(const EspBleHidKeyboardConfig &config)
   {
     // Re-configuring is accepted and re-applies the values, but the attributes are
     // registered once: a second registration would publish a second HID service.
-    impl_->config = config;
-    layout_ = config.layout;
     impl_->batteryLevel = config.initialBatteryLevel;
     owner_->clearError();
     return true;
   }
-
-  impl_->config = config;
-  layout_ = config.layout;
-  impl_->keyboardNkro = nkroEnabled_;
-  impl_->bootProtocol = config.bootProtocol;
-  impl_->profileMask |= static_cast<uint8_t>(
-    1u << static_cast<uint8_t>(hid::Profile::Keyboard));
 
   auto &server = owner_->gattServer();
 
@@ -285,26 +331,6 @@ bool EspBleHidKeyboard::configure(const EspBleHidKeyboardConfig &config)
     impl_->hidService, HidControlPointUuid, writeOnly);
   impl_->protocolModeCharacteristic = server.addCharacteristic(
     impl_->hidService, ProtocolModeUuid, readWriteNoResponse);
-  // Two characteristics with one UUID, told apart by their Report Reference
-  // descriptor. This is the shape HOGP defines and the reason the duplicate-UUID
-  // restriction had to go (peer/duplicate_uuid_server).
-  impl_->inputReports[ESP_BLE_HID_REPORT_ID_KEYBOARD - 1] =
-    server.addCharacteristic(impl_->hidService, ReportUuid, inputReport);
-  impl_->keyboardOutput = server.addCharacteristic(
-    impl_->hidService, ReportUuid, outputReport);
-  impl_->inputReferences[ESP_BLE_HID_REPORT_ID_KEYBOARD - 1] =
-    server.addDescriptor(
-      impl_->inputReports[ESP_BLE_HID_REPORT_ID_KEYBOARD - 1],
-      ReportReferenceUuid);
-  impl_->keyboardOutputReference = server.addDescriptor(
-    impl_->keyboardOutput, ReportReferenceUuid);
-  if (impl_->bootProtocol)
-  {
-    impl_->bootKeyboardInput = server.addCharacteristic(
-      impl_->hidService, BootKeyboardInputUuid, inputReport);
-    impl_->bootKeyboardOutput = server.addCharacteristic(
-      impl_->hidService, BootKeyboardOutputUuid, outputReport);
-  }
 
   const EspBleGattService battery = server.addService(BatteryServiceUuid);
   impl_->batteryLevelCharacteristic =
@@ -318,27 +344,15 @@ bool EspBleHidKeyboard::configure(const EspBleHidKeyboardConfig &config)
 
   const bool registered = impl_->hidService && impl_->reportMap &&
     impl_->hidInformation && impl_->hidControlPoint &&
-    impl_->protocolModeCharacteristic &&
-    impl_->inputReports[ESP_BLE_HID_REPORT_ID_KEYBOARD - 1] &&
-    impl_->keyboardOutput &&
-    impl_->inputReferences[ESP_BLE_HID_REPORT_ID_KEYBOARD - 1] &&
-    impl_->keyboardOutputReference && battery &&
+    impl_->protocolModeCharacteristic && battery &&
     impl_->batteryLevelCharacteristic && information && impl_->manufacturerName &&
-    impl_->pnpId &&
-    (!impl_->bootProtocol ||
-      (impl_->bootKeyboardInput && impl_->bootKeyboardOutput));
+    impl_->pnpId;
   if (!registered)
   {
     // lastError() already names what failed (usually too many attributes).
     return false;
   }
 
-  // Static values. The Report Reference descriptors are what let a host map each
-  // 0x2A4D characteristic to a report in the Report Map.
-  const uint8_t inputReference[2] =
-    {ESP_BLE_HID_REPORT_ID_KEYBOARD, ESP_BLE_HID_REPORT_TYPE_INPUT};
-  const uint8_t outputReference[2] =
-    {ESP_BLE_HID_REPORT_ID_KEYBOARD, ESP_BLE_HID_REPORT_TYPE_OUTPUT};
   uint8_t hidInformationValue[sizeof(hid::HidInformation)];
   memcpy(hidInformationValue, hid::HidInformation, sizeof(hidInformationValue));
   hidInformationValue[hid::HidInformationCountryOffset] = config.countryCode;
@@ -346,44 +360,27 @@ bool EspBleHidKeyboard::configure(const EspBleHidKeyboardConfig &config)
   hid::composePnpId(
     pnpIdValue, config.vendorId, config.productId, config.productVersion);
   const uint8_t protocolModeValue = ReportProtocolMode;
-  const uint8_t emptyKeyboardReport[BootReportLength] = {};
 
   impl_->protocolMode = ReportProtocolMode;
   impl_->batteryLevel = config.initialBatteryLevel;
 
   const bool values =
-    server.setDescriptorValue(
-      impl_->inputReferences[ESP_BLE_HID_REPORT_ID_KEYBOARD - 1],
-      inputReference, sizeof(inputReference)) &&
-    server.setDescriptorValue(
-      impl_->keyboardOutputReference, outputReference, sizeof(outputReference)) &&
     server.setValue(
       impl_->hidInformation, hidInformationValue, sizeof(hidInformationValue)) &&
     server.setValue(impl_->protocolModeCharacteristic, &protocolModeValue, 1) &&
-    server.setValue(impl_->inputReports[ESP_BLE_HID_REPORT_ID_KEYBOARD - 1],
-      emptyKeyboardReport,
-      impl_->keyboardNkro ? EspBleHidDeviceManagerImpl::MaxInputReportLength
-                          : BootReportLength) &&
-    server.setValue(impl_->keyboardOutput, emptyKeyboardReport, 1) &&
     server.setValue(impl_->batteryLevelCharacteristic, &impl_->batteryLevel, 1) &&
     server.setValue(impl_->manufacturerName,
       String(config.manufacturer == nullptr ? "" : config.manufacturer)) &&
-    server.setValue(impl_->pnpId, pnpIdValue, sizeof(pnpIdValue)) &&
-    (!impl_->bootProtocol ||
-      (server.setValue(impl_->bootKeyboardInput, emptyKeyboardReport,
-         BootReportLength) &&
-        server.setValue(impl_->bootKeyboardOutput, emptyKeyboardReport, 1)));
-  if (!values || !impl_->recomposeReportMap())
+    server.setValue(impl_->pnpId, pnpIdValue, sizeof(pnpIdValue));
+  if (!values)
   {
     return false;
   }
-  // A host finds a HID device by the service UUID in the advertisement, and shows
-  // it with the keyboard icon because of the appearance.
+  // A host finds a HID device by the service UUID in the advertisement.
   if (!owner_->advertising().addServiceUuid(HidServiceUuid))
   {
     return false;
   }
-  owner_->advertising().setAppearance(HidKeyboardAppearance);
 
   // The events this profile needs, taken as additional observers so a sketch can
   // still install its own on*() callbacks for the same events.
@@ -403,6 +400,18 @@ bool EspBleHidKeyboard::configure(const EspBleHidKeyboardConfig &config)
         else slot->inputNotifications &= static_cast<uint8_t>(~bit);
         return;
       }
+      for (size_t slotIndex = 0; slotIndex < impl->customReportCount; ++slotIndex)
+      {
+        if (!(subscription.characteristic ==
+              impl->customReports[slotIndex].characteristic))
+        {
+          continue;
+        }
+        const uint8_t bit = static_cast<uint8_t>(1u << slotIndex);
+        if (subscription.notifications) slot->customNotifications |= bit;
+        else slot->customNotifications &= static_cast<uint8_t>(~bit);
+        return;
+      }
       if (subscription.characteristic == impl->bootKeyboardInput)
         slot->bootKeyboardNotifications = subscription.notifications;
       else if (subscription.characteristic == impl->batteryLevelCharacteristic)
@@ -419,6 +428,53 @@ bool EspBleHidKeyboard::configure(const EspBleHidKeyboardConfig &config)
         impl->protocolModeCharacteristic, &mode, 1);
       if (keyboard->protocolModeCallback_)
         keyboard->protocolModeCallback_(mode, write.connectionId);
+      return;
+    }
+    // The profiles whose payload the library does not interpret hand the bytes
+    // straight to the sketch. No queue is needed for any of this: the listener
+    // already runs in the caller's update() context, which is where EspBle's
+    // dispatchPendingReports() delivers them from.
+    if (impl->vendorOutput.valid() &&
+        (write.characteristic == impl->vendorOutput ||
+          write.characteristic == impl->vendorFeature))
+    {
+      const bool feature = write.characteristic == impl->vendorFeature;
+      EspBleHidVendor &vendor = impl->owner->hidVendor();
+      EspBleHidVendor::ReportCallback &callback =
+        feature ? vendor.featureCallback_ : vendor.outputCallback_;
+      if (!callback) return;
+      EspBleHidVendorReport report;
+      report.connectionId = write.connectionId;
+      report.reportId = ESP_BLE_HID_REPORT_ID_VENDOR;
+      report.reportType = feature ? ESP_BLE_HID_REPORT_TYPE_FEATURE
+                                  : ESP_BLE_HID_REPORT_TYPE_OUTPUT;
+      report.rawData = reinterpret_cast<const uint8_t *>(write.value.c_str());
+      report.rawLength = write.value.length();
+      report.data = report.rawData;
+      report.length = report.rawLength;
+      callback(report);
+      return;
+    }
+    for (size_t slotIndex = 0; slotIndex < impl->customReportCount; ++slotIndex)
+    {
+      const EspBleHidDeviceManagerImpl::CustomReport &custom =
+        impl->customReports[slotIndex];
+      if (!(write.characteristic == custom.characteristic)) continue;
+      EspBleHidCustom &customProfile = impl->owner->hidCustom();
+      EspBleHidCustom::ReportCallback &callback =
+        custom.reportType == ESP_BLE_HID_REPORT_TYPE_FEATURE
+          ? customProfile.featureCallback_
+          : customProfile.outputCallback_;
+      if (!callback) return;
+      EspBleHidVendorReport report;
+      report.connectionId = write.connectionId;
+      report.reportId = custom.reportId;
+      report.reportType = custom.reportType;
+      report.rawData = reinterpret_cast<const uint8_t *>(write.value.c_str());
+      report.rawLength = write.value.length();
+      report.data = report.rawData;
+      report.length = report.rawLength;
+      callback(report);
       return;
     }
     const bool isOutput = write.characteristic == impl->keyboardOutput ||
@@ -450,6 +506,93 @@ bool EspBleHidKeyboard::configure(const EspBleHidKeyboardConfig &config)
   return true;
 }
 
+bool EspBleHidKeyboard::configure(const EspBleHidKeyboardConfig &config)
+{
+  const bool alreadyConfigured = impl_ != nullptr && impl_->configured;
+  const bool alreadyKeyboard = alreadyConfigured &&
+    impl_->inputReports[ESP_BLE_HID_REPORT_ID_KEYBOARD - 1].valid();
+  if (!alreadyConfigured)
+  {
+    // The keyboard's own settings have to be known before the shared part is
+    // built: Boot Protocol adds two characteristics to the HID service, and NKRO
+    // changes the descriptor the Report Map is composed from.
+    if (impl_ == nullptr)
+    {
+      // configureCommon() allocates it, but bootProtocol/NKRO must be in place
+      // first, so allocate here when this is the first call of any kind.
+      impl_ = new EspBleHidDeviceManagerImpl(owner_);
+      if (impl_ == nullptr)
+      {
+        owner_->setError(EspBleError::ResourceExhausted,
+          "failed to allocate HID Device state");
+        return false;
+      }
+    }
+    impl_->keyboardNkro = nkroEnabled_;
+    impl_->bootProtocol = config.bootProtocol;
+  }
+  if (!configureCommon(config)) return false;
+  impl_->config = config;
+  layout_ = config.layout;
+  if (alreadyKeyboard)
+  {
+    owner_->clearError();
+    return true;
+  }
+
+  auto &server = owner_->gattServer();
+  EspBleGattCharacteristicConfig inputReport;
+  inputReport.readable = true;
+  inputReport.notifiable = true;
+  EspBleGattCharacteristicConfig outputReport;
+  outputReport.readable = true;
+  outputReport.writable = true;
+  outputReport.writableWithoutResponse = true;
+
+  // Two characteristics with one UUID, told apart by their Report Reference
+  // descriptor. This is the shape HOGP defines and the reason the duplicate-UUID
+  // restriction had to go (peer/duplicate_uuid_server).
+  if (!configureProfile(ESP_BLE_HID_REPORT_ID_KEYBOARD, config)) return false;
+  impl_->keyboardOutput = server.addCharacteristic(
+    impl_->hidService, ReportUuid, outputReport);
+  impl_->keyboardOutputReference = server.addDescriptor(
+    impl_->keyboardOutput, ReportReferenceUuid);
+  if (impl_->bootProtocol)
+  {
+    impl_->bootKeyboardInput = server.addCharacteristic(
+      impl_->hidService, BootKeyboardInputUuid, inputReport);
+    impl_->bootKeyboardOutput = server.addCharacteristic(
+      impl_->hidService, BootKeyboardOutputUuid, outputReport);
+  }
+  if (!impl_->keyboardOutput || !impl_->keyboardOutputReference ||
+      (impl_->bootProtocol &&
+        (!impl_->bootKeyboardInput || !impl_->bootKeyboardOutput)))
+  {
+    return false;
+  }
+
+  const uint8_t outputReference[2] =
+    {ESP_BLE_HID_REPORT_ID_KEYBOARD, ESP_BLE_HID_REPORT_TYPE_OUTPUT};
+  const uint8_t emptyKeyboardReport[BootReportLength] = {};
+  const bool values =
+    server.setDescriptorValue(
+      impl_->keyboardOutputReference, outputReference, sizeof(outputReference)) &&
+    server.setValue(impl_->inputReports[ESP_BLE_HID_REPORT_ID_KEYBOARD - 1],
+      emptyKeyboardReport,
+      impl_->keyboardNkro ? 1 + EspBleHidKeyboardNkroReport::BitmapSize
+                          : BootReportLength) &&
+    server.setValue(impl_->keyboardOutput, emptyKeyboardReport, 1) &&
+    (!impl_->bootProtocol ||
+      (server.setValue(impl_->bootKeyboardInput, emptyKeyboardReport,
+         BootReportLength) &&
+        server.setValue(impl_->bootKeyboardOutput, emptyKeyboardReport, 1)));
+  if (!values) return false;
+  // A host shows the device with the keyboard icon because of the appearance.
+  owner_->advertising().setAppearance(HidKeyboardAppearance);
+  owner_->clearError();
+  return true;
+}
+
 bool EspBleHidKeyboard::applySecurity(bool securityEnabled)
 {
   if (impl_ == nullptr || !impl_->configured) return true;
@@ -471,6 +614,7 @@ bool EspBleHidKeyboard::applySecurity(bool securityEnabled)
   const EspBleGattCharacteristic readWrite[] = {
     impl_->hidControlPoint, impl_->protocolModeCharacteristic,
     impl_->keyboardOutput, impl_->bootKeyboardInput, impl_->bootKeyboardOutput,
+    impl_->vendorOutput, impl_->vendorFeature,
   };
   for (const EspBleGattCharacteristic &characteristic : readWrite)
   {
@@ -493,8 +637,28 @@ bool EspBleHidKeyboard::applySecurity(bool securityEnabled)
       return false;
     }
   }
-  return server.setDescriptorEncryptionRequirement(
-    impl_->keyboardOutputReference, true);
+  // The caller-declared reports of hidCustom() are HID attributes too, whatever
+  // their payload means.
+  for (size_t index = 0; index < impl_->customReportCount; ++index)
+  {
+    const EspBleHidDeviceManagerImpl::CustomReport &report =
+      impl_->customReports[index];
+    if (!server.setEncryptionRequirement(report.characteristic, true, true) ||
+        !server.setDescriptorEncryptionRequirement(report.reference, true))
+    {
+      return false;
+    }
+  }
+  const EspBleGattDescriptor references[] = {
+    impl_->keyboardOutputReference, impl_->vendorOutputReference,
+    impl_->vendorFeatureReference,
+  };
+  for (const EspBleGattDescriptor &reference : references)
+  {
+    if (!reference.valid()) continue;
+    if (!server.setDescriptorEncryptionRequirement(reference, true)) return false;
+  }
+  return true;
 }
 
 void EspBleHidKeyboard::resetBackend()
@@ -858,13 +1022,8 @@ bool EspBleHidKeyboard::configureProfile(
     return false;
   }
   // A profile can be configured without the keyboard: whoever comes first brings
-  // up the HID service. The keyboard's own report is only added by configure().
-  if (impl_ == nullptr || !impl_->configured)
-  {
-    EspBleHidKeyboardConfig keyboardConfig;
-    static_cast<EspBleHidDeviceConfig &>(keyboardConfig) = config;
-    if (!configure(keyboardConfig)) return false;
-  }
+  // up the HID service. The keyboard's own reports are only added by configure().
+  if (!configureCommon(config)) return false;
   if (impl_->inputReports[reportId - 1].valid())
   {
     owner_->clearError();
@@ -1133,4 +1292,363 @@ bool EspBleHidGamepad::send(int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx,
 bool EspBleHidGamepad::releaseAll()
 {
   return sendReport(EspBleHidGamepadReport());
+}
+
+// ---------------------------------------------------------------------------
+// EspBleHidVendor — one Input, one Output and one Feature report of a
+// caller-chosen size, with bytes the library does not interpret
+// ---------------------------------------------------------------------------
+
+bool EspBleHidKeyboard::configureVendorReports()
+{
+  if (impl_ == nullptr || !impl_->configured) return false;
+  if (impl_->vendorOutput.valid()) return true;  // already registered
+
+  auto &server = owner_->gattServer();
+  EspBleGattCharacteristicConfig outputConfig;
+  outputConfig.readable = true;
+  outputConfig.writable = true;
+  outputConfig.writableWithoutResponse = true;
+  // A Feature report is configuration rather than state, so it is written with a
+  // response only — the same distinction the Report Descriptor draws.
+  EspBleGattCharacteristicConfig featureConfig;
+  featureConfig.readable = true;
+  featureConfig.writable = true;
+
+  impl_->vendorOutput = server.addCharacteristic(
+    impl_->hidService, ReportUuid, outputConfig);
+  impl_->vendorOutputReference =
+    server.addDescriptor(impl_->vendorOutput, ReportReferenceUuid);
+  impl_->vendorFeature = server.addCharacteristic(
+    impl_->hidService, ReportUuid, featureConfig);
+  impl_->vendorFeatureReference =
+    server.addDescriptor(impl_->vendorFeature, ReportReferenceUuid);
+  if (!impl_->vendorOutput || !impl_->vendorOutputReference ||
+      !impl_->vendorFeature || !impl_->vendorFeatureReference)
+  {
+    return false;
+  }
+
+  const uint8_t outputReference[2] =
+    {ESP_BLE_HID_REPORT_ID_VENDOR, ESP_BLE_HID_REPORT_TYPE_OUTPUT};
+  const uint8_t featureReference[2] =
+    {ESP_BLE_HID_REPORT_ID_VENDOR, ESP_BLE_HID_REPORT_TYPE_FEATURE};
+  uint8_t empty[EspBleHidDeviceManagerImpl::MaxVendorReportSize] = {};
+  const size_t length = impl_->vendorReportSize;
+  return server.setDescriptorValue(
+      impl_->vendorOutputReference, outputReference, sizeof(outputReference)) &&
+    server.setDescriptorValue(
+      impl_->vendorFeatureReference, featureReference,
+      sizeof(featureReference)) &&
+    server.setValue(
+      impl_->inputReports[ESP_BLE_HID_REPORT_ID_VENDOR - 1], empty, length) &&
+    server.setValue(impl_->vendorOutput, empty, length) &&
+    server.setValue(impl_->vendorFeature, empty, length);
+}
+
+bool EspBleHidVendor::configure(const EspBleHidVendorConfig &config)
+{
+  if (config.reportSize == 0 ||
+      config.reportSize > EspBleHidDeviceManagerImpl::MaxVendorReportSize)
+  {
+    owner_->setError(EspBleError::InvalidArgument,
+      "vendor HID report size must be between 1 and 64");
+    return false;
+  }
+  auto &keyboard = owner_->hidKeyboard();
+  // The size is patched into the descriptor, so it has to be known before the
+  // Report Map is composed.
+  if (keyboard.impl_ != nullptr) keyboard.impl_->vendorReportSize = config.reportSize;
+  if (!keyboard.configureProfile(ESP_BLE_HID_REPORT_ID_VENDOR, config))
+  {
+    return false;
+  }
+  keyboard.impl_->vendorReportSize = config.reportSize;
+  if (!keyboard.impl_->recomposeReportMap() || !keyboard.configureVendorReports())
+  {
+    return false;
+  }
+  configured_ = true;
+  return true;
+}
+
+bool EspBleHidVendor::configured() const { return configured_; }
+
+bool EspBleHidVendor::ready() const
+{
+  return owner_->hidKeyboard().readyFor(ESP_BLE_HID_REPORT_ID_VENDOR);
+}
+
+bool EspBleHidVendor::sendInput(const void *data, size_t length)
+{
+  auto &keyboard = owner_->hidKeyboard();
+  if (!configured_ || keyboard.impl_ == nullptr || data == nullptr ||
+      length == 0 || length != keyboard.impl_->vendorReportSize)
+  {
+    // The descriptor declares one fixed size, so a short report is a mismatch
+    // rather than a partial one.
+    owner_->setError(EspBleError::InvalidArgument,
+      "invalid vendor HID input report");
+    return false;
+  }
+  return keyboard.sendRawReport(ESP_BLE_HID_REPORT_ID_VENDOR,
+    static_cast<const uint8_t *>(data), length);
+}
+
+void EspBleHidVendor::onOutputReport(ReportCallback callback)
+{
+  outputCallback_ = std::move(callback);
+}
+
+void EspBleHidVendor::onFeatureReport(ReportCallback callback)
+{
+  featureCallback_ = std::move(callback);
+}
+
+// ---------------------------------------------------------------------------
+// EspBleHidCustom — an arbitrary Report Descriptor with caller-declared reports
+// ---------------------------------------------------------------------------
+
+bool EspBleHidKeyboard::configureCustom(const EspBleHidDeviceConfig &config)
+{
+  if (!configureCommon(config)) return false;
+  impl_->customConfigured = true;
+  return true;
+}
+
+bool EspBleHidKeyboard::registerCustomReport(size_t slot)
+{
+  EspBleHidDeviceManagerImpl::CustomReport &report = impl_->customReports[slot];
+  auto &server = owner_->gattServer();
+  EspBleGattCharacteristicConfig characteristicConfig;
+  characteristicConfig.readable = true;
+  if (report.reportType == ESP_BLE_HID_REPORT_TYPE_INPUT)
+  {
+    characteristicConfig.notifiable = true;
+  }
+  else
+  {
+    characteristicConfig.writable = true;
+    // Only an Output report takes Write Without Response: a Feature report is
+    // configuration, so the host wants the acknowledgement.
+    characteristicConfig.writableWithoutResponse =
+      report.reportType == ESP_BLE_HID_REPORT_TYPE_OUTPUT;
+  }
+  report.characteristic =
+    server.addCharacteristic(impl_->hidService, ReportUuid, characteristicConfig);
+  report.reference = server.addDescriptor(report.characteristic, ReportReferenceUuid);
+  if (!report.characteristic || !report.reference) return false;
+
+  const uint8_t reference[2] = {report.reportId, report.reportType};
+  uint8_t empty[EspBleHidDeviceManagerImpl::MaxVendorReportSize] = {};
+  return server.setDescriptorValue(report.reference, reference, sizeof(reference)) &&
+    server.setValue(report.characteristic, empty, report.size);
+}
+
+int EspBleHidKeyboard::customInputSlot(uint8_t reportId) const
+{
+  if (impl_ == nullptr) return -1;
+  for (size_t index = 0; index < impl_->customReportCount; ++index)
+  {
+    if (impl_->customReports[index].reportType == ESP_BLE_HID_REPORT_TYPE_INPUT &&
+        impl_->customReports[index].reportId == reportId)
+    {
+      return static_cast<int>(index);
+    }
+  }
+  return -1;
+}
+
+bool EspBleHidKeyboard::readyForCustom(uint8_t reportId) const
+{
+  const int slot = customInputSlot(reportId);
+  if (slot < 0 || impl_ == nullptr || !impl_->realized || !owner_->initialized())
+  {
+    return false;
+  }
+  EspBleConnection connection;
+  if (!impl_->peripheralConnection(connection)) return false;
+  if (impl_->securityEnabled && !connection.encrypted) return false;
+  const EspBleHidDeviceManagerImpl::SubscriptionSlot *subscriber =
+    impl_->slotFor(connection.id, false);
+  if (subscriber == nullptr) return false;
+  return (subscriber->customNotifications &
+    static_cast<uint8_t>(1u << slot)) != 0;
+}
+
+bool EspBleHidKeyboard::sendCustomInput(
+  uint8_t reportId, const uint8_t *data, size_t length)
+{
+  if (impl_ == nullptr || !impl_->configured || !impl_->realized ||
+      !owner_->initialized())
+  {
+    owner_->setError(EspBleError::InvalidState,
+      "HID Custom Device is not initialized");
+    return false;
+  }
+  const int slot = customInputSlot(reportId);
+  if (slot < 0)
+  {
+    owner_->setError(EspBleError::NotFound, "unknown custom HID input report");
+    return false;
+  }
+  const EspBleHidDeviceManagerImpl::CustomReport &report =
+    impl_->customReports[slot];
+  if (data == nullptr || length == 0 || length != report.size)
+  {
+    owner_->setError(EspBleError::InvalidArgument,
+      "invalid custom HID input report length");
+    return false;
+  }
+
+  EspBleConnection connection;
+  const bool anyPeripheral = impl_->peripheralConnection(connection);
+  bool sent = false;
+  if (anyPeripheral && (!impl_->securityEnabled || connection.encrypted))
+  {
+    const EspBleHidDeviceManagerImpl::SubscriptionSlot *subscriber =
+      impl_->slotFor(connection.id, false);
+    if (subscriber != nullptr &&
+        (subscriber->customNotifications &
+          static_cast<uint8_t>(1u << slot)) != 0)
+    {
+      sent = owner_->gattServer().notify(
+        connection.id, report.characteristic, data, length);
+    }
+  }
+  if (!sent)
+  {
+    owner_->setError(EspBleError::InvalidState,
+      anyPeripheral ? "no subscribed HID Host" : "no connected HID Host");
+    return false;
+  }
+  owner_->clearError();
+  return true;
+}
+
+bool EspBleHidCustom::configure(const EspBleHidDeviceConfig &config)
+{
+  configured_ = owner_->hidKeyboard().configureCustom(config);
+  return configured_;
+}
+
+bool EspBleHidCustom::configured() const { return configured_; }
+
+bool EspBleHidCustom::ready(uint8_t reportId) const
+{
+  return owner_->hidKeyboard().readyForCustom(reportId);
+}
+
+bool EspBleHidCustom::setReportMap(const uint8_t *descriptor, size_t length)
+{
+  EspBleHidDeviceManagerImpl *impl = owner_->hidKeyboard().impl_;
+  if (!configured_ || impl == nullptr)
+  {
+    owner_->setError(EspBleError::InvalidState,
+      "call hidCustom().configure() first");
+    return false;
+  }
+  if (descriptor == nullptr || length == 0 ||
+      length > EspBleHidDeviceManagerImpl::CustomReportMapCapacity)
+  {
+    owner_->setError(EspBleError::InvalidArgument,
+      "invalid custom HID report descriptor");
+    return false;
+  }
+  memcpy(impl->customReportMap, descriptor, length);
+  impl->customReportMapLength = length;
+  // The Report Map is the composed profiles followed by this descriptor, so it
+  // has to be rebuilt rather than replaced.
+  if (!impl->recomposeReportMap()) return false;
+  owner_->clearError();
+  return true;
+}
+
+bool EspBleHidCustom::addReport(
+  uint8_t reportId, uint8_t reportType, uint16_t sizeBytes)
+{
+  auto &keyboard = owner_->hidKeyboard();
+  EspBleHidDeviceManagerImpl *impl = keyboard.impl_;
+  if (!configured_ || impl == nullptr)
+  {
+    owner_->setError(EspBleError::InvalidState,
+      "call hidCustom().configure() first");
+    return false;
+  }
+  if (reportId == 0 || sizeBytes == 0 ||
+      sizeBytes > EspBleHidDeviceManagerImpl::MaxVendorReportSize)
+  {
+    owner_->setError(EspBleError::InvalidArgument,
+      "invalid custom HID report id or size");
+    return false;
+  }
+  // Report IDs 1..6 are reserved for the built-in profiles when one is enabled.
+  if (reportId <= hid::ProfileCount &&
+      (impl->profileMask & static_cast<uint8_t>(1u << (reportId - 1))) != 0)
+  {
+    owner_->setError(EspBleError::InvalidArgument,
+      "custom HID report id conflicts with an enabled built-in profile");
+    return false;
+  }
+  for (size_t index = 0; index < impl->customReportCount; ++index)
+  {
+    if (impl->customReports[index].reportId == reportId &&
+        impl->customReports[index].reportType == reportType)
+    {
+      owner_->setError(EspBleError::InvalidArgument, "duplicate custom HID report");
+      return false;
+    }
+  }
+  if (impl->customReportCount == EspBleHidDeviceManagerImpl::MaxCustomReports)
+  {
+    owner_->setError(EspBleError::ResourceExhausted, "too many custom HID reports");
+    return false;
+  }
+  const size_t slot = impl->customReportCount;
+  EspBleHidDeviceManagerImpl::CustomReport &report = impl->customReports[slot];
+  report.reportId = reportId;
+  report.reportType = reportType;
+  report.size = sizeBytes;
+  ++impl->customReportCount;
+  if (!keyboard.registerCustomReport(slot))
+  {
+    // Registration failed, so the slot must not stay claimed: the subscription
+    // bit and the write dispatch are both indexed by it.
+    report = EspBleHidDeviceManagerImpl::CustomReport();
+    --impl->customReportCount;
+    return false;
+  }
+  owner_->clearError();
+  return true;
+}
+
+bool EspBleHidCustom::addInputReport(uint8_t reportId, uint16_t sizeBytes)
+{
+  return addReport(reportId, ESP_BLE_HID_REPORT_TYPE_INPUT, sizeBytes);
+}
+
+bool EspBleHidCustom::addOutputReport(uint8_t reportId, uint16_t sizeBytes)
+{
+  return addReport(reportId, ESP_BLE_HID_REPORT_TYPE_OUTPUT, sizeBytes);
+}
+
+bool EspBleHidCustom::addFeatureReport(uint8_t reportId, uint16_t sizeBytes)
+{
+  return addReport(reportId, ESP_BLE_HID_REPORT_TYPE_FEATURE, sizeBytes);
+}
+
+bool EspBleHidCustom::sendInput(
+  uint8_t reportId, const uint8_t *data, size_t length)
+{
+  return owner_->hidKeyboard().sendCustomInput(reportId, data, length);
+}
+
+void EspBleHidCustom::onOutputReport(ReportCallback callback)
+{
+  outputCallback_ = std::move(callback);
+}
+
+void EspBleHidCustom::onFeatureReport(ReportCallback callback)
+{
+  featureCallback_ = std::move(callback);
 }

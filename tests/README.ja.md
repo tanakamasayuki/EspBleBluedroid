@@ -69,6 +69,7 @@ uv run --env-file .env pytest
 | `peer/duplicate_uuid` | Server側で同一Service内の重複Characteristic UUIDが専用handleで受理されること、同一Characteristic内の重複Descriptor UUIDと不正UUIDは従来どおり拒否されること（error名・detail文字列）、別Serviceの同一UUID受理、Client側のhandle指定Read・購読とNotificationの経路分離 |
 | `peer/hid_keyboard_device` | HID over GATT keyboardをhost OS役のraw Central相手に検証。電波に乗るdescriptor、Report Referenceで区別される2件の0x2A4D、Input Report Notification、LED Output Write、Protocol Mode Write、Device InformationとBatteryの値 |
 | `peer/hid_composite` | 1つのHID serviceを共有する5 profile（keyboard / mouse / consumer / system / gamepad）、合成されたReport Map、各Notificationが自分のreportのhandleへ届くこと |
+| `peer/hid_vendor_custom` | ライブラリが中身を解釈しない2 profile（`hidVendor()` / `hidCustom()`）と、その2つだけが持つHost→Device方向。合成descriptorのあとにsketch自身のdescriptorが続くReport Map、内蔵profileが占めるreport IDの拒否、Report Referenceのtypeと一致する6件の0x2A4Dのwrite属性、HostのOutput・Feature Reportがバイト単位で届くこと |
 | `peer/duplicate_uuid_server` | 同一UUID Characteristic 2件を本ライブラリが公開したとき、電波上に実体が2つあること。raw peerから別々の値・別々のDescriptor・handle別のWrite帰属・CCCD 2件・送信元handleへ届くNotificationを確認。登録の受理だけでは、先頭を再利用するbackendでも通ってしまうため |
 | `peer/long_value` | MTUを超える値のRead。UUID指定・handle指定の両方で全体が返り、内容がpeerのrampと一致すること |
 | `peer/service_changed` | Generic Attribute 0x1801 / Service Changed 0x2a05をstackが公開すること（applicationは登録しない） |

@@ -5836,7 +5836,8 @@ void EspBluedroidClassic::update()
 EspBleBluedroid::EspBleBluedroid()
     : advertising_(this), scanner_(this), gattServer_(this),
     hidKeyboard_(this), hidMouse_(this), hidConsumerControl_(this),
-    hidSystemControl_(this), hidGamepad_(this), classic_(this)
+    hidSystemControl_(this), hidGamepad_(this), hidVendor_(this),
+    hidCustom_(this), classic_(this)
 {
 }
 
@@ -6330,6 +6331,10 @@ EspBleHidSystemControl &EspBleBluedroid::hidSystemControl()
 }
 
 EspBleHidGamepad &EspBleBluedroid::hidGamepad() { return hidGamepad_; }
+
+EspBleHidVendor &EspBleBluedroid::hidVendor() { return hidVendor_; }
+
+EspBleHidCustom &EspBleBluedroid::hidCustom() { return hidCustom_; }
 
 
 
