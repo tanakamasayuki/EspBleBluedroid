@@ -38,6 +38,7 @@ values encoded by one are decoded by the other: `EspBleUuid.h`,
 | Central | More than one simultaneous connection; `disconnect(id, reason)` | One link is what the peer tests fix while the direct-GATTC migration is in progress; the wrapper does not pass a local reason to link termination | [Gap/Connect](Gap/Connect/) |
 | Peripheral | `onConnected()` / `onDisconnected()` / `bluetooth.connection()` for **incoming** links, and BLE security events on a peripheral-only device | Peripheral connection snapshots are not published yet (see [docs/STATUS.ja.md](../docs/STATUS.ja.md)) | [Gap/AcceptList](Gap/AcceptList/), [Gap/DirectedAdvertising](Gap/DirectedAdvertising/), [Gap/PrivateAddress](Gap/PrivateAddress/), [Gatt/Device/BondManagementServer](Gatt/Device/BondManagementServer/), [Security/](Security/) |
 | GATT client | `setAutoReconnect()`, `EspBleConfig::persistentSubscriptions`, `setAutoRediscover()` | Cross-link, per-handle state is not fixed by peer tests yet | [Gatt/Basics/AutoReconnectClient](Gatt/Basics/AutoReconnectClient/) |
+| HID Host keyboard events | `rawData` / `rawLength` are left empty on a decoded keyboard event | This library carries the report it decoded from, so a sketch reading `event.rawLength` sees 8 here and 0 there (found by `tests/interop/hid`, which asserts it only on this side) | [Hid/](Hid/) |
 | Platform | ESP-Hosted SDIO pin overrides | The original ESP32 has its own radio; it is never an ESP-Hosted host | EspBle's `Hosted/CustomPins` has no counterpart here |
 
 ### One consequence worth knowing before you wire up a server

@@ -64,6 +64,7 @@ uv run --env-file .env pytest interop/
 | [duplicate_uuid](duplicate_uuid/) | EspBle Peripheralが同一Service内に置いた同一UUID Characteristic 2件を、Discoveryで区別し、UUID指定は1件目に届き、Read / Write / 購読 / Notificationがすべて両側でhandleに帰属することを確認。こちらのServer側が同じ形を拒否することも併記 |
 | [security](security/) | Just Works、静的passkeyのPasskey Entry、Numeric Comparison（承認と拒否）。encrypted / authenticated / bonded / key sizeを両側でassertし、bondも両側で確認。attribute権限2段を各link種別で検証し、Numeric Comparisonでは2実装が同一の6桁を導出すること、拒否後は何も残らないことを確認 |
 | [midi](midi/) | BLE MIDIを両方向で検証。各側が自分のライブラリでencode / decodeする。data byteが2・1・0個のchannel voiceメッセージと、rampを保ったまま再構成される99 byteのSysEx。2つ目のテストでは役割を入れ替える — Peripheralとしてnotifyするのと、Centralとしてwriteするのは別経路だからです |
+| [hid](hid/) | HID over GATTを双方向で。hostはpeerのReport MapとReport Referenceを読み、すべてUUID 0x2A4Dを共有するcharacteristicの中で同じreportを同定する必要がある。キー入力はどちらのスタックでも同じusageと同じ文字にdecodeされ、LED writeは逆方向へ届く。2つ目のtestで役を入れ替え、片側だけが常にdecodeする側にならないようにしている |
 | [profile_wire](profile_wire/) | 共有codec headerの相互運用。FLOAT32をRead / Notificationで、CGMのE2E-CRCを一方が付与し他方が検証、SFLOATを逆方向のWriteで、iBeaconをadvertisementからdecode。役割を反転し、被検ライブラリがGATT Server兼beaconになる |
 
 残りの予定scenario（接続系scenarioの逆方向、`interop/hid`）は内容とともに
@@ -77,7 +78,7 @@ interop scenarioはテスト用UUID体系（`SSSSNNNN-b1dd-4d00-9e5a-627564726f6
 も相手側のpayloadでは満たされないようにしています）、`long_value`は`0102`、
 `duplicate_uuid`は`0103`、`security`は`0104`、`profile_wire`は`0105`です
 （iBeacon payloadのUUIDも`0105 0100`なので、周囲の別beaconではbeacon scanが
-満たされません）。`midi`は`0106`をtagとしてのみ持ちます。BLE MIDIのServiceとCharacteristic
+満たされません）。`midi`は`0106`、`hid`は`0107`をtagとしてのみ持ちます。BLE MIDIのServiceとCharacteristic
 UUIDは仕様で固定されており未使用UUIDを選べないため、代わりにデバイス名で隔離します
 （`EspBle MIDI Device 0106`と`Bluedroid MIDI Device 0106`）。名前に役割を含めるので、
 mode切り替えで誤った組み合わせに接続することもありません。

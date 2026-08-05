@@ -146,7 +146,7 @@ Add a row here before using a new tag.
 | `000b` | `duplicate_uuid_server` |
 | `000c` – `0010` | `hid_keyboard_device` / `hid_composite` / `hid_vendor_custom` / `hid_boot_protocol` / `hid_keyboard_host` — a tag only: the HID over GATT UUIDs are fixed by the specification, so these suites are isolated by device name (`Bluedroid HID 000c` … `0010`) |
 | `0009` / `000a` | `midi_device` / `midi_host` — **tags only, not UUIDs**: the BLE MIDI service and characteristic UUIDs are fixed by the specification, so these suites cannot pick unused ones. Isolation is by device name instead (`Bluedroid MIDI 0009`, `Bluedroid MIDI Peer 000a`), and each side requires both the name and the service UUID to match |
-| `01xx` | reserved for interop scenarios (`0100` = `interop/gatt_basic`, `0101` = `interop/advertise_scan`, `0102` = `interop/long_value`, `0103` = `interop/duplicate_uuid`, `0104` = `interop/security`, `0105` = `interop/profile_wire`; `0106` = `interop/midi`, a tag only — the BLE MIDI UUIDs are fixed by the specification, so that scenario is isolated by device name (`EspBle MIDI Device 0106` / `Bluedroid MIDI Device 0106`) with the role in the name) |
+| `01xx` | reserved for interop scenarios (`0100` = `interop/gatt_basic`, `0101` = `interop/advertise_scan`, `0102` = `interop/long_value`, `0103` = `interop/duplicate_uuid`, `0104` = `interop/security`, `0105` = `interop/profile_wire`; `0106` = `interop/midi` and `0107` = `interop/hid`, tags only — the BLE MIDI and HID UUIDs are fixed by the specification, so those scenarios are isolated by device name (`EspBle MIDI Device 0106` / `Bluedroid MIDI Device 0106`, `EspBle HID Device 0107` / `Bluedroid HID Device 0107`) with the role in the name) |
 
 Suites not in the table still use individually chosen 128-bit UUIDs from before
 this scheme (`8d47a6xx`, `6b976bxx`, `48e8c1xx`, …). Those are confirmed not to
@@ -241,7 +241,7 @@ ports. The suite needs no conftest hook of its own: port settings and
 | `interop/duplicate_uuid` | ✅ Spec-legal duplicates (an EspBle peripheral with two same-UUID characteristics in one service) handled by the Bluedroid client through handle-addressed operations: discovery keeps both apart, the UUID form reaches the first, reads/write/subscribe/notification are each attributed to a handle on both sides. Local registration of the same shape is recorded in the same file; `peer/duplicate_uuid_server` is where the publication is read back |
 | `interop/long_value` | ✅ A value longer than the negotiated MTU, published by an EspBle peripheral, arrives whole through both the UUID form and the handle form of the read. `peer/long_value` has Bluedroid on both ends, so this is what makes the claim about the client rather than about the pair |
 | `interop/midi` | ✅ BLE MIDI in both directions, each side encoding and decoding with its own library: channel-voice messages of one, two and no data bytes, and a 99-byte SysEx reassembled with its ramp intact. The codec header is byte-identical and the profile helper differs only in one type, both already machine-checked, so what this adds is the transport — the CCCD write, notifications against the negotiated MTU, Write Without Response, and a SysEx spanning packets — with the roles swapped in the second test because notifying as a peripheral and writing as a central are different paths. Isolation is by device name: the BLE MIDI UUIDs are fixed by the specification |
-| `interop/hid` | After HID over GATT lands; device and host roles in both directions |
+| `interop/hid` | ✅ HID over GATT in both directions, each side using its own library to encode and to decode. The Report Descriptors are byte-identical and both sides parse them with the same helper, both already machine-checked, so what this adds is that a *different implementation* reaches the same conclusions on the air: the Report References name the same reports among characteristics that all share UUID 0x2A4D, a keystroke decodes to the same usage and to the same character through each stack's own layout, the modifier is reported as a usage of its own, and the LED write goes back the other way. The roles are swapped in the second test so neither stack is only ever the one that decodes. Isolation is by device name: the HID UUIDs are fixed by the specification |
 
 Only scenarios whose verdict can be decided unattended are in scope. Phone
 interaction, GUI checks, listening tests, and manual pairing stay out and belong
@@ -330,13 +330,13 @@ once its prerequisites are met.
 | BLE MIDI packet codec | ✅ `unit/midi` | — | — | |
 | Multi-observer dispatch (`add*Listener()`) | | ✅ | ✅ `multi_listener` | |
 | BLE MIDI device / host | ✅ codec above | ✅ | ✅ `midi_device` / `midi_host` | ✅ `interop/midi` (both directions) |
-| HID device — keyboard | ✅ descriptors above | ✅ | ✅ `hid_keyboard_device` | planned `interop/hid` |
-| HID device — mouse / consumer control / system control / gamepad | ✅ descriptors above | ✅ | ✅ `hid_composite` | planned `interop/hid` |
-| HID device — vendor / `hidCustom()` | ✅ descriptors above | ✅ | ✅ `hid_vendor_custom` (both directions, output and feature reports) | planned `interop/hid` |
+| HID device — keyboard | ✅ descriptors above | ✅ | ✅ `hid_keyboard_device` | ✅ `interop/hid` (against EspBle's host) |
+| HID device — mouse / consumer control / system control / gamepad | ✅ descriptors above | ✅ | ✅ `hid_composite` | not in `interop/hid`, which covers the keyboard profile in both roles |
+| HID device — vendor / `hidCustom()` | ✅ descriptors above | ✅ | ✅ `hid_vendor_custom` (both directions, output and feature reports) | not in `interop/hid` |
 | HID device — boot protocol | ✅ descriptors above | ✅ | ✅ `hid_boot_protocol` (NKRO ⇄ boot conversion, rollover, `ready()` per mode) | |
 | HID device — security tiers | | planned | planned `hid_security` | |
 | HID device — robustness | | | mostly covered elsewhere: the two send refusals and the disconnect reset in `hid_keyboard_device`, the rollover in `hid_boot_protocol`, the length and unknown-report refusals in `hid_vendor_custom`; what is left is not HID-specific (`lifecycle_stress`) | |
-| HID host | ✅ parser above | ✅ | ✅ `hid_keyboard_host` (discovery from the device's own attributes, usage → character, state vs edges, LED write) | planned `interop/hid` |
+| HID host | ✅ parser above | ✅ | ✅ `hid_keyboard_host` (discovery from the device's own attributes, usage → character, state vs edges, LED write) | ✅ `interop/hid` (against EspBle's device) |
 
 ### Bluetooth Classic / dual mode (specific to this library)
 
@@ -492,8 +492,10 @@ Start with the gaps that need no implementation work.
   decodes by what it found rather than by an assumed layout, sharing the parser
   with the device side. Discovery is a state machine rather than EspBle's
   straight-line sequence, because this backend allows one central GATT operation
-  per link at a time. What remains is the security scenario and `interop/hid`,
-  which is now possible in both directions
+  per link at a time. ✅ `interop/hid` closes it in both
+  directions: EspBle's device against this library's host and the reverse, which is
+  the first check that a different implementation agrees on what those descriptors
+  mean rather than only on their bytes. What remains is the security scenario
 
 **interop**: each layer moves into `interop/` once its API and wire behaviour
 settle. `gatt_basic`, `advertise_scan`, `long_value`, `duplicate_uuid`,

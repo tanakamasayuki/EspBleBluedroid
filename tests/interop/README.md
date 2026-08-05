@@ -66,6 +66,7 @@ uv run --env-file .env pytest interop/
 | [duplicate_uuid](duplicate_uuid/) | Two characteristics sharing one UUID in one service on the EspBle peripheral: discovery keeps them apart, the UUID form reaches the first, and read, write, subscribe and notification are each attributed to a handle on both sides. This library's server-side rejection of the same shape is recorded alongside |
 | [security](security/) | Just Works, static-passkey Passkey Entry, and Numeric Comparison (confirmed and refused): encrypted / authenticated / bonded / key size asserted on both sides, the bond recorded by both, the attribute tiers exercised on each link type, the same six digits derived by both implementations, and nothing left behind after a refusal |
 | [midi](midi/) | BLE MIDI both ways, each side encoding and decoding with its own library: channel-voice messages of one, two and no data bytes, and a 99-byte SysEx reassembled with its ramp intact. The second test swaps the roles, because notifying as a peripheral and writing as a central are different paths |
+| [hid](hid/) | HID over GATT both ways: the host reads the peer's Report Map and Report References and has to name the same reports among characteristics that all share UUID 0x2A4D, a keystroke decodes to the same usage and character on either stack, and the LED write goes back the other way. The second test swaps the roles so neither stack is only ever the one that decodes |
 | [profile_wire](profile_wire/) | The shared codec headers across the two libraries: a FLOAT32 read and notified, a CGM E2E-CRC appended by one copy and verified by the other, an SFLOAT written back, and an iBeacon decoded from the advertisement. Roles reversed — the library under test is the GATT server and the beacon |
 
 The remaining planned scenarios — the reverse direction of the connection-oriented
@@ -81,7 +82,7 @@ library's own suites even when both run in the same room. `gatt_basic` uses
 can be satisfied by the other side's payload), `long_value` uses `0102`,
 `duplicate_uuid` uses `0103`, `security` uses `0104`, and `profile_wire` uses
 `0105` (its iBeacon payload carries the `0105 0100` UUID, so the beacon scan
-cannot be satisfied by another beacon in the room). `midi` holds `0106` as a tag
+cannot be satisfied by another beacon in the room). `midi` holds `0106` and `hid` holds `0107` as tags
 only: the BLE MIDI service and characteristic UUIDs are fixed by the
 specification, so it cannot pick unused ones and is isolated by device name
 instead — `EspBle MIDI Device 0106` and `Bluedroid MIDI Device 0106`, with the

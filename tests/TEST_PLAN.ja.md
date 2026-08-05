@@ -203,7 +203,7 @@ conftest hookは持たず、port設定と`sketch.yaml`だけで構成する。
 | `interop/duplicate_uuid` | ✅ 仕様が認める重複UUID（EspBle Peripheralが同一Service内に同一UUID Characteristicを2つ）を、Bluedroid Clientがhandle指定で扱えること。Discoveryで2件を区別、UUID指定は1件目に届く、Read / Write / 購読 / Notificationがすべて両側でhandleに帰属することを確認。本ライブラリ側で同じ形を登録できることも同じファイルに記録する（公開されたdatabaseの読み出しは`peer/duplicate_uuid_server`） |
 | `interop/long_value` | ✅ EspBle Peripheralが公開した合意MTU超の値が、UUID指定・handle指定の両方のReadで全体として返ること。`peer/long_value`は両端がBluedroidなので、clientの性質として言えるのはこちら |
 | `interop/midi` | ✅ BLE MIDIを両方向で検証し、各側が自分のライブラリでencode / decodeする。data byteが2・1・0個のchannel voiceメッセージと、rampを保ったまま再構成される99 byteのSysEx。codec headerはbyte一致、profile helperは型1つだけの差で、どちらも機械チェック済みなので、ここで足すのはtransport側（CCCD write、negotiated MTUに対するNotification、Write Without Response、packetを跨ぐSysEx）である。2つ目のテストでは役割を入れ替える — PeripheralとしてnotifyするのとCentralとしてwriteするのは別経路だからである。BLE MIDIのUUIDは仕様固定なので、隔離はデバイス名で行う |
-| `interop/hid` | HID over GATT実装後。Device / Hostを入れ替えた両方向 |
+| `interop/hid` | ✅ HID over GATTを双方向で、各側が自分のライブラリでencodeとdecodeを行う。Report Descriptorのバイト列一致と共有parserは既に機械的に検査済みなので、ここで追加されるのは「**別実装**が電波上で同じ結論に達するか」である: すべてがUUID 0x2A4Dを共有するcharacteristicの中でReport Referenceが同じreportを指すこと、キー入力が同じusageと（各スタック自身のlayoutを通って）同じ文字にdecodeされること、modifierが単独のusageとしても報告されること、LED writeが逆方向へ届くこと。2つ目のtestで役を入れ替え、片側だけが常にdecodeする側にならないようにしている。隔離はデバイス名: HIDのUUIDは仕様で固定されている |
 
 自動で合否を決められるscenarioだけを対象にする。スマートフォン操作、GUI確認、聴感評価、
 手動pairing操作は含めず、リリースチェックリストの手動相互運用へ分離する。
@@ -289,13 +289,13 @@ cross-stack試験を指す。
 | BLE MIDI packet codec | ✅ `unit/midi` | — | — | |
 | 複数observer配送（`add*Listener()`） | | ✅ | ✅ `multi_listener` | |
 | BLE MIDI Device / Host | ✅ 上記codec | ✅ | ✅ `midi_device` / `midi_host` | ✅ `interop/midi`（両方向） |
-| HID Device — keyboard | ✅ 上記descriptor | ✅ | ✅ `hid_keyboard_device` | 予定 `interop/hid` |
-| HID Device — mouse / consumer control / system control / gamepad | ✅ 上記descriptor | ✅ | ✅ `hid_composite` | 予定 `interop/hid` |
-| HID Device — vendor / `hidCustom()` | ✅ 上記descriptor | ✅ | ✅ `hid_vendor_custom`（双方向、Output・Feature Report） | 予定 `interop/hid` |
+| HID Device — keyboard | ✅ 上記descriptor | ✅ | ✅ `hid_keyboard_device` | ✅ `interop/hid`（EspBleのhost相手） |
+| HID Device — mouse / consumer control / system control / gamepad | ✅ 上記descriptor | ✅ | ✅ `hid_composite` | `interop/hid`の対象外（同scenarioはkeyboard profileを両方の役で扱う） |
+| HID Device — vendor / `hidCustom()` | ✅ 上記descriptor | ✅ | ✅ `hid_vendor_custom`（双方向、Output・Feature Report） | `interop/hid`の対象外 |
 | HID Device — boot protocol | ✅ 上記descriptor | ✅ | ✅ `hid_boot_protocol`（NKRO ⇄ boot変換、rollover、mode別の`ready()`） | |
 | HID Device — security tier | | 予定 | 予定 `hid_security` | |
 | HID Device — robustness | | | 大半は他suiteでカバー済み: 2種類の送信拒否と切断時リセットは`hid_keyboard_device`、rolloverは`hid_boot_protocol`、長さ不一致と未宣言reportの拒否は`hid_vendor_custom`。残りはHID固有ではない（`lifecycle_stress`） | |
-| HID Host | ✅ 上記parser | ✅ | ✅ `hid_keyboard_host`（デバイス自身の属性からのdiscovery、usage→文字、状態と差分、LED write） | 予定 `interop/hid` |
+| HID Host | ✅ 上記parser | ✅ | ✅ `hid_keyboard_host`（デバイス自身の属性からのdiscovery、usage→文字、状態と差分、LED write） | ✅ `interop/hid`（EspBleのdevice相手） |
 
 ### Bluetooth Classic / dual mode（このライブラリ固有）
 
@@ -440,7 +440,9 @@ cross-stack試験を指す。
   descriptorとReport Referenceを読み、想定レイアウトではなく読み取った内容でdecodeする
   （parserはDevice側と共有）。discoveryはEspBleの直線的な手順ではなく状態機械。
   本backendは1 linkあたりCentral GATT操作を同時1件しか許さないため。
-  残りはsecurityのscenarioと、双方向で組めるようになった`interop/hid`
+  ✅ `interop/hid`が双方向で完了——EspBleのdeviceに対する本実装のhostと、その逆。
+  descriptorのバイト列ではなく「その意味」について別実装と一致することを確認した最初の
+  テストである。残りはsecurityのscenario
 
 **interop**: 各層でAPIとwire動作が固まった順に`interop/`へ写す。`gatt_basic`、
 `advertise_scan`、`long_value`、`duplicate_uuid`、`security`、`profile_wire`は実装済み。
