@@ -144,7 +144,7 @@ Add a row here before using a new tag.
 | `0007` | `peripheral_connection` |
 | `0008` | `multi_listener` |
 | `000b` | `duplicate_uuid_server` |
-| `000c` – `0010` | `hid_keyboard_device` / `hid_composite` / `hid_vendor_custom` / `hid_boot_protocol` / `hid_keyboard_host` — a tag only: the HID over GATT UUIDs are fixed by the specification, so these suites are isolated by device name (`Bluedroid HID 000c` … `0010`) |
+| `000c` – `0011` | `hid_keyboard_device` / `hid_composite` / `hid_vendor_custom` / `hid_boot_protocol` / `hid_keyboard_host` / `hid_security` — a tag only: the HID over GATT UUIDs are fixed by the specification, so these suites are isolated by device name (`Bluedroid HID 000c` … `0011`) |
 | `0009` / `000a` | `midi_device` / `midi_host` — **tags only, not UUIDs**: the BLE MIDI service and characteristic UUIDs are fixed by the specification, so these suites cannot pick unused ones. Isolation is by device name instead (`Bluedroid MIDI 0009`, `Bluedroid MIDI Peer 000a`), and each side requires both the name and the service UUID to match |
 | `01xx` | reserved for interop scenarios (`0100` = `interop/gatt_basic`, `0101` = `interop/advertise_scan`, `0102` = `interop/long_value`, `0103` = `interop/duplicate_uuid`, `0104` = `interop/security`, `0105` = `interop/profile_wire`; `0106` = `interop/midi` and `0107` = `interop/hid`, tags only — the BLE MIDI and HID UUIDs are fixed by the specification, so those scenarios are isolated by device name (`EspBle MIDI Device 0106` / `Bluedroid MIDI Device 0106`, `EspBle HID Device 0107` / `Bluedroid HID Device 0107`) with the role in the name) |
 
@@ -337,10 +337,10 @@ once its prerequisites are met.
 | HID device — mouse / consumer control / system control / gamepad | ✅ descriptors above | ✅ | ✅ `hid_composite` | not in `interop/hid`, which covers the keyboard profile in both roles |
 | HID device — vendor / `hidCustom()` | ✅ descriptors above | ✅ | ✅ `hid_vendor_custom` (both directions, output and feature reports) | not in `interop/hid` |
 | HID device — boot protocol | ✅ descriptors above | ✅ | ✅ `hid_boot_protocol` (NKRO ⇄ boot conversion, rollover, `ready()` per mode) | |
-| HID device — security tiers | | planned | planned `hid_security` | |
+| HID device — security tiers | | ✅ | ✅ `hid_security` (the device asks the host to pair on connect; a host that **refuses** gets no value from the Report Map, HID Information or any Report Reference while the attributes stay discoverable, and the refusal is reported as `onSecurityChanged(success=0)`; accepting a Just Works bond makes the same attributes readable) | |
 | HID device — robustness | | | mostly covered elsewhere: the two send refusals and the disconnect reset in `hid_keyboard_device`, the rollover in `hid_boot_protocol`, the length and unknown-report refusals in `hid_vendor_custom`; what is left is not HID-specific (`lifecycle_stress`) | |
 | HID host | ✅ parser above | ✅ | ✅ `hid_keyboard_host` (discovery from the device's own attributes, usage → character, state vs edges, LED write) | ✅ `interop/hid` (against EspBle's device) |
-| HID host — key-slot error codes | | | partial: `hid_boot_protocol` covers `0x01` (ErrorRollOver). `0x02` / `0x03` (POSTFail / ErrorUndefined) are rejected by the same branch but **unverified**; a raw-report command in `hid_keyboard_host`'s device sketch would cover them ([../docs/ESPBLE_FEEDBACK.ja.md](../docs/ESPBLE_FEEDBACK.ja.md)) | |
+| HID host — key-slot error codes | | | ✅ `hid_boot_protocol` covers `0x01` (ErrorRollOver); `hid_keyboard_host` sends a slot holding `0x02` (POSTFail) and pins that nothing is reported as pressed and the report is counted by `invalidInputReportCount()` ([../docs/ESPBLE_FEEDBACK.ja.md](../docs/ESPBLE_FEEDBACK.ja.md)) | |
 
 ### Bluetooth Classic / dual mode (specific to this library)
 

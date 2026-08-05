@@ -128,9 +128,9 @@ boot互換レイアウト（`[modifiers, reserved, keycode1..6]`）のkey配列�
 
 **対応済み**: `src/EspBleBluedroidHidHost.cpp`の`dispatchKeyboard()`で、key slotに`0x01`〜`0x03`が
 1つでもあれば`invalidInputReportCount()`を増やして前の状態を維持するようにしました（error codeを
-bitmapへ立てない）。実機確認は`tests/peer/hid_boot_protocol`が`0x01`のrolloverを見ており、
-`0x02` / `0x03`は**未検証**です。検証するなら、device側sketchから`keys[0] = 0x02`の生reportを
-送るコマンドを`tests/peer/hid_keyboard_host`へ足すのが最短です。
+bitmapへ立てない）。実機確認済み: `tests/peer/hid_boot_protocol`が`0x01`のrolloverを見ており、
+`tests/peer/hid_keyboard_host`はdevice側から`keys[0] = 0x02`の生reportを送って、押下eventが
+1件も出ないことと`invalidInputReportCount()`が1になることを固定しています。
 
 ## 4. `examples/Hid/KeyboardHost/README`の期待出力が実際の順序と違う
 

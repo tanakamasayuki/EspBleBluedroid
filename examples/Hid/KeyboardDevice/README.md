@@ -37,7 +37,7 @@ HOGP puts the input and the output report in two characteristics that **share UU
 ## Notes
 
 - **`ready()` is not "connected".** A HOGP host reads the descriptors, pairs, and only then subscribes to the input report; until it does, `sendReport()` fails with `InvalidState` and a detail naming which of the two it is (`no connected HID Host` / `no subscribed HID Host`). Poll `ready()` rather than inferring connectivity from a send result.
-- **Security is effectively required.** A host OS starts pairing because the HID attributes answer an unencrypted read with an insufficient-encryption error. With `security.enabled` off, the attributes are readable and some hosts will simply not pair.
+- **Security is effectively required.** With `security.enabled` on, this device asks the host to pair as soon as it connects (a peripheral-initiated Security Request), and the HID attributes answer an unencrypted read with an insufficient-encryption error as well — `tests/peer/hid_security` pins both, including that a host which refuses gets nothing at all. With `security.enabled` off, the attributes are readable and some hosts will simply not pair.
 
 ## Differences from EspBle
 

@@ -37,7 +37,7 @@ HOGPはInput ReportとOutput Reportを**UUID 0x2A4Dを共有する**2つのChara
 ## 注意
 
 - **`ready()`は「接続済み」ではありません。** HOGP Hostはdescriptorを読み、Pairingし、その後にInput Reportを購読します。購読までは`sendReport()`が`InvalidState`で失敗し、detailがどちらの状態かを示します（`no connected HID Host` / `no subscribed HID Host`）。送信結果から接続状態を推測せず、`ready()`を見てください。
-- **securityは実質必須です。** Host OSがPairingを始めるのは、HID属性が暗号化なしのReadに対して「暗号化不足」エラーを返すからです。`security.enabled`をoffにすると属性がそのまま読めてしまい、Pairingしないhostもあります。
+- **securityは実質必須です。** `security.enabled`が有効なら、このdeviceはHostが接続した時点でPairingを要求します（Peripheral側からのSecurity Request）。加えてHID属性は暗号化なしのReadに「暗号化不足」エラーを返します。`tests/peer/hid_security`がその両方と、Pairingを拒否したHostが何も得られないことを固定しています。`security.enabled`をoffにすると属性がそのまま読めてしまい、Pairingしないhostもあります。
 
 ## EspBleとの違い
 

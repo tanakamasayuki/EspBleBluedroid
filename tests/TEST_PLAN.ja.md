@@ -121,7 +121,7 @@ SSSSNNNN-b1dd-4d00-9e5a-627564726f69
 | `0007` | `peripheral_connection` |
 | `0008` | `multi_listener` |
 | `000b` | `duplicate_uuid_server` |
-| `000c`〜`0010` | `hid_keyboard_device` / `hid_composite` / `hid_vendor_custom` / `hid_boot_protocol` / `hid_keyboard_host` — tagのみ。HID over GATTのUUIDは仕様で固定されているため、デバイス名（`Bluedroid HID 000c`〜`0010`）で隔離する |
+| `000c`〜`0011` | `hid_keyboard_device` / `hid_composite` / `hid_vendor_custom` / `hid_boot_protocol` / `hid_keyboard_host` / `hid_security` — tagのみ。HID over GATTのUUIDは仕様で固定されているため、デバイス名（`Bluedroid HID 000c`〜`0011`）で隔離する |
 | `0009` / `000a` | `midi_device` / `midi_host` — **tagのみでUUIDではない**。BLE MIDIのServiceとCharacteristic UUIDは仕様で固定されているため、このsuiteは未使用UUIDを選べない。代わりにデバイス名で隔離する（`Bluedroid MIDI 0009`、`Bluedroid MIDI Peer 000a`）。両側とも名前とService UUIDの両方が一致することを要求する |
 | `01xx` | interop scenario専用の範囲（`0100` = `interop/gatt_basic`、`0101` = `interop/advertise_scan`、`0102` = `interop/long_value`、`0103` = `interop/duplicate_uuid`、`0104` = `interop/security`、`0105` = `interop/profile_wire`、`0106` = `interop/midi`はtagのみ — BLE MIDIのUUIDは仕様固定なので、このscenarioは役割を含むデバイス名（`EspBle MIDI Device 0106` / `Bluedroid MIDI Device 0106`）で隔離する） |
 
@@ -294,10 +294,10 @@ cross-stack試験を指す。
 | HID Device — mouse / consumer control / system control / gamepad | ✅ 上記descriptor | ✅ | ✅ `hid_composite` | `interop/hid`の対象外（同scenarioはkeyboard profileを両方の役で扱う） |
 | HID Device — vendor / `hidCustom()` | ✅ 上記descriptor | ✅ | ✅ `hid_vendor_custom`（双方向、Output・Feature Report） | `interop/hid`の対象外 |
 | HID Device — boot protocol | ✅ 上記descriptor | ✅ | ✅ `hid_boot_protocol`（NKRO ⇄ boot変換、rollover、mode別の`ready()`） | |
-| HID Device — security tier | | 予定 | 予定 `hid_security` | |
+| HID Device — security tier | | ✅ | ✅ `hid_security`（deviceは接続時にPairingを要求する。**拒否した**HostはReport Map・HID Information・全Report Referenceから値を得られず、属性の存在自体は見えたまま。拒否は`onSecurityChanged(success=0)`として報告され、Just Worksのbondを受ければ同じ属性が読める） | |
 | HID Device — robustness | | | 大半は他suiteでカバー済み: 2種類の送信拒否と切断時リセットは`hid_keyboard_device`、rolloverは`hid_boot_protocol`、長さ不一致と未宣言reportの拒否は`hid_vendor_custom`。残りはHID固有ではない（`lifecycle_stress`） | |
 | HID Host | ✅ 上記parser | ✅ | ✅ `hid_keyboard_host`（デバイス自身の属性からのdiscovery、usage→文字、状態と差分、LED write） | ✅ `interop/hid`（EspBleのdevice相手） |
-| HID Host — key slotのerror code | | | 部分的。`0x01`（ErrorRollOver）は`hid_boot_protocol`で確認済み。`0x02` / `0x03`（POSTFail / ErrorUndefined）は同じ分岐で弾くが**未検証**。`hid_keyboard_host`のdevice側sketchに生report送信コマンドを足せば覆える（[../docs/ESPBLE_FEEDBACK.ja.md](../docs/ESPBLE_FEEDBACK.ja.md)） | |
+| HID Host — key slotのerror code | | | ✅ `0x01`（ErrorRollOver）は`hid_boot_protocol`。`hid_keyboard_host`が`0x02`（POSTFail）を入れたslotを送り、押下として報告されないことと`invalidInputReportCount()`が数えることを固定（[../docs/ESPBLE_FEEDBACK.ja.md](../docs/ESPBLE_FEEDBACK.ja.md)） | |
 
 ### Bluetooth Classic / dual mode（このライブラリ固有）
 

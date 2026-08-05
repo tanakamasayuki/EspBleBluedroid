@@ -30,7 +30,7 @@ BLE HID mouse（HID over GATT / HOGP）です。相対移動のポインタに�
 
 - **ドラッグは「ボタンを押したままの移動」です。** `move()`は押されているボタンをそのまま維持するので、ドラッグは`press()`→`move()`→`releaseAll()`です。Reportごとにボタン状態を指定し直す必要はありません。
 - **値はすべて位置ではなく差分です。** HID Reportは符号付き8 bitの移動量なので、長い移動は1件の大きなReportではなく複数のReportになります。
-- **securityは実質必須です。** Host OSがPairingを始めるのは、HID属性が暗号化なしのReadに「暗号化不足」エラーを返すからです。
+- **securityは実質必須です。** 有効なら、deviceはHostの接続時点でPairingを要求し、加えてHID属性は暗号化なしのReadに「暗号化不足」エラーを返します（`tests/peer/hid_security`）。
 
 ## EspBleとの違い
 

@@ -30,7 +30,7 @@ A BLE HID mouse over GATT (HOGP): a relative-motion pointer with buttons and a w
 
 - **A drag is a move with the button still down.** `move()` keeps whatever buttons are held, so a drag is `press()`, then `move()`, then `releaseAll()` — the button state does not have to be repeated on every report.
 - **Every value is a delta, not a position.** The HID report carries signed 8-bit movement, so a long travel is several reports rather than one large one.
-- **Security is effectively required.** A host OS starts pairing because the HID attributes answer an unencrypted read with an insufficient-encryption error.
+- **Security is effectively required.** With it on, the device asks the host to pair as soon as it connects, and the HID attributes also answer an unencrypted read with an insufficient-encryption error (`tests/peer/hid_security`).
 
 ## Differences from EspBle
 

@@ -84,6 +84,16 @@ modifier usage 0xE1も保持すること、eventになるのは変化したusage
 1つ目は再報告されない）。LED writeはkeyboard Hostが送る唯一のreportです。切断はdiscovery済みhandleを
 道連れにするので、`ready()`は残りません。
 
+`hid_security`は他のHID suiteが意図的に外している層を検証します。HOGPはHID属性にSecurity
+Mode 1 Level 2を要求し、暗号化なしのlinkでHostが受け取るinsufficient encryptionエラーこそが
+Host OSにPairingを始めさせる仕組みそのものです。したがって確認するのは「未Pairingのhostは何も
+得られない」こと: Report Map、HID Information、全Report Reference descriptorが値を返さず、
+一方でserviceとcharacteristic自体は見えたまま（保護されているのは値だけ）であることです。
+計測器はwrapperのraw clientで、**security parameterを一切設定していない**状態——Hostが
+keyboardを初めて見たときの状態——にします。2つ目のphaseでbondつきJust Worksを設定し、同じ
+属性をもう一度読みます。両ボードは先にbondを消します。前回のrunのbondが残っていればlinkは
+即座に暗号化され、未Pairingのphaseが何も証明しなくなるためです。
+
 `hid_boot_protocol`はHID over GATT Boot Protocol——Report Descriptorを解釈できない
 Hostが使う固定8 byteのkeyboard report——を検証します。keyboardをNKROにしているので両modeの
 差は最大で、変換そのものが主題です。同じ`sendReport()`が、Report Protocol ModeではReport Mapが

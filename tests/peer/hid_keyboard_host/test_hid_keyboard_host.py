@@ -135,6 +135,40 @@ def test_host_discovers_and_decodes_a_keyboard(dut, peers):
     assert released.group(2) == b"none" and released.group(3) == b"0", (
         "releaseAll() must leave nothing down: %s" % released.group(2).decode()
     )
+    # Every key that was down becomes its own release event, and they have to be
+    # read here: whatever is left in the buffer would be picked up by the next
+    # expect() and be attributed to the step after this one.
+    releases = set()
+    for _ in range(3):
+        event = dut.expect(
+            re.compile(rb"KEY usage=(\d+) ascii=\d+ pressed=0 released=1 "
+                       rb"mods=0x\w+ caps=\d+ length=\d+ context=loop"),
+            timeout=25,
+        )
+        releases.add(int(event.group(1)))
+    assert releases == {0x04, 0x05, 0xe1}, (
+        "both keys and the modifier are released: %s" % sorted(releases)
+    )
+
+    # A key slot holding an error code (0x02, POSTFail). Usages 0x01-0x03 are not
+    # keys, so the host must report nothing as pressed and count the report as one
+    # it could not use. Asserted by reading the next line the host prints, whatever
+    # it is: a STATE or KEY line here would be the bug.
+    device.write("E")
+    device.expect_exact("DEVICE_SEND error_code=1 error=NONE", timeout=20)
+    dut.write("?")
+    # The lookbehind matters: without it "STATE" matches inside "READY_STATE" and
+    # every good run looks like the bug.
+    next_line = dut.expect(
+        re.compile(rb"(?<![A-Z_])(STATE|KEY|READY_STATE)([^\r\n]*)"), timeout=25
+    )
+    assert next_line.group(1) == b"READY_STATE", (
+        "an error code was reported as a key: %s%s"
+        % (next_line.group(1).decode(), next_line.group(2).decode())
+    )
+    assert next_line.group(2) == (
+        b" id=%d ready=1 invalid=1" % connection_id
+    ), "the report must be counted as invalid: %s" % next_line.group(2).decode()
 
     # The one report a keyboard host writes. The device receives it as its LED state.
     dut.write("l")
@@ -151,4 +185,6 @@ def test_host_discovers_and_decodes_a_keyboard(dut, peers):
     dut.expect_exact("DISCONNECT accepted=1", timeout=20)
     dut.expect(re.compile(rb"DISCONNECTED id=%d" % connection_id), timeout=25)
     dut.write("?")
-    dut.expect_exact("READY_STATE id=0 ready=0 invalid=0", timeout=25)
+    # invalid stays at 1: the count is the host's lifetime total, not per link, so a
+    # disconnect does not clear it.
+    dut.expect_exact("READY_STATE id=0 ready=0 invalid=1", timeout=25)

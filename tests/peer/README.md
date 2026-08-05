@@ -87,6 +87,19 @@ the usage that changed is an event — a second key press does not re-report the
 The LED write is the one report a keyboard host sends, and a disconnect has to take
 the discovered handles with it, so `ready()` does not survive it.
 
+`hid_security` verifies the tier the other HID suites deliberately leave out. HOGP
+requires Security Mode 1 Level 2 on the HID attributes, and the
+insufficient-encryption error a host gets on an unencrypted link is the whole
+mechanism by which a host OS starts pairing — so the check is that an unpaired host
+gets *nothing*: the Report Map, HID Information and every Report Reference descriptor
+answer with no value, while the service and its characteristics stay discoverable
+(only the values are protected). The instrument is the raw wrapper client with **no
+security parameters configured at all**, which is the state a host is in the first
+time it sees a keyboard; the second phase configures a bonded Just Works pairing and
+reads the same attributes again. Both boards clear their bonds first, because a bond
+left over from an earlier run would encrypt the link immediately and the unpaired
+phase would prove nothing.
+
 `hid_boot_protocol` verifies HID over GATT Boot Protocol — the fixed 8-byte keyboard
 report a host uses before it can parse a Report Descriptor. The keyboard is NKRO, so
 the two modes are as far apart as they get and the conversion is the subject: the

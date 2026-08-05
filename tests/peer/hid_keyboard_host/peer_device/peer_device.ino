@@ -103,6 +103,17 @@ void loop()
       Serial.printf("DEVICE_SEND release=%u error=%s\n",
         keyboard.releaseAll() ? 1 : 0, bluetooth.lastErrorName());
     }
+    else if (command == 'E')
+    {
+      // A key slot holding 0x02 (POSTFail). Usages 0x01-0x03 are HID error codes,
+      // not keys, and sendReport() passes the array through as given — which is
+      // what makes this reachable from the public API at all. A host must not
+      // report usage 2 as a pressed key.
+      EspBleHidKeyboardReport report;
+      report.keys[0] = 0x02;
+      Serial.printf("DEVICE_SEND error_code=%u error=%s\n",
+        keyboard.sendReport(report) ? 1 : 0, bluetooth.lastErrorName());
+    }
   }
   delay(1);
 }

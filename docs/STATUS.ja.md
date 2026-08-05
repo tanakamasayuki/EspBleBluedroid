@@ -174,6 +174,11 @@ CCCD購読、notificationまで確認している。
   Input/Output 0x2a22/0x2a32を追加し、Boot Protocol Mode中はNKRO bitmapを固定8 byteへ
   変換して送る（6キー超はHIDのrolloverコード0x01）。`ready()`は選択中modeが使うreportの
   CCCDに従う（`tests/peer/hid_boot_protocol`）。
+  `security.enabled`を有効にすると、HID属性（Report Map、HID Information、PnP ID、
+  Protocol Mode、HID Control Point、各Input ReportとそのReport Reference、Output /
+  Feature Report）が暗号化必須になり、加えてHostの接続時にPeripheral側からPairingを
+  要求する。Pairingを拒否したHostはHID属性から何も読めない
+  （`tests/peer/hid_security`。serviceとcharacteristicの存在は見えるが、値が返らない）。
   HID Hostは`bluetooth.hidHost()`で利用できる。`discover()`がpeerのReport Mapと
   Report Referenceを読んで各0x2A4Dの正体を確定し、Input Reportを購読してから
   `onDiscovered()`を配送する。decodeは読み取ったdescriptor基準（keyboardのmodifier位置や
