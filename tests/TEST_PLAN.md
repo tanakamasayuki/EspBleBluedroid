@@ -501,6 +501,61 @@ settle. `gatt_basic`, `advertise_scan`, `long_value`, `duplicate_uuid`,
 the connection-oriented scenarios (waiting for the peripheral connection
 snapshot) and the HID/MIDI pair.
 
+## Known intermittent failures
+
+Failures seen once, in a full run, that targeted repetition could not reproduce.
+Recorded so the next investigation starts from what was already eliminated rather
+than from zero.
+
+**Resolvable Private Address fell back to the identity address** (`local_identity`,
+seen once in a 76-test run). In the Resolvable Private phase the peripheral reported
+`type=1` (Random) while the observer saw its factory public address with `type=0`:
+
+```
+peer: RPA_READY 1 error=NONE
+peer: LOCAL address=- type=1
+dut:  OBSERVED address=00:70:07:0e:9b:0e type=0 txpower=9
+```
+
+The report and the air disagreed, so if it recurs it is a controller- or
+stack-level fallback rather than a missing wait. Eliminated by 54 RPA-mode
+observations over four configurations, all correct (a rotating address with the top
+two bits `01`):
+
+- the `end()` → `begin(ResolvablePrivate)` → `advertising.start()` transition
+  repeated 15×, so the privacy-completion wait is not the race (the library does
+  wait for `ESP_GAP_BLE_SET_LOCAL_PRIVACY_COMPLETE_EVT` and checks its status)
+- the same after `peer/security_bond` populated the bond store, 15×, so it is not
+  bond- or IRK-state dependent
+- the ordering the failing attempt actually had — in Resolvable Private mode every
+  `advertising.start()` re-runs privacy off → set random address → privacy on, and
+  the tx-power commands restart advertising, so the failing attempt came after
+  three such toggles — replayed 8× with an observation after each toggle, 24
+  observations
+
+What the full run had and these did not: ~74 preceding tests, including the
+Bluetooth Classic suites (A2DP, HFP, SPP) on the same dual-mode controller, and a
+congested 2.4 GHz environment. Reproducing it probably needs that load rather than
+more repetitions of the transition.
+
+One weakness was found while reading the code, and it is worth fixing whether or
+not it is this cause: the completion waits in `EspBleAdvertising`'s identity path
+use single shared atomics (`privacyOperationCompleted`,
+`randomAddressOperationCompleted`) rather than per-request state, so a late
+completion event from a previous operation can satisfy the next wait. It cannot
+explain this failure on its own — a stale event requires the previous wait to have
+timed out, which would have failed `begin()`/`start()`, and the run shows three
+successful `restarted=1` toggles before the bad attempt — but a wait that any prior
+event can satisfy is wrong on its own terms.
+
+**A scan missed every advertisement** (`long_value`, same run). Both boards were up
+(`LONG_VALUE_READY`, `LONG_VALUE_PEER_READY length=300`) and the DUT's continuous
+scan never delivered a result matching the peer's service UUID, so `TARGET_FOUND`
+was never printed. Missing an advertisement is normal radio behaviour; the suite
+fails on a single miss because it waits for one result with no retry. Hardening it
+(retry the scan once before failing) is a test correction rather than a workaround —
+unlike the RPA case, where a retry would hide the defect.
+
 ## Pass criteria
 
 - The test code generates every input and decides the verdict from serial

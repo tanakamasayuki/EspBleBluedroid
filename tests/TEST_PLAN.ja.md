@@ -447,6 +447,53 @@ cross-stack試験を指す。
 残るのは接続系scenarioの逆方向（Peripheral connection snapshotが実装されたので着手可能）と
 HID/MIDI。
 
+## 既知の間欠失敗
+
+full runで1度だけ観測され、狙った反復では再現しなかった失敗。次の調査が「何を既に潰したか」から
+始められるように記録する。
+
+**Resolvable Private AddressがIdentity addressにフォールバックした**（`local_identity`、
+76テストのfull runで1度）。RPAフェーズで、peripheralは`type=1`（Random）と報告しながら、
+observerはその工場出荷public addressを`type=0`で観測した:
+
+```
+peer: RPA_READY 1 error=NONE
+peer: LOCAL address=- type=1
+dut:  OBSERVED address=00:70:07:0e:9b:0e type=0 txpower=9
+```
+
+報告値と電波上の実体が食い違っているので、再発するならcontrollerまたはstack側のフォールバックで
+あり、待ち漏れではない。4通りの条件で計54回のRPAモード観測を行い、すべて正常だった
+（毎回異なるアドレスで上位2 bitが`01`）:
+
+- `end()` → `begin(ResolvablePrivate)` → `advertising.start()` の遷移を15回反復。
+  privacy完了待ちの競合ではない（ライブラリは
+  `ESP_GAP_BLE_SET_LOCAL_PRIVACY_COMPLETE_EVT`を待ち、statusも確認している）
+- `peer/security_bond`でbond storeを作ってから同じ反復を15回。bond / IRK状態依存ではない
+- 失敗したattemptが実際に経ていた順序——RPAモードでは`advertising.start()`のたびに
+  privacy off → random address設定 → privacy on を再実行し、tx powerコマンドは
+  advertisingを再起動するので、失敗時はその3回のトグルの後だった——を8周replayし、
+  各トグル後にも観測して計24回
+
+full runにあってこれらに無かったもの: 先行する約74テスト（同じdual mode controller上の
+Bluetooth Classic suite——A2DP・HFP・SPP——を含む）と、混雑した2.4 GHz環境。再現には
+遷移の反復回数よりもこの負荷が必要と思われる。
+
+コードを読む過程で弱点が1つ見つかった。これが原因かどうかとは無関係に直す価値がある:
+`EspBleAdvertising`のidentity適用経路の完了待ちが、要求ごとの状態ではなく共有の単一atomic
+（`privacyOperationCompleted`、`randomAddressOperationCompleted`）を使っているため、
+前の操作の遅れた完了イベントが次の待ちを満たしうる。ただしこれ単独では今回の失敗を説明できない
+——stale eventが残るには前の待ちがタイムアウトしている必要があり、その場合`begin()`/`start()`が
+失敗するが、ログには失敗前に`restarted=1`が3回成功して並んでいる。それでも
+「任意の先行イベントが満たせる待ち」はそれ自体が誤りである。
+
+**scanがadvertisementを1件も受け取らなかった**（`long_value`、同じrun）。両ボードは正常起動して
+おり（`LONG_VALUE_READY`、`LONG_VALUE_PEER_READY length=300`）、DUTの継続scanがpeerの
+service UUIDに一致する結果を配送しなかったため`TARGET_FOUND`が印字されなかった。
+advertisementの取りこぼしは無線として正常な事象で、このsuiteは結果を1回だけリトライなしで
+待つため1回のmissで落ちる。scanを1度リトライさせるのは回避策ではなくテストの修正である
+——RPAの件とは違い、こちらはリトライが不具合を隠さない。
+
 ## 合格条件
 
 - test codeがすべての入力を生成し、Serial assertionで結果を判定する。
