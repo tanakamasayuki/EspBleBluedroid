@@ -177,7 +177,8 @@ EspBle（NimBLE）を相手にしたcross-stack試験をこのrepositoryへ置�
   releaseをinstallする。手動の取得・展開は不要。実行手順は
   [interop/README.ja.md](interop/README.ja.md)。
 - installされたpackageへpatchを当てない。EspBle側を直さないと通らない場合は、その事実を
-  結果に残す。
+  該当箇所つきで[../docs/ESPBLE_FEEDBACK.ja.md](../docs/ESPBLE_FEEDBACK.ja.md)へ残す。
+  片方の実装しか埋めていないfieldも同じ扱いで、共通の期待値からは外す。
 - version更新は自動追従させず、別途のreleaseツールによる明示的な変更として扱い、差分と
   全相互接続結果をreviewする。
 
@@ -296,6 +297,7 @@ cross-stack試験を指す。
 | HID Device — security tier | | 予定 | 予定 `hid_security` | |
 | HID Device — robustness | | | 大半は他suiteでカバー済み: 2種類の送信拒否と切断時リセットは`hid_keyboard_device`、rolloverは`hid_boot_protocol`、長さ不一致と未宣言reportの拒否は`hid_vendor_custom`。残りはHID固有ではない（`lifecycle_stress`） | |
 | HID Host | ✅ 上記parser | ✅ | ✅ `hid_keyboard_host`（デバイス自身の属性からのdiscovery、usage→文字、状態と差分、LED write） | ✅ `interop/hid`（EspBleのdevice相手） |
+| HID Host — key slotのerror code | | | 部分的。`0x01`（ErrorRollOver）は`hid_boot_protocol`で確認済み。`0x02` / `0x03`（POSTFail / ErrorUndefined）は同じ分岐で弾くが**未検証**。`hid_keyboard_host`のdevice側sketchに生report送信コマンドを足せば覆える（[../docs/ESPBLE_FEEDBACK.ja.md](../docs/ESPBLE_FEEDBACK.ja.md)） | |
 
 ### Bluetooth Classic / dual mode（このライブラリ固有）
 

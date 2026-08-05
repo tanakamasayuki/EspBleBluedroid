@@ -51,7 +51,10 @@ uv run --env-file .env pytest interop/
 - The version lives in `sketch.yaml` and is bumped by the separate release
   tooling, as an explicit change: review the diff and re-run the whole suite.
 - Never patch the installed package to make a scenario pass. If a scenario only
-  works with a change on the EspBle side, that belongs in the result.
+  works with a change on the EspBle side, that belongs in
+  [../../docs/ESPBLE_FEEDBACK.ja.md](../../docs/ESPBLE_FEEDBACK.ja.md), with the
+  place to change it. A field only one implementation fills is excluded from the
+  shared expectation and recorded there too.
 - Only scenarios pytest can build, flash, drive, assert, time out, and clean up
   unattended. Phone interaction, GUI checks, and listening tests belong to the
   manual interoperability section of the release checklist.
@@ -69,9 +72,8 @@ uv run --env-file .env pytest interop/
 | [hid](hid/) | HID over GATT both ways: the host reads the peer's Report Map and Report References and has to name the same reports among characteristics that all share UUID 0x2A4D, a keystroke decodes to the same usage and character on either stack, and the LED write goes back the other way. The second test swaps the roles so neither stack is only ever the one that decodes |
 | [profile_wire](profile_wire/) | The shared codec headers across the two libraries: a FLOAT32 read and notified, a CGM E2E-CRC appended by one copy and verified by the other, an SFLOAT written back, and an iBeacon decoded from the advertisement. Roles reversed — the library under test is the GATT server and the beacon |
 
-The remaining planned scenarios — the reverse direction of the connection-oriented
-scenarios and `interop/hid` — are listed with their
-content in [../TEST_PLAN.md](../TEST_PLAN.md#scenarios-added-as-each-layer-settles).
+The remaining planned scenarios — the reverse direction of the
+connection-oriented scenarios — are listed with their content in [../TEST_PLAN.md](../TEST_PLAN.md#scenarios-added-as-each-layer-settles).
 
 ## UUIDs
 

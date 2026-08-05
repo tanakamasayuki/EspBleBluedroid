@@ -3,7 +3,7 @@
 > 日本語版: [README.ja.md](README.ja.md)
 > Differences from EspBle: [DIFFERENCES_FROM_ESPBLE.md](DIFFERENCES_FROM_ESPBLE.md)
 
-100 examples for the **original ESP32** — the ESP32 SoC with Bluetooth Classic —
+101 examples for the **original ESP32** — the ESP32 SoC with Bluetooth Classic —
 built on the Bluedroid backend bundled with Arduino-ESP32.
 
 The BLE examples are ported from the sibling library
@@ -174,6 +174,7 @@ exclusively — it is the only ESP32 family member with Bluetooth Classic.
 | [Hid/CompositeKeyboardMouse](Hid/CompositeKeyboardMouse/) | Peripheral | Keyboard and mouse in one HID service, told apart by Report ID |
 | [Hid/VendorDevice](Hid/VendorDevice/) | Peripheral | Vendor-defined Input, Output and Feature reports of a chosen size |
 | [Hid/CustomDevice](Hid/CustomDevice/) | Peripheral | An arbitrary Report Descriptor with caller-declared reports |
+| [Hid/KeyboardHost](Hid/KeyboardHost/) | Central | HID Host: scan 0x1812, pair, discover the reports, decode keys, write the LEDs |
 
 ### BLE MIDI
 

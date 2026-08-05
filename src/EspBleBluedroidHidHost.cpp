@@ -47,9 +47,11 @@ constexpr size_t HidInformationCountryIndex = 2;
 // array or the NKRO bitmap, in both directions.
 constexpr uint8_t FirstModifierUsage = 0xe0;
 constexpr uint8_t LastModifierUsage = 0xe7;
-// The HID rollover code, which a boot keyboard sends instead of a key list when
-// more keys are held than the report can carry. It is not a usage.
-constexpr uint8_t RolloverUsage = 0x01;
+// The three error codes a boot keyboard can put in a key slot instead of a key:
+// ErrorRollOver (more keys held than the report can carry), POSTFail and
+// ErrorUndefined. None of them is a usage, so none may be reported as a keypress.
+constexpr uint8_t FirstErrorCode = 0x01;
+constexpr uint8_t LastErrorCode = 0x03;
 
 // HID usage pages and the pointer usages a mouse report is made of. A host has to
 // go by these rather than by field order: the descriptor decides the layout.
@@ -433,9 +435,9 @@ struct EspBleHidKeyboardHostImpl
     }
     else
     {
-      // The boot-compatible layout: [modifiers, reserved, keycode1..6]. All six
-      // slots holding 0x01 is the rollover code, not six keys.
-      size_t heldRollover = 0;
+      // The boot-compatible layout: [modifiers, reserved, keycode1..6]. A slot
+      // holding 0x01-0x03 carries an error code rather than a key.
+      bool errorCode = false;
       // The key array starts after the modifier byte and the reserved byte.
       const size_t firstKey =
         entry.keyboardHasModifiers ? entry.keyboardModifierBitOffset / 8 + 2 : 0;
@@ -443,13 +445,17 @@ struct EspBleHidKeyboardHostImpl
       {
         const uint8_t usage = data[index];
         if (usage == 0) continue;
-        if (usage == RolloverUsage) ++heldRollover;
+        if (usage >= FirstErrorCode && usage <= LastErrorCode)
+        {
+          errorCode = true;
+          break;
+        }
         state.bitmap[usage >> 3] |= static_cast<uint8_t>(1u << (usage & 7));
       }
-      if (heldRollover > 1)
+      if (errorCode)
       {
-        // Too many keys were held for the device to name them, so the previous
-        // state stands: reporting 0x01 as a pressed usage would be a lie.
+        // The device could not name what is held, so the previous state stands:
+        // reporting an error code as a pressed usage would be a lie.
         ++invalidReports;
         link.keyboard = previous;
         return;

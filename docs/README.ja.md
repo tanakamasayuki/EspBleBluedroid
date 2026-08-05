@@ -10,6 +10,8 @@
   EspBle・EspUsbHost・EspUsbDeviceと揃える値型、複数device、Classic Audioの段階計画
 - [EspBle（NimBLE）とのBLE差分](BLE_BACKEND_DIFFERENCES.ja.md) —
   共通API、Bluedroid固有の実装差、意図的に一致させない機能
+- [EspBle側への修正要望](ESPBLE_FEEDBACK.ja.md) — 実装・テスト中に見つかったEspBle側で
+  直すべき事項、該当箇所、解消時にこちらで消すもの
 - [API設計方針](API_DESIGN_POLICY.ja.md) — EspBleとの共通部分、Bluedroid差分、
   Bluetooth Classicを追加しても破綻しない境界
 - [実装状況](STATUS.ja.md) — 現在の公開API、実機確認済み範囲、既知の制限

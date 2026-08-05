@@ -3,7 +3,7 @@
 > English: [README.md](README.md)
 > EspBleとの違い: [DIFFERENCES_FROM_ESPBLE.ja.md](DIFFERENCES_FROM_ESPBLE.ja.md)
 
-**無印ESP32**（Bluetooth Classicを持つESP32 SoC）向けの100個のexampleです。
+**無印ESP32**（Bluetooth Classicを持つESP32 SoC）向けの101個のexampleです。
 Arduino-ESP32同梱のBluedroid backendを使います。
 
 BLE側のexampleは兄弟ライブラリ
@@ -174,6 +174,7 @@ Bluetooth Classicを持つのは無印ESP32だけだからです。
 | [Hid/CompositeKeyboardMouse](Hid/CompositeKeyboardMouse/) | Peripheral | keyboardとmouseを1つのHID Serviceに載せ、Report IDで区別 |
 | [Hid/VendorDevice](Hid/VendorDevice/) | Peripheral | 任意サイズのvendor定義Input・Output・Feature Report |
 | [Hid/CustomDevice](Hid/CustomDevice/) | Peripheral | 任意のReport Descriptorと利用者が宣言するReport |
+| [Hid/KeyboardHost](Hid/KeyboardHost/) | Central | HID Host。0x1812をscanしてPairing、ReportをDiscoveryし、キーをdecodeしてLEDを書き込む |
 
 ### BLE MIDI
 

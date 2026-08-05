@@ -212,7 +212,10 @@ repository.
   Arduino CLI installs exactly that release; nothing is fetched or unpacked by
   hand. How to run it: [interop/README.md](interop/README.md).
 - The installed package is never patched. If a scenario only passes with a change
-  on the EspBle side, that fact is recorded in the result instead.
+  on the EspBle side, that goes to
+  [../docs/ESPBLE_FEEDBACK.ja.md](../docs/ESPBLE_FEEDBACK.ja.md) with the place to
+  change it — as does a field only one of the two implementations fills, which is
+  excluded from the shared expectation rather than asserted on both.
 - Version bumps come from the separate release tooling as explicit changes,
   reviewed together with the diff and a full interop run — never automatic
   tracking of the latest release.
@@ -337,6 +340,7 @@ once its prerequisites are met.
 | HID device — security tiers | | planned | planned `hid_security` | |
 | HID device — robustness | | | mostly covered elsewhere: the two send refusals and the disconnect reset in `hid_keyboard_device`, the rollover in `hid_boot_protocol`, the length and unknown-report refusals in `hid_vendor_custom`; what is left is not HID-specific (`lifecycle_stress`) | |
 | HID host | ✅ parser above | ✅ | ✅ `hid_keyboard_host` (discovery from the device's own attributes, usage → character, state vs edges, LED write) | ✅ `interop/hid` (against EspBle's device) |
+| HID host — key-slot error codes | | | partial: `hid_boot_protocol` covers `0x01` (ErrorRollOver). `0x02` / `0x03` (POSTFail / ErrorUndefined) are rejected by the same branch but **unverified**; a raw-report command in `hid_keyboard_host`'s device sketch would cover them ([../docs/ESPBLE_FEEDBACK.ja.md](../docs/ESPBLE_FEEDBACK.ja.md)) | |
 
 ### Bluetooth Classic / dual mode (specific to this library)
 

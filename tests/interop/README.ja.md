@@ -49,7 +49,9 @@ uv run --env-file .env pytest interop/
 - versionは`sketch.yaml`に置き、更新は別途のreleaseツールで行う明示的な変更として扱います。
   差分をreviewし、suite全体を再実行します。
 - installされたpackageへpatchを当ててテストを通すことはしません。EspBle側を直さないと
-  通らない場合は、その事実を結果に残します。
+  通らない場合は、その事実を[../../docs/ESPBLE_FEEDBACK.ja.md](../../docs/ESPBLE_FEEDBACK.ja.md)へ
+  該当箇所つきで残します。片方の実装しか埋めていないfieldは共通の期待値から外し、
+  同じくそこへ記録します。
 - build、flash、操作、期待値判定、timeout、cleanupまでpytestから無人実行できるscenarioだけを
   対象にします。スマートフォン操作、GUI確認、聴感評価はrelease checklistの手動相互運用へ
   分離します。
@@ -67,7 +69,7 @@ uv run --env-file .env pytest interop/
 | [hid](hid/) | HID over GATTを双方向で。hostはpeerのReport MapとReport Referenceを読み、すべてUUID 0x2A4Dを共有するcharacteristicの中で同じreportを同定する必要がある。キー入力はどちらのスタックでも同じusageと同じ文字にdecodeされ、LED writeは逆方向へ届く。2つ目のtestで役を入れ替え、片側だけが常にdecodeする側にならないようにしている |
 | [profile_wire](profile_wire/) | 共有codec headerの相互運用。FLOAT32をRead / Notificationで、CGMのE2E-CRCを一方が付与し他方が検証、SFLOATを逆方向のWriteで、iBeaconをadvertisementからdecode。役割を反転し、被検ライブラリがGATT Server兼beaconになる |
 
-残りの予定scenario（接続系scenarioの逆方向、`interop/hid`）は内容とともに
+残りの予定scenario（接続系scenarioの逆方向）は内容とともに
 [../TEST_PLAN.ja.md](../TEST_PLAN.ja.md#対象scenario実装が固まった順に追加)にあります。
 
 ## UUID

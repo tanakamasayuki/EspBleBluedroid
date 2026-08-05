@@ -25,7 +25,9 @@ Arduino-ESP32同梱のBluedroid backend経由で対象にします。
 
 次の4つのcodec headerは両ライブラリで等価です。一方がencodeした値を他方がdecode
 できます。`EspBleUuid.h`、`EspBleIBeacon.h`、`EspBleMedicalFloat.h`、
-`EspBleCgmCrc.h`。
+`EspBleCgmCrc.h`。`EspBleUuid.h`は完全一致で、残る3つは整形だけが違い、演算とテーブルは
+同一です（[docs/ESPBLE_FEEDBACK.ja.md](../docs/ESPBLE_FEEDBACK.ja.md)）。移植で書き換える
+ものは何もありません。
 
 ## こちらには無いもの
 
@@ -36,7 +38,7 @@ Arduino-ESP32同梱のBluedroid backend経由で対象にします。
 | Central | 同時2接続以上、`disconnect(id, reason)` | 直接GATTC移行中で、peer testが固定しているのは1 link。wrapperがlocal reasonをlink終了へ渡さない | [Gap/Connect](Gap/Connect/) |
 | Peripheral | **着信**linkに対する`onConnected()`／`onDisconnected()`／`bluetooth.connection()`、およびPeripheral単体機器でのBLE security event | Peripheral connection snapshotをまだ公開していない（[docs/STATUS.ja.md](../docs/STATUS.ja.md)参照） | [Gap/AcceptList](Gap/AcceptList/)、[Gap/DirectedAdvertising](Gap/DirectedAdvertising/)、[Gap/PrivateAddress](Gap/PrivateAddress/)、[Gatt/Device/BondManagementServer](Gatt/Device/BondManagementServer/)、[Security/](Security/) |
 | GATT Client | `setAutoReconnect()`、`EspBleConfig::persistentSubscriptions`、`setAutoRediscover()` | linkを跨ぐhandle単位の状態をpeer testで固定できていない | [Gatt/Basics/AutoReconnectClient](Gatt/Basics/AutoReconnectClient/) |
-| HID Hostのkeyboard event | decode済みkeyboard eventの`rawData` / `rawLength`が空のまま | 本ライブラリはdecode元のreportを載せるので、`event.rawLength`を読むsketchはこちらで8、あちらで0を見る（`tests/interop/hid`で判明。同testはこちら側だけでassertしている） | [Hid/](Hid/) |
+| HID Hostのkeyboard event | decode済みkeyboard eventの`rawData` / `rawLength`が空のまま | 本ライブラリはdecode元のreportを載せるので、`event.rawLength`を読むsketchはこちらで8、あちらで0を見る（`tests/interop/hid`で判明。同testはこちら側だけでassertしている。要望は[docs/ESPBLE_FEEDBACK.ja.md](../docs/ESPBLE_FEEDBACK.ja.md)） | [Hid/](Hid/) |
 | プラットフォーム | ESP-HostedのSDIO pin指定 | 無印ESP32は自前の無線を持ち、ESP-Hostedのhostになることがない | EspBleの`Hosted/CustomPins`に対応するexampleは無い |
 
 ### Serverを組む前に知っておきたい帰結

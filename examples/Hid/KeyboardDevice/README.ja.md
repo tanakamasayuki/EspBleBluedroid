@@ -46,7 +46,7 @@ HOGPはInput ReportとOutput Reportを**UUID 0x2A4Dを共有する**2つのChara
 | クラス名・メソッド名・callback名 | `ble.hidKeyboard()` | 同一 |
 | Report Descriptor | 自前の表から生成 | 同一のバイト列（`tests/unit/hid_report_maps`が比較） |
 | `onOutputReport()`と`ledState()` | 状態はHostのwrite時点で更新、callbackは1 update()遅れる場合がある | GATT Serverが元々writeを`update()`から配送するため、両方が同じ`update()`で起きる |
-| 利用できるprofile | keyboard、mouse、consumer、system、gamepad、vendor、custom、host | Device側は全profile。HID **Host**側は`docs/API_PARITY.tsv`で`planned`として管理 |
+| 利用できるprofile | keyboard、mouse、consumer、system、gamepad、vendor、custom、host | 同じ。Host側もある（[KeyboardHost](../KeyboardHost/)） |
 
 **移植方法:** ライブラリオブジェクトの宣言を変えるだけです。keyboard sketchの他の部分は変わりません。
 
