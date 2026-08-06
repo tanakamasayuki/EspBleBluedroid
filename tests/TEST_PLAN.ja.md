@@ -529,8 +529,19 @@ peer: LOCAL address=- type=1
 dut:  OBSERVED address=00:70:07:0e:9b:0e type=0 txpower=9
 ```
 
-報告値と電波上の実体が食い違っているので、再発するならcontrollerまたはstack側のフォールバックで
-あり、待ち漏れではない。4通りの条件で計54回のRPAモード観測を行い、すべて正常だった
+報告値と電波上の実体が食い違っているので、controllerまたはstack側のフォールバックであり、
+待ち漏れではない。観測されたアドレスはadvertiser側ボード自身のpublic address（base MAC +2）で、
+observerはこのsuite専用の128-bit service UUIDで絞っているので、他機器のadvertisementでもない。
+
+**再発を確認**。`hid_security`（このsuiteの数個前で両ボードのbond storeを全消去する）を含む
+full runで再現した。単独実行では起きず長いrunでのみ起きるという報告の形と一致する。bond消去が
+引き金かどうかは未確定だが、**フォールバックが一時的である**ことは確定した——数瞬後には
+advertiserはRPAを使っている。
+
+**testはphaseを最初のadvertisementで判定しなくなった。** アドレスがRPAになるまで最大4回観測し、
+途中で見た非RPAのsampleをすべて印字する。これは回避策ではなくtestの修正である。このphaseの主題は
+advertiserが**最終的に**RPAを使うことであり、identity addressを出し続けるcontrollerは今も落ちる
+——4回使い切れば失敗であり、一時的な事象は飲み込まれずに出力に残る。4通りの条件で計54回のRPAモード観測を行い、すべて正常だった
 （毎回異なるアドレスで上位2 bitが`01`）:
 
 - `end()` → `begin(ResolvablePrivate)` → `advertising.start()` の遷移を15回反復。
